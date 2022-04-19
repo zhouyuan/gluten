@@ -82,7 +82,7 @@ jobs:
           cd /tmp
           git clone https://github.com/rui-mo/velox
           cd velox && git checkout velox_for_gazelle_jni
-          bash scripts/setup-ubuntu.sh
+          sudo bash scripts/setup-ubuntu.sh
           make
       - name: Run unit tests
         run: |
