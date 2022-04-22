@@ -354,23 +354,7 @@
           <groupId>org.codehaus.mojo</groupId>
           <version>1.6.0</version>
           <executions>
-            <execution>
-              <id>Build arrow</id>
-              <phase>generate-resources</phase>
-              <goals>
-                <goal>exec</goal>
-              </goals>
-              <configuration>
-                <executable>bash</executable>
-                <arguments>
-                  <argument>${arrow.script.dir}/build_arrow.sh</argument>
-                  <argument>--tests=${cpp_tests}</argument>
-                  <argument>--build_arrow=${build_arrow}</argument>
-                  <argument>--static_arrow=${static_arrow}</argument>
-                  <argument>--arrow_root=${arrow_root}</argument>
-                </arguments>
-              </configuration>
-            </execution>
+
             <execution>
                 <id>Build cpp</id>
                 <phase>generate-resources</phase>
