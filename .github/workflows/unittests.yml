@@ -37,7 +37,7 @@ jobs:
       - name: ccache cache files
         uses: actions/cache@v2
         with:
-          path: .ccache
+          path: ~/.ccache
           key: ${{ github.job }}-ccache
           restore-keys: |
             ${{ github.job }}-ccache
