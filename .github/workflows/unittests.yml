@@ -86,7 +86,7 @@ jobs:
           git clone https://github.com/rui-mo/velox
           cd velox && git checkout velox_for_gazelle_jni
           sudo bash scripts/setup-ubuntu.sh
-          make release EXTRA_CMAKE_FLAGS=" -DVELOX_ENABLE_PARQUET=OFF "
+          make release MAX_HIGH_MEM_JOBS=8 TREAT_WARNINGS_AS_ERRORS=0 MAX_LINK_JOBS=8
       - name: Run unit tests
         run: |
           cd cpp/
