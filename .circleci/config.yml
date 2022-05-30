@@ -30,17 +30,11 @@ jobs:
       - run:
           name: Build
           command: |
-            mvn clean package -DskipTests
-      - run:
-          name: "Run Unit Tests"
-          command: |
-            cd _build/debug && ctest -j 16 -VV --output-on-failure
-          no_output_timeout: 1h
+            mvn clean package -DskipTests -Dcheckstyle.skip  -Pbackends-velox -Dbuild_cpp=ON -Dbuild_velox=ON -Dbuild_velox_from_source=ON -Dbuild_arrow=ON
 
 # Invoke jobs via workflows
 # See: https://circleci.com/docs/2.0/configuration-reference/#workflows
 workflows:
   say-hello-workflow:
     jobs:
-      - say-hello
       - linux-build
