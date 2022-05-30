@@ -18,9 +18,29 @@ jobs:
           name: "Say hello"
           command: "echo Hello, World!"
 
+  linux-build:
+    docker:
+      image: openjdk:8
+    steps:
+      - checkout
+      - run:
+          name: "Update submodules"
+          command: |
+            apt update && apt install -y llvm clang ccache
+      - run:
+          name: Build
+          command: |
+            mvn clean package -DskipTests
+      - run:
+          name: "Run Unit Tests"
+          command: |
+            cd _build/debug && ctest -j 16 -VV --output-on-failure
+          no_output_timeout: 1h
+
 # Invoke jobs via workflows
 # See: https://circleci.com/docs/2.0/configuration-reference/#workflows
 workflows:
   say-hello-workflow:
     jobs:
       - say-hello
+      - linux-build
