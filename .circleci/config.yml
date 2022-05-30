@@ -26,7 +26,7 @@ jobs:
       - run:
           name: "Update submodules"
           command: |
-            apt update && apt install -y llvm clang g++ ccache maven cmake
+            apt update && apt install -y llvm clang g++ ccache maven cmake libboost-all-dev libcurl4-openssl-dev libssl-dev
       - run:
           name: Build
           command: |
