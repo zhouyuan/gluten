@@ -106,7 +106,7 @@ cmake -DARROW_BUILD_STATIC=OFF \
         -DCMAKE_INSTALL_LIBDIR=lib \
         cpp
 
-make -j$NPROC
+make -j2
 
 make install
 
