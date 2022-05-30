@@ -32,9 +32,15 @@ jobs:
           command: |
             mvn clean package -DskipTests -Dcheckstyle.skip  -Pbackends-velox -Dbuild_cpp=ON -Dbuild_velox=ON -Dbuild_velox_from_source=ON -Dbuild_arrow=ON
 
+  runner-test:
+    machine: true
+    resource_class: zhouyuan/testproject
+    steps:
+      - run: echo "Hi I'm on Runners!"
+
 # Invoke jobs via workflows
 # See: https://circleci.com/docs/2.0/configuration-reference/#workflows
 workflows:
   say-hello-workflow:
     jobs:
-      - linux-build
+      - runner-test
