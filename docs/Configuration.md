@@ -16,7 +16,6 @@ You can add these configuration into spark-defaults.conf to enable or disable th
 | spark.gluten.sql.columnar.batchscan | Enable or Disable Columnar Batchscan, default is true | true |
 | spark.gluten.sql.columnar.hashagg | Enable or Disable Columnar Hash Aggregate, default is true | true |
 | spark.gluten.sql.columnar.projfilter | Enable or Disable Columnar Project and Filter, default is true | true |
-| spark.gluten.sql.columnar.codegen.sort | Enable or Disable Columnar Sort, default is true | true |
 | spark.gluten.sql.columnar.window | Enable or Disable Columnar Window, default is true | true |
 | spark.gluten.sql.columnar.shuffledhashjoin | Enable or Disable ShffuledHashJoin, default is true | true |
 | spark.gluten.sql.columnar.forceshuffledhashjoin | Force to use ShffuledHashJoin over SortMergeJoin, default is true | true |
