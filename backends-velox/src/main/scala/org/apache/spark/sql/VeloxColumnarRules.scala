@@ -135,7 +135,7 @@ object VeloxColumnarRules {
     extends OrderPreservingUnaryNode {
     override def output: Seq[Attribute] = child.output
 
-    // For spark 3.2.
+    // For spark 3.2. 
     protected def withNewChildInternal(newChild: LogicalPlan): ColumnarToFakeRowLogicAdaptor =
       copy(child = newChild)
   }
