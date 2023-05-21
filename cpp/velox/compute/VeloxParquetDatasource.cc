@@ -58,6 +58,14 @@ void VeloxParquetDatasource::init(const std::unordered_map<std::string, std::str
         "The write path is hdfs path but the HDFS haven't been enabled when writing parquet data in velox backend!");
 #endif
 
+  }  else if (strncmp(filePath_.c_str(), "s3a:", 4) == 0 || strncmp(filePath_.c_str(), "s3n:", 4) == 0) {
+#ifdef ENABLE_S3
+    sink_ = std::make_unique<velox::S3FileSink>(filePath_);
+#else
+    throw std::runtime_error(
+        "The write path is S3 path but the S3 haven't been enabled when writing parquet data in velox backend!");
+#endif
+
   } else {
     throw std::runtime_error(
         "The file path is not local or hdfs when writing data with parquet format in velox backend!");
