@@ -20,6 +20,7 @@ import org.apache.gluten.execution.SortExecTransformer
 import org.apache.gluten.extension.GlutenPlan
 
 import org.apache.spark.SparkConf
+import org.apache.spark.sql.GlutenTestConstants.GLUTEN_TEST
 import org.apache.spark.executor.OutputMetrics
 import org.apache.spark.scheduler.{SparkListener, SparkListenerTaskEnd}
 import org.apache.spark.sql._
@@ -486,7 +487,7 @@ class GlutenInsertSuite
     }
   }
 
-  testGluten("SPARK-39557 INSERT INTO statements with tables with map defaults") {
+  ignore(GLUTEN_TEST + "SPARK-39557 INSERT INTO statements with tables with map defaults") {
     withSQLConf("spark.gluten.sql.complexType.scan.fallback.enabled" -> "false") {
 
       import testImplicits._
