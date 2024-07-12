@@ -53,6 +53,14 @@ install_centos_7() {
     export PATH=/usr/local/bin:$PATH
 
     yum -y install epel-release centos-release-scl
+
+    rm /etc/yum.repos.d/CentOS-SCLo-scl.repo -f
+    sed -i \
+    -e 's/^mirrorlist/#mirrorlist/' \
+    -e 's/^#baseurl/baseurl/' \
+    -e 's/mirror\.centos\.org/vault.centos.org/' \
+    /etc/yum.repos.d/CentOS-SCLo-scl-rh.repo
+
     yum -y install \
         wget curl tar zip unzip which \
         cmake3 ninja-build perl-IPC-Cmd autoconf autoconf-archive automake libtool \
