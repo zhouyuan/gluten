@@ -32,8 +32,9 @@ jobs:
   process:
     name: Process
     runs-on: ubuntu-latest
+    permissions: write-all
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
 
       - name: Comment Issues link
         if: |
