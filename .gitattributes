@@ -1,1 +1,2 @@
 backends-velox/src/test/resources/tpch-approved-plan/** linguist-generated
+tools/vcpkg.tgz filter=lfs diff=lfs merge=lfs -text
