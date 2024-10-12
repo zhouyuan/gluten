@@ -80,9 +80,6 @@ jobs:
         run: |
           mkdir -p '${{ env.CCACHE_DIR }}'
           yum install ccache -y
-      - name: Install cache
-        run: |
-          yum install ccache -y
       - name: Build Gluten native libraries
         if: ${{ steps.cache.outputs.cache-hit != 'true' }}
         run: |
