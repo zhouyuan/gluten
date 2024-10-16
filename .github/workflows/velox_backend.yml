@@ -34,7 +34,7 @@ on:
       - 'gluten-hudi/**'
       - 'gluten-ut/**'
       - 'shims/**'
-      - 'tools/gluten-it/**'
+      #- 'tools/gluten-it/**'
       - 'ep/build-velox/**'
       - 'cpp/*'
       - 'cpp/CMake/**'
