@@ -100,3 +100,9 @@ dist/
 metastore_db/
 
 .ipynb_checkpoints
+
+
+# build arrow
+dev/arrow_ep/
+ep/_ep/
+
