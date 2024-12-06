@@ -66,20 +66,9 @@ abstract class BatchScanExecShim(
 
       // call toBatch again to get filtered partitions
       val newPartitions = scan.toBatch.planInputPartitions()
-
-      originalPartitioning match {
-        case p: DataSourcePartitioning if p.numPartitions != newPartitions.size =>
-          throw new SparkException(
-            "Data source must have preserved the original partitioning during runtime filtering; " +
-              s"reported num partitions: ${p.numPartitions}, " +
-              s"num partitions after runtime filtering: ${newPartitions.size}")
-        case _ =>
-        // no validation is needed as the data source did not report any specific partitioning
-      }
-
       newPartitions.map(Seq(_))
     } else {
-      partitions.map(Seq(_))
+      partitions
     }
   }
 
@@ -99,5 +88,9 @@ abstract class BatchScanExecShim(
 }
 
 abstract class ArrowBatchScanExecShim(original: BatchScanExec) extends DataSourceV2ScanExecBase {
-  @transient override lazy val partitions: Seq[InputPartition] = original.partitions
+  @transient override lazy val partitions: Seq[Seq[InputPartition]] =
+    original.partitions
+  @transient override lazy val inputPartitions: Seq[InputPartition] = original.inputPartitions
+
+  override def keyGroupedPartitioning: Option[Seq[Expression]] = original.keyGroupedPartitioning
 }

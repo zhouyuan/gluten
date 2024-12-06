@@ -32,9 +32,6 @@ object CatalogUtil {
       case IdentityTransform(FieldReference(Seq(col))) =>
         identityCols += col
 
-      case BucketTransform(numBuckets, FieldReference(Seq(col))) =>
-        bucketSpec = Some(BucketSpec(numBuckets, col :: Nil, Nil))
-
       case transform =>
         throw new UnsupportedOperationException(s"Partitioning by expressions")
     }

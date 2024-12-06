@@ -256,7 +256,8 @@ class ParquetFileFormat extends FileFormat with DataSourceRegister with Logging 
       sparkSession.sessionState.conf.isParquetBinaryAsString)
     hadoopConf.setBoolean(
       SQLConf.PARQUET_INT96_AS_TIMESTAMP.key,
-      sparkSession.sessionState.conf.isParquetINT96AsTimestamp)
+      sparkSession.sessionState.conf.isParquetINT96AsTimestamp
+    )
 
     val broadcastedHadoopConf =
       sparkSession.sparkContext.broadcast(new SerializableConfiguration(hadoopConf))
@@ -268,8 +269,7 @@ class ParquetFileFormat extends FileFormat with DataSourceRegister with Logging 
     val sqlConf = sparkSession.sessionState.conf
     val enableOffHeapColumnVector = sqlConf.offHeapColumnVectorEnabled
     val enableVectorizedReader: Boolean =
-      sqlConf.parquetVectorizedReaderEnabled &&
-        resultSchema.forall(_.dataType.isInstanceOf[AtomicType])
+      ParquetUtils.isBatchReadSupportedForSchema(sqlConf, resultSchema)
     val enableRecordFilter: Boolean = sqlConf.parquetRecordFilterEnabled
     val timestampConversion: Boolean = sqlConf.isParquetINT96TimestampConversion
     val capacity = sqlConf.parquetVectorizedReaderBatchSize
@@ -296,7 +296,7 @@ class ParquetFileFormat extends FileFormat with DataSourceRegister with Logging 
 
       lazy val footerFileMetaData =
         ParquetFooterReader.readFooter(sharedConf, filePath, SKIP_ROW_GROUPS).getFileMetaData
-      val datetimeRebaseSpec = DataSourceUtils.datetimeRebaseSpec(
+      val datetimeRebaseMode = DataSourceUtils.datetimeRebaseMode(
         footerFileMetaData.getKeyValueMetaData.get,
         datetimeRebaseModeInRead)
       // Try to push down filters when filter push-down is enabled.
@@ -310,7 +310,7 @@ class ParquetFileFormat extends FileFormat with DataSourceRegister with Logging 
           pushDownStringStartWith,
           pushDownInFilterThreshold,
           isCaseSensitive,
-          datetimeRebaseSpec)
+          datetimeRebaseMode)
         filters
           // Collects all converted Parquet filter predicates. Notice that not all predicates can be
           // converted (`ParquetFilters.createFilter` returns an `Option`). That's why a `flatMap`
@@ -336,7 +336,7 @@ class ParquetFileFormat extends FileFormat with DataSourceRegister with Logging 
           None
         }
 
-      val int96RebaseSpec = DataSourceUtils.int96RebaseSpec(
+      val int96RebaseMode = DataSourceUtils.int96RebaseMode(
         footerFileMetaData.getKeyValueMetaData.get,
         int96RebaseModeInRead)
 
@@ -353,46 +353,30 @@ class ParquetFileFormat extends FileFormat with DataSourceRegister with Logging 
       if (enableVectorizedReader) {
         val vectorizedReader = new VectorizedParquetRecordReader(
           convertTz.orNull,
-          datetimeRebaseSpec.mode.toString,
-          datetimeRebaseSpec.timeZone,
-          int96RebaseSpec.mode.toString,
-          int96RebaseSpec.timeZone,
+          datetimeRebaseMode.toString,
+          int96RebaseMode.toString,
           enableOffHeapColumnVector && taskContext.isDefined,
-          capacity
-        )
-        // SPARK-37089: We cannot register a task completion listener to close this iterator here
-        // because downstream exec nodes have already registered their listeners. Since listeners
-        // are executed in reverse order of registration, a listener registered here would close the
-        // iterator while downstream exec nodes are still running. When off-heap column vectors are
-        // enabled, this can cause a use-after-free bug leading to a segfault.
-        //
-        // Instead, we use FileScanRDD's task completion listener to close this iterator.
+          capacity)
         val iter = new RecordReaderIterator(vectorizedReader)
-        try {
-          vectorizedReader.initialize(split, hadoopAttemptContext)
-          logDebug(s"Appending $partitionSchema ${file.partitionValues}")
-          vectorizedReader.initBatch(partitionSchema, file.partitionValues)
-          if (returningBatch) {
-            vectorizedReader.enableReturningBatches()
-          }
-
-          // UnsafeRowParquetRecordReader appends the columns internally to avoid another copy.
-          iter.asInstanceOf[Iterator[InternalRow]]
-        } catch {
-          case e: Throwable =>
-            // SPARK-23457: In case there is an exception in initialization, close the iterator to
-            // avoid leaking resources.
-            iter.close()
-            throw e
+        // SPARK-23457 Register a task completion listener before `initialization`.
+        taskContext.foreach(_.addTaskCompletionListener[Unit](_ => iter.close()))
+        vectorizedReader.initialize(split, hadoopAttemptContext)
+        logDebug(s"Appending $partitionSchema ${file.partitionValues}")
+        vectorizedReader.initBatch(partitionSchema, file.partitionValues)
+        if (returningBatch) {
+          vectorizedReader.enableReturningBatches()
         }
+
+        // UnsafeRowParquetRecordReader appends the columns internally to avoid another copy.
+        iter.asInstanceOf[Iterator[InternalRow]]
       } else {
         logDebug(s"Falling back to parquet-mr")
         // ParquetRecordReader returns InternalRow
         val readSupport = new ParquetReadSupport(
           convertTz,
           enableVectorizedReader = false,
-          datetimeRebaseSpec,
-          int96RebaseSpec)
+          datetimeRebaseMode,
+          int96RebaseMode)
         val reader = if (pushed.isDefined && enableRecordFilter) {
           val parquetFilter = FilterCompat.get(pushed.get, null)
           new ParquetRecordReader[InternalRow](readSupport, parquetFilter)
@@ -400,25 +384,19 @@ class ParquetFileFormat extends FileFormat with DataSourceRegister with Logging 
           new ParquetRecordReader[InternalRow](readSupport)
         }
         val iter = new RecordReaderIterator[InternalRow](reader)
-        try {
-          reader.initialize(split, hadoopAttemptContext)
+        // SPARK-23457 Register a task completion listener before `initialization`.
+        taskContext.foreach(_.addTaskCompletionListener[Unit](_ => iter.close()))
+        reader.initialize(split, hadoopAttemptContext)
 
-          val fullSchema = requiredSchema.toAttributes ++ partitionSchema.toAttributes
-          val unsafeProjection = GenerateUnsafeProjection.generate(fullSchema, fullSchema)
+        val fullSchema = requiredSchema.toAttributes ++ partitionSchema.toAttributes
+        val unsafeProjection = GenerateUnsafeProjection.generate(fullSchema, fullSchema)
 
-          if (partitionSchema.length == 0) {
-            // There is no partition columns
-            iter.map(unsafeProjection)
-          } else {
-            val joinedRow = new JoinedRow()
-            iter.map(d => unsafeProjection(joinedRow(d, file.partitionValues)))
-          }
-        } catch {
-          case e: Throwable =>
-            // SPARK-23457: In case there is an exception in initialization, close the iterator to
-            // avoid leaking resources.
-            iter.close()
-            throw e
+        if (partitionSchema.length == 0) {
+          // There is no partition columns
+          iter.map(unsafeProjection)
+        } else {
+          val joinedRow = new JoinedRow()
+          iter.map(d => unsafeProjection(joinedRow(d, file.partitionValues)))
         }
       }
     }
@@ -453,7 +431,8 @@ object ParquetFileFormat extends Logging {
 
     val converter = new ParquetToSparkSchemaConverter(
       sparkSession.sessionState.conf.isParquetBinaryAsString,
-      sparkSession.sessionState.conf.isParquetINT96AsTimestamp)
+      sparkSession.sessionState.conf.isParquetINT96AsTimestamp,
+      false)
 
     val seen = mutable.HashSet[String]()
     val finalSchemas: Seq[StructType] = footers.flatMap {

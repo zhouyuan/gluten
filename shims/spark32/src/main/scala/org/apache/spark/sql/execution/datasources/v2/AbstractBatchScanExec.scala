@@ -46,9 +46,12 @@ abstract class AbstractBatchScanExec(
 
   override def hashCode(): Int = Objects.hashCode(batch, runtimeFilters)
 
-  @transient override lazy val partitions: Seq[InputPartition] = batch.planInputPartitions()
+  @transient override lazy val inputPartitions: Seq[InputPartition] = batch.planInputPartitions()
 
-  @transient private lazy val filteredPartitions: Seq[InputPartition] = {
+  @transient override lazy val partitions: Seq[Seq[InputPartition]] =
+    batch.planInputPartitions().map(Seq(_))
+
+  @transient private lazy val filteredPartitions: Seq[Seq[InputPartition]] = {
     val dataSourceFilters = runtimeFilters.flatMap {
       case DynamicPruningExpression(e) => DataSourceStrategy.translateRuntimeFilter(e)
       case _ => None
@@ -64,17 +67,7 @@ abstract class AbstractBatchScanExec(
       // call toBatch again to get filtered partitions
       val newPartitions = scan.toBatch.planInputPartitions()
 
-      originalPartitioning match {
-        case p: DataSourcePartitioning if p.numPartitions != newPartitions.size =>
-          throw new SparkException(
-            "Data source must have preserved the original partitioning during runtime filtering; " +
-              s"reported num partitions: ${p.numPartitions}, " +
-              s"num partitions after runtime filtering: ${newPartitions.size}")
-        case _ =>
-        // no validation is needed as the data source did not report any specific partitioning
-      }
-
-      newPartitions
+      newPartitions.map(Seq(_))
     } else {
       partitions
     }
