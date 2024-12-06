@@ -17,7 +17,7 @@
 package org.apache.spark.sql.execution.datasources.v2.utils
 
 import org.apache.spark.sql.catalyst.catalog.BucketSpec
-import org.apache.spark.sql.connector.expressions.{BucketTransform, FieldReference, IdentityTransform, Transform}
+import org.apache.spark.sql.connector.expressions.{FieldReference, IdentityTransform, Transform}
 
 import scala.collection.mutable
 
