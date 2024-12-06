@@ -6,6 +6,10 @@
 ####################################################################################################
 set -exu
 
+export CFLAGS=" -g "
+export CXXFLAGS=" -g "
+
+
 CURRENT_DIR=$(cd "$(dirname "$BASH_SOURCE")"; pwd)
 GLUTEN_DIR="$CURRENT_DIR/.."
 BUILD_TYPE=Release
@@ -19,10 +23,12 @@ ENABLE_QAT=OFF
 ENABLE_IAA=OFF
 ENABLE_HBM=OFF
 ENABLE_GCS=OFF
-ENABLE_S3=OFF
+ENABLE_S3=ON
 ENABLE_HDFS=OFF
 ENABLE_ABFS=OFF
-ENABLE_VCPKG=OFF
+ENABLE_EP_CACHE=ON
+ARROW_ENABLE_CUSTOM_CODEC=OFF
+ENABLE_VCPKG=ON
 RUN_SETUP_SCRIPT=ON
 VELOX_REPO=""
 VELOX_BRANCH=""
