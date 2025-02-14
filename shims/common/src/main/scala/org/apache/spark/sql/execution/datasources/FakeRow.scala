@@ -24,7 +24,7 @@ import org.apache.spark.unsafe.types.{CalendarInterval, UTF8String}
 
 trait IFakeRowAdaptor
 
-class FakeRow(val batch: ColumnarBatch) extends InternalRow {
+abstract class FakeRow(val batch: ColumnarBatch) extends InternalRow {
   override def numFields: Int = throw new UnsupportedOperationException()
 
   override def setNullAt(i: Int): Unit = throw new UnsupportedOperationException()
