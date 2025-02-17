@@ -25,7 +25,7 @@ import org.apache.spark.scheduler.TaskInfo
 import org.apache.spark.shuffle.ShuffleHandle
 import org.apache.spark.sql.{AnalysisException, SparkSession}
 import org.apache.spark.sql.catalyst.InternalRow
-import org.apache.spark.sql.catalyst.catalog.BucketSpec
+import org.apache.spark.sql.catalyst.catalog.{BucketSpec, ClusterBySpec}
 import org.apache.spark.sql.catalyst.csv.CSVOptions
 import org.apache.spark.sql.catalyst.expressions.{Attribute, BinaryExpression, Expression}
 import org.apache.spark.sql.catalyst.expressions.aggregate.TypedImperativeAggregate
@@ -76,7 +76,10 @@ trait SparkShims {
 
   def aggregateExpressionMappings: Seq[Sig]
 
-  def convertPartitionTransforms(partitions: Seq[Transform]): (Seq[String], Option[BucketSpec])
+  // def convertPartitionTransforms(partitions: Seq[Transform]): (Seq[String], Option[BucketSpec])
+
+  def convertPartitionTransforms(
+      partitions: Seq[Transform]): (Seq[String], Option[BucketSpec], Option[ClusterBySpec])
 
   def generateFileScanRDD(
       sparkSession: SparkSession,

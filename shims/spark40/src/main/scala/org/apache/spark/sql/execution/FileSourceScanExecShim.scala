@@ -98,7 +98,7 @@ abstract class FileSourceScanExecShim(
 
   // This field will be accessed during planning (e.g., `outputPartitioning` relies on it), and can
   // only use static filters.
-  @transient lazy val selectedPartitions: ScanFileListing = {
+  @transient override lazy val selectedPartitions: ScanFileListing = {
     val optimizerMetadataTimeNs = relation.location.metadataOpsTimeNs.getOrElse(0L)
     val startTime = System.nanoTime()
     // The filters may contain subquery expressions which can't be evaluated during planning.
