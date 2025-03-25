@@ -22,6 +22,8 @@ import org.apache.gluten.substrait.rel.LocalFilesNode.ReadFileFormat
 import org.apache.spark.sql.catalyst.TableIdentifier
 import org.apache.spark.sql.catalyst.expressions.{Attribute, Expression}
 import org.apache.spark.sql.catalyst.plans.QueryPlan
+import org.apache.spark.sql.execution.datasources.parquet.ParquetFileFormat
+import org.apache.spark.sql.execution.datasources.orc.OrcFileFormat
 import org.apache.spark.sql.execution.FileSourceScanExec
 import org.apache.spark.sql.execution.datasources.HadoopFsRelation
 import org.apache.spark.sql.types.StructType
@@ -49,7 +51,14 @@ case class HudiScanTransformer(
     disableBucketedScan
   ) {
 
-  override lazy val fileFormat: ReadFileFormat = ReadFileFormat.ParquetReadFormat
+  override lazy val fileFormat: ReadFileFormat = {
+    if (relation.fileFormat.isInstanceOf[ParquetFileFormat]) {
+     ReadFileFormat.ParquetReadFormat } else if (relation.fileFormat.isInstanceOf[OrcFileFormat]){
+     ReadFileFormat.OrcReadFormat
+    } else {
+      throw new GlutenNotSupportException("Hudi Only support parquet and orc file format.")
+    }
+  }
 
   override protected def doValidateInternal(): ValidationResult = {
     if (requiredSchema.fields.exists(_.name.startsWith("_hoodie"))) {
