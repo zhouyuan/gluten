@@ -60,7 +60,7 @@ jobs:
           tags: ${{ env.DOCKERHUB_REPO }}:1.4-vcpkg-centos-7
 
   build-vcpkg-centos-8:
-    if: ${{ startsWith(github.repository, 'apache/') }}
+    if: true
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
@@ -110,7 +110,7 @@ jobs:
           retention-days: 1
 
   build-centos-8-jdk8:
-    if: ${{ startsWith(github.repository, 'apache/') }}
+    if: true
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
@@ -160,7 +160,7 @@ jobs:
           retention-days: 1
 
   build-centos-8-jdk11:
-    if: ${{ startsWith(github.repository, 'apache/') }}
+    if: true
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
@@ -210,7 +210,7 @@ jobs:
           retention-days: 1
 
   build-centos-8-jdk17:
-    if: ${{ startsWith(github.repository, 'apache/') }}
+    if: true
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
@@ -260,7 +260,7 @@ jobs:
           retention-days: 1
 
   merge:
-    if: ${{ startsWith(github.repository, 'apache/') }}
+    if: true
     runs-on: ubuntu-latest
     strategy:
       matrix:
