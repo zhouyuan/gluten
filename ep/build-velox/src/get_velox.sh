@@ -17,7 +17,7 @@
 set -exu
 
 VELOX_REPO=https://github.com/glutenproject/velox.git
-VELOX_BRANCH=gluten_main
+VELOX_BRANCH=gluten_main_2025_05_14
 VELOX_HOME=""
 
 OS=`uname -s`
