@@ -11,6 +11,19 @@ vcpkg_download_distfile(
 vcpkg_extract_source_archive(SOURCE_PATH ARCHIVE "${ARCHIVE}" PATCHES
                              install.patch)
 
+# Update config.guess and config.sub
+file(
+  DOWNLOAD
+  "https://git.savannah.gnu.org/gitweb/?p=config.git;a=blob_plain;f=config.guess;hb=HEAD"
+  "${SOURCE_PATH}/config.guess"
+  STATUS status_guess)
+
+file(
+  DOWNLOAD
+  "https://git.savannah.gnu.org/gitweb/?p=config.git;a=blob_plain;f=config.sub;hb=HEAD"
+  "${SOURCE_PATH}/config.sub"
+  STATUS status_sub)
+
 vcpkg_configure_make(SOURCE_PATH ${SOURCE_PATH} AUTOCONFIG)
 vcpkg_install_make()
 vcpkg_fixup_pkgconfig()
