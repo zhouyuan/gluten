@@ -29,7 +29,7 @@ import org.apache.spark.scheduler.TaskInfo
 import org.apache.spark.shuffle.ShuffleHandle
 import org.apache.spark.sql.{AnalysisException, SparkSession}
 import org.apache.spark.sql.catalyst.{ExtendedAnalysisException, InternalRow}
-import org.apache.spark.sql.catalyst.catalog.{BucketSpec, ClusterBySpec}
+import org.apache.spark.sql.catalyst.catalog.BucketSpec
 import org.apache.spark.sql.catalyst.csv.CSVOptions
 import org.apache.spark.sql.catalyst.expressions._
 import org.apache.spark.sql.catalyst.expressions.aggregate._
@@ -123,7 +123,7 @@ class Spark40Shims extends SparkShims {
   }
 
   override def convertPartitionTransforms(
-      partitions: Seq[Transform]): (Seq[String], Option[BucketSpec], Option[ClusterBySpec]) = {
+      partitions: Seq[Transform]): (Seq[String], Option[BucketSpec]) = {
     CatalogUtil.convertPartitionTransforms(partitions)
   }
 
