@@ -17,7 +17,8 @@
 package org.apache.gluten.execution
 
 import org.apache.spark.sql.catalyst.InternalRow
-import org.apache.spark.unsafe.types.VariantVal;
+import org.apache.spark.sql.vectorized.ColumnarBatch
+import org.apache.spark.unsafe.types.VariantVal
 
 sealed abstract class BatchCarrierRow extends BatchCarrierRowBase {
 
