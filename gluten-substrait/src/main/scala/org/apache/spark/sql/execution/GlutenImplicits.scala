@@ -25,7 +25,7 @@ import org.apache.spark.sql.catalyst.plans.logical.{CommandResult, LogicalPlan}
 import org.apache.spark.sql.catalyst.util.StringUtils.PlanStringConcat
 import org.apache.spark.sql.classic.ClassicConversions._
 import org.apache.spark.sql.execution.ColumnarWriteFilesExec.NoopLeaf
-import org.apache.spark.sql.execution.adaptive.{AdaptiveSparkPlanExec, AQEShuffleReadExec, QueryStageExec}
+import org.apache.spark.sql.execution.adaptive.{AQEShuffleReadExec, AdaptiveSparkPlanExec, QueryStageExec}
 import org.apache.spark.sql.execution.columnar.InMemoryTableScanExec
 import org.apache.spark.sql.execution.command.{DataWritingCommandExec, ExecutedCommandExec}
 import org.apache.spark.sql.execution.datasources.WriteFilesExec
@@ -55,6 +55,10 @@ import scala.collection.mutable.ArrayBuffer
 // format: on
 object GlutenImplicits {
 
+  def noOp(): Unit = {
+    ensureCompatibility()
+  }
+
   case class FallbackSummary(
       numGlutenNodes: Int,
       numFallbackNodes: Int,
@@ -75,7 +79,7 @@ object GlutenImplicits {
     keys.zip(values).foreach {
       case (k, v) =>
         if (SQLConf.isStaticConfigKey(k)) {
-          throw new AnalysisException(errorClass = "Cannot modify the value of a static config",
+          throw new AnalysisException(errorClass = "_LEGACY_ERROR_TEMP_3050",
           messageParameters = Map("k" -> k))
         }
         conf.setConfString(k, v)

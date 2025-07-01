@@ -320,4 +320,6 @@ trait SparkShims {
     Map.empty[String, Any].asJava.asInstanceOf[JMap[String, Object]]
 
   def getCollectLimitOffset(plan: CollectLimitExec): Int = 0
+
+  def widerDecimalType(d1: DecimalType, d2: DecimalType): DecimalType
 }

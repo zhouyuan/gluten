@@ -212,7 +212,9 @@ abstract class FileSourceScanExecTransformerBase(
         s" $nativeFiltersString")
   }
 
-  override def getStream: Option[SparkDataStream] = {
+  // Required for Spark 4.0 to implement a trait method.
+  // The "override" keyword is omitted to maintain compatibility with earlier Spark versions.
+  def getStream: Option[SparkDataStream] = {
     throw new UnsupportedOperationException(
       "not supported on streaming"
     )

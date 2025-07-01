@@ -47,6 +47,10 @@ import scala.reflect.runtime.universe
 
 abstract class GlutenQueryTest extends PlanTest {
 
+  def noOp(): Unit = {
+    ensureCompatibility()
+  }
+
   protected def spark: SparkSession
 
   def isSparkVersionGE(minSparkVersion: String): Boolean = {
