@@ -29,6 +29,7 @@ import org.apache.spark.scheduler.TaskInfo
 import org.apache.spark.shuffle.ShuffleHandle
 import org.apache.spark.sql.{AnalysisException, SparkSession}
 import org.apache.spark.sql.catalyst.InternalRow
+import org.apache.spark.sql.catalyst.analysis.DecimalPrecision
 import org.apache.spark.sql.catalyst.catalog.BucketSpec
 import org.apache.spark.sql.catalyst.csv.CSVOptions
 import org.apache.spark.sql.catalyst.expressions._
@@ -53,7 +54,7 @@ import org.apache.spark.sql.execution.datasources.v2.utils.CatalogUtil
 import org.apache.spark.sql.execution.exchange.BroadcastExchangeLike
 import org.apache.spark.sql.internal.SQLConf
 import org.apache.spark.sql.internal.SQLConf.LegacyBehaviorPolicy
-import org.apache.spark.sql.types.{IntegerType, LongType, StructField, StructType}
+import org.apache.spark.sql.types.{DecimalType, IntegerType, LongType, StructField, StructType}
 import org.apache.spark.sql.util.CaseInsensitiveStringMap
 import org.apache.spark.storage.{BlockId, BlockManagerId}
 
@@ -633,6 +634,10 @@ class Spark34Shims extends SparkShims {
 
   override def getCollectLimitOffset(plan: CollectLimitExec): Int = {
     plan.offset
+  }
+
+  override def widerDecimalType(d1: DecimalType, d2: DecimalType): DecimalType = {
+    DecimalPrecision.widerDecimalType(d1, d2)
   }
 
 }

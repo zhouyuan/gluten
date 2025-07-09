@@ -14,22 +14,12 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.spark.sql.classic
+package org.apache.spark.sql.catalyst
 
-import org.apache.spark.sql.Column
-import org.apache.spark.sql.catalyst.expressions.Expression
+import org.apache.spark.unsafe.types.VariantVal
 
-/**
- * Just for making the code like below works for Spark versions earlier than 4.0.
- *
- * import org.apache.spark.sql.classic.ClassicConversions._
- */
-
-trait ClassicConversions {
-
-  implicit class ColumnConstructorExt(val c: Column.type) {
-    def apply(e: Expression): Column = Column("fake")
+abstract class InternalRowBase extends InternalRow {
+  override def getVariant(ordinal: Int): VariantVal = {
+    throw new UnsupportedOperationException("Not supported in Gluten")
   }
 }
-
-object ClassicConversions extends ClassicConversions

@@ -16,6 +16,9 @@
  */
 package org.apache.spark.sql.classic
 
+import org.apache.spark.sql.Column
+import org.apache.spark.sql.catalyst.expressions.Expression
+
 /**
  * Just for making the code like below works for Spark versions earlier than 4.0.
  *
@@ -23,7 +26,10 @@ package org.apache.spark.sql.classic
  */
 
 trait ClassicConversions {
-  implicit def ensureCompatibility(): Unit = {}
+
+  implicit class ColumnConstructorExt(val c: Column.type) {
+    def apply(e: Expression): Column = Column("fake")
+  }
 }
 
 object ClassicConversions extends ClassicConversions

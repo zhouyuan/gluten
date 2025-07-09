@@ -16,10 +16,12 @@
  */
 package org.apache.spark.sql.execution
 
+import org.apache.gluten.exception.GlutenException
 import org.apache.gluten.execution.{GlutenPlan, WholeStageTransformer}
 import org.apache.gluten.utils.PlanUtil
 
-import org.apache.spark.sql.{AnalysisException, Dataset, SparkSession}
+import org.apache.spark.sql.{Column, Dataset, SparkSession}
+import org.apache.spark.sql.catalyst.expressions.AttributeReference
 import org.apache.spark.sql.catalyst.plans.QueryPlan
 import org.apache.spark.sql.catalyst.plans.logical.{CommandResult, LogicalPlan}
 import org.apache.spark.sql.catalyst.util.StringUtils.PlanStringConcat
@@ -32,6 +34,7 @@ import org.apache.spark.sql.execution.datasources.WriteFilesExec
 import org.apache.spark.sql.execution.datasources.v2.V2CommandExec
 import org.apache.spark.sql.execution.exchange.ReusedExchangeExec
 import org.apache.spark.sql.internal.SQLConf
+import org.apache.spark.sql.types.BooleanType
 
 import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
@@ -56,7 +59,7 @@ import scala.collection.mutable.ArrayBuffer
 object GlutenImplicits {
 
   def noOp(): Unit = {
-    ensureCompatibility()
+    val _ = new ColumnConstructorExt(Column).apply(AttributeReference("fake", BooleanType)())
   }
 
   case class FallbackSummary(
@@ -79,8 +82,7 @@ object GlutenImplicits {
     keys.zip(values).foreach {
       case (k, v) =>
         if (SQLConf.isStaticConfigKey(k)) {
-          throw new AnalysisException(errorClass = "_LEGACY_ERROR_TEMP_3050",
-          messageParameters = Map("k" -> k))
+          throw new GlutenException(s"Cannot modify the value of a static config: $k")
         }
         conf.setConfString(k, v)
     }

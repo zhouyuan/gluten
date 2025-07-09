@@ -18,10 +18,8 @@ package org.apache.spark.sql.execution.datasources.v2
 
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.catalyst.InternalRow
-import org.apache.spark.sql.catalyst.analysis.DecimalPrecision
 import org.apache.spark.sql.catalyst.expressions.{Attribute, Expression, SortOrder}
 import org.apache.spark.sql.connector.read.{InputPartition, PartitionReaderFactory, Scan}
-import org.apache.spark.sql.types.DecimalType
 
 class Spark34Scan extends DataSourceV2ScanExecBase {
 
@@ -49,7 +47,4 @@ class Spark34Scan extends DataSourceV2ScanExecBase {
 
   override def canEqual(that: Any): Boolean = throw new UnsupportedOperationException("Spark34Scan")
 
-  override def widerDecimalType(d1: DecimalType, d2: DecimalType): DecimalType = {
-    DecimalPrecision.widerDecimalType(d1, d2)
-  }
 }

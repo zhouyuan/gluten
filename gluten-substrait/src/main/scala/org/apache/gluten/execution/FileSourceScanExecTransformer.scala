@@ -115,9 +115,6 @@ abstract class FileSourceScanExecTransformerBase(
 
   override def outputAttributes(): Seq[Attribute] = output
 
-  private def isDynamicPruningFilter(e: Expression): Boolean =
-    e.exists(_.isInstanceOf[PlanExpression[_]])
-
   override def getPartitions: Seq[InputPartition] = {
     val staticDataFilters = dataFilters.filterNot(isDynamicPruningFilter)
     val staticPartitionFilters = partitionFilters.filterNot(isDynamicPruningFilter)
