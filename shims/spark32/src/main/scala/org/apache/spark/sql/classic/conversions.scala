@@ -20,7 +20,7 @@ import org.apache.spark.sql.Column
 import org.apache.spark.sql.catalyst.expressions.Expression
 
 /**
- * Just for making the code like below works for Spark versions earlier than 4.0.
+ * Just to ensure the code below works for Spark versions earlier than 4.0.
  *
  * import org.apache.spark.sql.classic.ClassicConversions._
  */
