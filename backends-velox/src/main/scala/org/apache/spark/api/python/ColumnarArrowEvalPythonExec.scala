@@ -31,7 +31,7 @@ import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.catalyst.expressions._
 import org.apache.spark.sql.execution.{ProjectExec, SparkPlan}
 import org.apache.spark.sql.execution.metric.SQLMetric
-import org.apache.spark.sql.execution.python.{ArrowEvalPythonExec, BasePythonRunnerShim, EvalPythonExecBase, PythonUDFRunner}
+import org.apache.spark.sql.execution.python.{ArrowEvalPythonExec, BasePythonRunnerShim, EvalPythonExecBase}
 import org.apache.spark.sql.internal.SQLConf
 import org.apache.spark.sql.types.{DataType, StructField, StructType}
 import org.apache.spark.sql.utils.{SparkArrowUtil, SparkSchemaUtil, SparkVectorUtil}
@@ -150,11 +150,10 @@ class ColumnarArrowPythonRunner(
           PythonRDD.writeUTF(k, dataOut)
           PythonRDD.writeUTF(v, dataOut)
         }
-        // PythonUDFRunner.writeUDFs(dataOut, funcs, argOffsets, None)
         ColumnarArrowPythonRunner.this.writeUdf(dataOut, argOffsets)
       }
 
-      // For Spark earlier than Spark 4.0. It overrides the corresponding abstract method
+      // For Spark earlier than 4.0. It overrides the corresponding abstract method
       // in Writer class. We omitted the override keyword for compatibility consideration.
       def writeIteratorToStream(dataOut: DataOutputStream): Unit = {
         writeToStreamHelper(dataOut)

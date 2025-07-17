@@ -31,6 +31,8 @@ abstract class BasePythonRunnerShim(
     argOffsets: Array[Array[Int]],
     pythonMetrics: Map[String, SQLMetric])
   extends BasePythonRunner[ColumnarBatch, ColumnarBatch](funcs.map(_._1), evalType, argOffsets) {
+  // The type aliases below provide consistent type names in child classes,
+  // ensuring code compatibility with both Spark 4.0 and earlier versions.
   type Writer = WriterThread
   type PythonWorker = Socket
 

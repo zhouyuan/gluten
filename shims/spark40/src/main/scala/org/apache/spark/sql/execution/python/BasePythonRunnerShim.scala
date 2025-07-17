@@ -18,7 +18,7 @@ package org.apache.spark.sql.execution.python
 
 import org.apache.spark.SparkEnv
 import org.apache.spark.TaskContext
-import org.apache.spark.api.python.{BasePythonRunner, ChainedPythonFunctions}
+import org.apache.spark.api.python.{BasePythonRunner, ChainedPythonFunctions, PythonWorker}
 import org.apache.spark.sql.execution.metric.SQLMetric
 import org.apache.spark.sql.vectorized.ColumnarBatch
 

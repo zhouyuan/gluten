@@ -35,6 +35,8 @@ abstract class BasePythonRunnerShim(
     evalType,
     argOffsets,
     None) {
+  // The type aliases below provide consistent type names in child classes,
+  // ensuring code compatibility with both Spark 4.0 and earlier versions.
   type Writer = WriterThread
   type PythonWorker = Socket
 
