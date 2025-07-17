@@ -16,9 +16,14 @@
  */
 package org.apache.spark.sql.execution.python
 
+import org.apache.spark.SparkEnv
+import org.apache.spark.TaskContext
 import org.apache.spark.api.python.{BasePythonRunner, ChainedPythonFunctions}
 import org.apache.spark.sql.execution.metric.SQLMetric
 import org.apache.spark.sql.vectorized.ColumnarBatch
+
+import java.io.DataOutputStream
+import java.net.Socket
 
 abstract class BasePythonRunnerShim(
     funcs: Seq[(ChainedPythonFunctions, Long)],
@@ -29,4 +34,27 @@ abstract class BasePythonRunnerShim(
     funcs.map(_._1),
     evalType,
     argOffsets,
-    None) {}
+    None) {
+  type Writer = WriterThread
+  type PythonWorker = Socket
+
+  protected def createNewWriter(
+      env: SparkEnv,
+      worker: PythonWorker,
+      inputIterator: Iterator[ColumnarBatch],
+      partitionIndex: Int,
+      context: TaskContext): Writer
+
+  protected def writeUdf(dataOut: DataOutputStream, argOffsets: Array[Array[Int]]): Unit = {
+    PythonUDFRunner.writeUDFs(dataOut, funcs.map(_._1), argOffsets)
+  }
+
+  override protected def newWriterThread(
+      env: SparkEnv,
+      worker: PythonWorker,
+      inputIterator: Iterator[ColumnarBatch],
+      partitionIndex: Int,
+      context: TaskContext): Writer = {
+    createNewWriter(env, worker, inputIterator, partitionIndex, context)
+  }
+}
