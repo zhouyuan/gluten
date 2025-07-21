@@ -15,7 +15,7 @@
 
 FROM centos:7
 
-ENV JAVA_HOME=/usr/lib/jvm/java-1.8.0-openjdk
+ENV JAVA_HOME=/usr/lib/jvm/java-17-openjdk
 ENV PATH=$JAVA_HOME/bin:$PATH
 
 # An actual path used for vcpkg cache.
@@ -35,6 +35,9 @@ RUN set -ex; \
        -e 's/mirror\.centos\.org/vault.centos.org/' \
        /etc/yum.repos.d/CentOS-SCLo-scl-rh.repo; \
     yum install -y git patch wget sudo java-1.8.0-openjdk-devel ccache; \
+    wget https://download.java.net/java/GA/jdk17.0.2/dfd4a8d0985749f896bed50d7138ee7f/8/GPL/openjdk-17.0.2_linux-x64_bin.tar.gz; \
+    tar xf openjdk-17.0.2_linux-x64_bin.tar.gz && rm -f openjdk-17.0.2_linux-x64_bin.tar.gz; \
+    mv openjdk* /usr/lib/jvm/java-17-openjdk; \
     git clone --depth=1 https://github.com/apache/incubator-gluten /opt/gluten; \
     echo "check_certificate = off" >> ~/.wgetrc; \
     cd /opt/gluten && bash ./dev/vcpkg/setup-build-depends.sh; \
