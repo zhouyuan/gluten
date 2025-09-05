@@ -1335,7 +1335,8 @@ jobs:
       - name: Build Gluten native libraries
         run: |
           df -a
-          bash dev/package.sh --spark_version=3.5
+          bash ./dev/buildbundle-veloxbe.sh --enable_vcpkg=OFF --run_setup_script=OFF --build_tests=ON --build_benchmarks=ON --enable_s3=ON --enable_hdfs=ON  --spark_version=3.5
+          bash ./dev/build-thirdparty.sh
           ccache -s
           cd $GITHUB_WORKSPACE/tools/gluten-it
           $MVN_CMD clean install -Pspark-3.5
