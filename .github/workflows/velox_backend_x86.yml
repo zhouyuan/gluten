@@ -47,6 +47,8 @@ env:
   CCACHE_DIR: "${{ github.workspace }}/.ccache"
   # spark.sql.ansi.enabled defaults to false.
   SPARK_ANSI_SQL_MODE: false
+  TPCH_TEST: "env GLUTEN_IT_JVM_ARGS=-Xmx5G sbin/gluten-it.sh queries-compare 
+          --local --preset=velox --benchmark-type=h --error-on-memleak --off-heap-size=10g -s=1.0 --threads=16 --iterations=1"
 
 concurrency:
   group: ${{ github.repository }}-${{ github.head_ref || github.sha }}-${{ github.workflow }}
@@ -1314,3 +1316,30 @@ jobs:
           df -a
           bash dev/buildbundle-veloxbe.sh --run_setup_script=OFF --build_arrow=OFF --spark_version=3.4 --enable_gpu=ON
           ccache -s
+
+  dynamic-packaging-centos-9:
+    runs-on: ubuntu-22.04
+    container: apache/gluten:centos-9-jdk17
+    steps:
+      - uses: actions/checkout@v2
+      - name: Get Ccache
+        uses: actions/cache/restore@v4
+        with:
+          path: '${{ env.CCACHE_DIR }}'
+          key: ccache-centos9-release-shared-${{runner.arch}}-${{github.sha}}
+          restore-keys: |
+            ccache-centos9-release-shared-${{runner.arch}}
+      - name: Build Gluten native libraries
+        run: |
+          df -a
+          bash dev/package.sh --spark_version=3.5
+          ccache -s
+          cd $GITHUB_WORKSPACE/tools/gluten-it
+          $MVN_CMD clean install -Pspark-3.5
+          cp $GITHUB_WORKSPACE/package/target/thirdparty-lib/gluten-thirdparty-lib-*.jar package/target/lib/
+      - name: Run TPC-H
+        run: |
+          echo "JAVA_HOME: $JAVA_HOME"
+          cd $GITHUB_WORKSPACE/tools/gluten-it
+          $TPCH_TEST --extra-conf=spark.gluten.loadLibFromJar=true \
+            --extra-conf=spark.gluten.loadLibOS=openEuler --extra-conf=spark.gluten.loadLibOSVersion=24.03
