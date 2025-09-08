@@ -161,7 +161,9 @@ function setup_linux {
     scripts/setup-ubuntu.sh
   elif [[ "$LINUX_DISTRIBUTION" == "centos" ]]; then
     case "$LINUX_VERSION_ID" in
-    9) scripts/setup-centos9.sh ;;
+    9) scripts/setup-centos9.sh 
+    bash scripts/setup-centos-adapters.sh
+    ;;
     8) $GLUTEN_VELOX_SCRIPT_HOME/setup-centos8.sh ;;
     7)
       $GLUTEN_VELOX_SCRIPT_HOME/setup-centos7.sh
