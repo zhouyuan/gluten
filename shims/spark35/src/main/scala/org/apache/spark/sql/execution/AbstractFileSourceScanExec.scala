@@ -245,8 +245,8 @@ abstract class AbstractFileSourceScanExec(
       readFile: (PartitionedFile) => Iterator[InternalRow],
       selectedPartitions: Array[PartitionDirectory]): RDD[InternalRow] = {
     val openCostInBytes = relation.sparkSession.sessionState.conf.filesOpenCostInBytes
-    val maxSplitBytes =
-      FilePartition.maxSplitBytes(relation.sparkSession, selectedPartitions)
+    val maxSplitBytes = adjustMaxSplitBytes(
+      FilePartition.maxSplitBytes(relation.sparkSession, selectedPartitions))
     logInfo(
       s"Planning scan with bin packing, max size: $maxSplitBytes bytes, " +
         s"open cost is considered as scanning $openCostInBytes bytes.")
@@ -284,8 +284,17 @@ abstract class AbstractFileSourceScanExec(
       }
       .sortBy(_.length)(implicitly[Ordering[Long]].reverse)
 
-    val partitions =
+    val origPartitions =
       FilePartition.getFilePartitions(relation.sparkSession, splitFiles, maxSplitBytes)
+
+    val targetPartitions =
+      math.min(origPartitions.length, relation.sparkSession.sessionState.conf.numShufflePartitions)
+
+    val partitions = FilePartitionCoalescer.coalesce(
+      relation.sparkSession,
+      origPartitions,
+      splitFiles.toSeq,
+      targetPartitions)
 
     new FileScanRDD(
       relation.sparkSession,
@@ -296,6 +305,33 @@ abstract class AbstractFileSourceScanExec(
       relation.fileFormat.fileConstantMetadataExtractors,
       new FileSourceOptions(CaseInsensitiveMap(relation.options))
     )
+  }
+
+  /**
+   * This method adjust the max split bytes based on the columns selected
+   * @param initialSplitBytes
+   * @return
+   *   adjustedSplitBytes
+   */
+  private def adjustMaxSplitBytes(initialSplitBytes: Long): Long = {
+    val totalRelationSize: Double =
+      relation.dataSchema.map(f => f.dataType.defaultSize).sum.toDouble
+    val selectedColumnsSize: Double =
+      requiredSchema.map(f => f.dataType.defaultSize).sum.toDouble
+
+    val ratio =
+      if (selectedColumnsSize == 0.0 || totalRelationSize == 0.0) 1.0
+      else totalRelationSize / selectedColumnsSize
+
+    val cappedRatio = math.min(ratio, 10.0)
+    val adjustedSplitBytes = (initialSplitBytes * cappedRatio).toLong
+
+    logInfo(
+      s"Adjusting maxSplitBytes from $initialSplitBytes to $adjustedSplitBytes " +
+        s"based on selected schema size: $selectedColumnsSize vs total schema size: " +
+        s"$totalRelationSize (scaling factor: $cappedRatio)"
+    )
+    adjustedSplitBytes
   }
 
   // Filters unused DynamicPruningExpression expressions - one which has been replaced
