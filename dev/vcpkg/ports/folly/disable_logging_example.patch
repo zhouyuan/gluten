@@ -1,0 +1,12 @@
+diff --git a/folly/CMakeLists.txt b/folly/CMakeLists.txt
+index 57b4dbcc4..fe28a2dfc 100644
+--- a/folly/CMakeLists.txt
++++ b/folly/CMakeLists.txt
+@@ -29,7 +29,6 @@ install(
+ )
+
+ add_subdirectory(debugging/exception_tracer)
+-add_subdirectory(logging/example)
+
+ if (PYTHON_EXTENSIONS)
+   # Create tree of symbolic links in structure required for successful
