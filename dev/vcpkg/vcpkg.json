@@ -43,6 +43,7 @@
         "boost-multiprecision",
         "boost-uuid",
         "boost-variant",
+        "boost-iostreams",
         "gtest",
         "xsimd",
         "simdjson",
