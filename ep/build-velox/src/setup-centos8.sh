@@ -185,7 +185,7 @@ function install_velox_deps {
   run_and_time install_lzo
   run_and_time install_snappy
   run_and_time install_boost
-  run_and_time install_protobuf
+  #run_and_time install_protobuf
   run_and_time install_fmt
   run_and_time install_folly
   run_and_time install_fizz

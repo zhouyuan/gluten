@@ -73,6 +73,8 @@ function process_setup_ubuntu {
 
 function process_setup_centos9 {
   sed -i "s|-DFOLLY_HAVE_INT128_T=ON|-DFOLLY_HAVE_INT128_T=ON -DFOLLY_NO_EXCEPTION_TRACER=ON|g" scripts/setup-common.sh
+  sed -i "s|run_and_time install_folly|# &|" scripts/setup-centos9.sh
+  sed -i "s|run_and_time install_fizz|# &|" scripts/setup-centos9.sh
   echo "Using setup script from Velox"
 }
 
