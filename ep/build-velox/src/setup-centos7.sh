@@ -29,8 +29,9 @@ export CFLAGS=$(get_cxx_flags $CPU_TARGET)  # Used by LZO.
 export CXXFLAGS=$CFLAGS  # Used by boost.
 export CPPFLAGS=$CFLAGS  # Used by LZO.
 export PKG_CONFIG_PATH=/usr/local/lib64/pkgconfig:/usr/local/lib/pkgconfig:/usr/lib64/pkgconfig:/usr/lib/pkgconfig:$PKG_CONFIG_PATH
-FB_OS_VERSION="v2024.07.01.00"
+FB_OS_VERSION="v2025.04.28.00"
 GEOS_VERSION="3.10.7"
+FAST_FLOAT_VERSION="v8.0.2"
 
 # shellcheck disable=SC2037
 SUDO="sudo -E"
@@ -68,10 +69,34 @@ function install_ninja {
   $SUDO cp ninja /usr/local/bin/
 }
 
+function install_fast_float {
+  wget_and_untar https://github.com/fastfloat/fast_float/archive/refs/tags/"${FAST_FLOAT_VERSION}".tar.gz fast_float
+  cmake_install_dir fast_float -DBUILD_TESTS=OFF
+}
+
+function install_fizz {
+  wget_and_untar https://github.com/facebookincubator/fizz/archive/refs/tags/${FB_OS_VERSION}.tar.gz fizz
+  cmake_install_dir fizz/fizz -DBUILD_TESTS=OFF
+}
+
 function install_folly {
-  cd "${DEPENDENCY_DIR}"
   wget_and_untar https://github.com/facebook/folly/archive/refs/tags/${FB_OS_VERSION}.tar.gz folly
-  cmake_install folly -DBUILD_TESTS=OFF -DFOLLY_HAVE_INT128_T=ON -DFOLLY_NO_EXCEPTION_TRACER=ON
+  cmake_install_dir folly -DBUILD_TESTS=OFF -DFOLLY_HAVE_INT128_T=ON -DFOLLY_NO_EXCEPTION_TRACER=ON
+}
+
+function install_wangle {
+  wget_and_untar https://github.com/facebook/wangle/archive/refs/tags/${FB_OS_VERSION}.tar.gz wangle
+  cmake_install_dir wangle/wangle -DBUILD_TESTS=OFF
+}
+
+function install_fbthrift {
+  wget_and_untar https://github.com/facebook/fbthrift/archive/refs/tags/${FB_OS_VERSION}.tar.gz fbthrift
+  cmake_install_dir fbthrift -Denable_tests=OFF -DBUILD_SHARED_LIBS=OFF -DBUILD_TESTS=OFF -DBUILD_SHARED_LIBS=OFF
+}
+
+function install_mvfst {
+  wget_and_untar https://github.com/facebook/mvfst/archive/refs/tags/${FB_OS_VERSION}.tar.gz mvfst
+  cmake_install_dir mvfst -DBUILD_TESTS=OFF
 }
 
 function install_conda {
@@ -166,7 +191,7 @@ function install_boost {
 
 function install_protobuf {
   cd "${DEPENDENCY_DIR}"
-  wget_and_untar https://github.com/protocolbuffers/protobuf/releases/download/v21.4/protobuf-all-21.4.tar.gz protobuf
+  wget_and_untar https://github.com/protocolbuffers/protobuf/releases/download/v21.8/protobuf-all-21.8.tar.gz protobuf
   pushd protobuf
   ./configure  CXXFLAGS="-fPIC"  --prefix=/usr/local
   make "-j$(nproc)"
@@ -221,8 +246,13 @@ function install_prerequisites {
 
 function install_velox_deps {
   run_and_time install_fmt
-  run_and_time install_folly
   run_and_time install_protobuf
+  run_and_time install_fast_float
+  run_and_time install_folly
+  run_and_time install_fizz
+  run_and_time install_wangle
+  run_and_time install_mvfst
+  #run_and_time install_fbthrift
   run_and_time install_gtest
   run_and_time install_conda
   run_and_time install_duckdb
