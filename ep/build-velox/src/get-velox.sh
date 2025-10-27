@@ -159,7 +159,7 @@ function setup_linux {
   if [[ "$LINUX_DISTRIBUTION" == "ubuntu" || "$LINUX_DISTRIBUTION" == "debian" || "$LINUX_DISTRIBUTION" == "pop" ]]; then
     process_setup_ubuntu
   elif [[ "$LINUX_DISTRIBUTION" == "centos" ]]; then
-    sed -i "s|GRPC_VERSION=\"v1.48.0\"|GRPC_VERSION=\"v1.51.1\"|" scripts/setup-versions.sh
+    sed -i "s|GRPC_VERSION=\"v1.48.0\"|GRPC_VERSION=\"v1.71.0\"|" scripts/setup-versions.sh
     case "$LINUX_VERSION_ID" in
       9) process_setup_centos9 ;;
       8) ;;
