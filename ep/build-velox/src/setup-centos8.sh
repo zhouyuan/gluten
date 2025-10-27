@@ -185,7 +185,7 @@ function install_geos {
 
 function install_velox_deps {
   run_and_time install_velox_deps_from_dnf
-  run_and_time install_conda
+  #run_and_time install_conda
   run_and_time install_gflags
   run_and_time install_glog
   run_and_time install_lzo

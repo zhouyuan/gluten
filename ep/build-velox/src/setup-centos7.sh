@@ -254,7 +254,7 @@ function install_velox_deps {
   run_and_time install_mvfst
   #run_and_time install_fbthrift
   run_and_time install_gtest
-  run_and_time install_conda
+  #run_and_time install_conda
   run_and_time install_duckdb
   run_and_time install_geos
 }
