@@ -73,6 +73,9 @@ function process_setup_ubuntu {
 
 function process_setup_centos9 {
   sed -i "s|-DFOLLY_HAVE_INT128_T=ON|-DFOLLY_HAVE_INT128_T=ON -DFOLLY_NO_EXCEPTION_TRACER=ON|g" scripts/setup-common.sh
+  sed -i "s|run_and_time install_fbthrift|# run_and_time install_fbthrift|g" scripts/setup-centos9.sh
+  sed -i "s|run_and_time install_arrow|# run_and_time install_arrow|g" scripts/setup-centos9.sh
+  sed -i "s|run_and_time install_grpc|# run_and_time install_grpc|g" scripts/setup-centos9.sh
   echo "Using setup script from Velox"
 }
 
@@ -160,8 +163,6 @@ function setup_linux {
     process_setup_ubuntu
   elif [[ "$LINUX_DISTRIBUTION" == "centos" ]]; then
     sed -i "s|GRPC_VERSION=\"v1.48.1\"|GRPC_VERSION=\"v1.51.1\"|" scripts/setup-versions.sh
-    sed -i "s|run_and_time install_fbthrift|# run_and_time install_fbthrift|g" scripts/setup-centos9.sh
-    sed -i "s|run_and_time install_arrow|# run_and_time install_arrow|g" scripts/setup-centos9.sh
     case "$LINUX_VERSION_ID" in
       9) process_setup_centos9 ;;
       8) ;;
