@@ -287,7 +287,9 @@ function setup_dependencies {
     install_aws_deps
   fi
   if [ $ENABLE_GCS == "ON" ]; then
-    install_gcs-sdk-cpp
+    #TODO(yuan): gcs sdk needs to be upgraded, this will break in vcpkg build
+    echo """Skipping gcs sdk installation for now"
+    #install_gcs-sdk-cpp
   fi
   if [ $ENABLE_ABFS == "ON" ]; then
     export AZURE_SDK_DISABLE_AUTO_VCPKG=ON
