@@ -161,6 +161,7 @@ function setup_linux {
   elif [[ "$LINUX_DISTRIBUTION" == "centos" ]]; then
     sed -i "s|GRPC_VERSION=\"v1.48.1\"|GRPC_VERSION=\"v1.51.1\"|" scripts/setup-versions.sh
     sed -i "s|run_and_time install_fbthrift|# run_and_time install_fbthrift|g" scripts/setup-centos9.sh
+    sed -i "s|run_and_time install_arrow|# run_and_time install_arrow|g" scripts/setup-centos9.sh
     case "$LINUX_VERSION_ID" in
       9) process_setup_centos9 ;;
       8) ;;
