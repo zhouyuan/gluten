@@ -1,6 +1,6 @@
 {
   "$schema": "https://raw.githubusercontent.com/microsoft/vcpkg-tool/main/docs/vcpkg.schema.json",
-  "builtin-baseline": "a7b6122f6b6504d16d96117336a0562693579933",
+  "builtin-baseline": "ce613c41372b23b1f51333815feb3edd87ef8a8b",
   "default-features": ["velox"],
   "features": {
     "velox": {
@@ -24,6 +24,7 @@
         "fmt",
         {
           "name": "folly",
+          "version>=": "2025.03.31.00",
           "features": ["zstd", "lz4", "lzma", "snappy"]
         },
         "boost-atomic",

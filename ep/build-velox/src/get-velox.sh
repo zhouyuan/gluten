@@ -73,8 +73,6 @@ function process_setup_ubuntu {
 
 function process_setup_centos9 {
   sed -i "s|-DFOLLY_HAVE_INT128_T=ON|-DFOLLY_HAVE_INT128_T=ON -DFOLLY_NO_EXCEPTION_TRACER=ON|g" scripts/setup-common.sh
-  sed -i "s|run_and_time install_folly|# &|" scripts/setup-centos9.sh
-  sed -i "s|run_and_time install_fizz|# &|" scripts/setup-centos9.sh
   echo "Using setup script from Velox"
 }
 
@@ -161,6 +159,7 @@ function setup_linux {
   if [[ "$LINUX_DISTRIBUTION" == "ubuntu" || "$LINUX_DISTRIBUTION" == "debian" || "$LINUX_DISTRIBUTION" == "pop" ]]; then
     process_setup_ubuntu
   elif [[ "$LINUX_DISTRIBUTION" == "centos" ]]; then
+    sed -i "s|GRPC_VERSION=\"v1.48.0\"|GRPC_VERSION=\"v1.51.1\"|" scripts/setup-versions.sh
     case "$LINUX_VERSION_ID" in
       9) process_setup_centos9 ;;
       8) ;;
