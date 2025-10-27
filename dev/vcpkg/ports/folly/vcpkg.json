@@ -26,11 +26,6 @@
     "gflags",
     "glog",
     "libevent",
-    "liblzma",
-    {
-      "name": "libunwind",
-      "platform": "linux"
-    },
     "openssl",
     {
       "name": "vcpkg-cmake",
