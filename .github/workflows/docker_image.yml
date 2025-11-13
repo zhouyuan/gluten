@@ -28,11 +28,11 @@ on:
     - cron: '0 20 * * 0'
 
 env:
-  DOCKERHUB_REPO: apache/gluten
+  DOCKERHUB_REPO: inteldpo/gluten-test
 
 jobs:
   build-vcpkg-centos-7:
-    if: ${{ startsWith(github.repository, 'apache/') }}
+    
     runs-on: ubuntu-latest
 
     steps:
@@ -57,7 +57,7 @@ jobs:
           tags: ${{ env.DOCKERHUB_REPO }}:vcpkg-centos-7
 
   build-vcpkg-centos-7-gcc13:
-    if: ${{ startsWith(github.repository, 'apache/') }}
+    
     runs-on: ubuntu-latest
 
     steps:
@@ -82,7 +82,7 @@ jobs:
           tags: ${{ env.DOCKERHUB_REPO }}:vcpkg-centos-7-gcc13
 
   build-centos-9-jdk8-cudf:
-    if: ${{ startsWith(github.repository, 'apache/') }}
+    
     runs-on: ubuntu-22.04
 
     steps:
@@ -113,7 +113,7 @@ jobs:
           tags: ${{ env.DOCKERHUB_REPO }}:centos-9-jdk8-cudf
 
   build-vcpkg-centos-8:
-    if: ${{ startsWith(github.repository, 'apache/') }}
+    
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
@@ -155,11 +155,11 @@ jobs:
           touch "${{ runner.temp }}/digests/${digest#sha256:}"
 
   build-vcpkg-centos-8-gcc13:
-    if: ${{ startsWith(github.repository, 'apache/') }}
+    
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ ubuntu-latest ] #TODO: adding arm back
+        os: [ ubuntu-latest, ubuntu-24.04-arm ]
 
     steps:
       - name: Checkout repository
@@ -205,7 +205,7 @@ jobs:
           retention-days: 1
 
   build-vcpkg-centos-9:
-    if: ${{ startsWith(github.repository, 'apache/') }}
+    
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
@@ -255,7 +255,7 @@ jobs:
           retention-days: 1
 
   build-centos-8:
-    if: ${{ startsWith(github.repository, 'apache/') }}
+    
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
@@ -318,7 +318,7 @@ jobs:
           retention-days: 1
 
   build-centos-9:
-    if: ${{ startsWith(github.repository, 'apache/') }}
+    
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
@@ -381,7 +381,7 @@ jobs:
           retention-days: 1
 
   merge:
-    if: ${{ startsWith(github.repository, 'apache/') }}
+    
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -426,7 +426,7 @@ jobs:
           docker buildx imagetools inspect ${{ env.DOCKERHUB_REPO }}:${{ steps.meta.outputs.version }}
   
   merge-gcc13:
-    if: ${{ startsWith(github.repository, 'apache/') }}
+    
     runs-on: ubuntu-latest
     strategy:
       matrix:
