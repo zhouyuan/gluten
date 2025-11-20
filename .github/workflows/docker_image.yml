@@ -113,7 +113,7 @@ jobs:
           tags: ${{ env.DOCKERHUB_REPO }}:centos-9-jdk8-cudf
 
   build-vcpkg-centos-8:
-    if: ${{ startsWith(github.repository, 'apache/') }}
+    # if: ${{ startsWith(github.repository, 'apache/') }}
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
@@ -263,7 +263,7 @@ jobs:
           retention-days: 1
 
   build-centos-8:
-    if: ${{ startsWith(github.repository, 'apache/') }}
+    # if: ${{ startsWith(github.repository, 'apache/') }}
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
@@ -326,7 +326,7 @@ jobs:
           retention-days: 1
 
   build-centos-9:
-    if: ${{ startsWith(github.repository, 'apache/') }}
+    # if: ${{ startsWith(github.repository, 'apache/') }}
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
