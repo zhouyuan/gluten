@@ -30,7 +30,7 @@ function install_spark() {
   local spark_version_short=$(echo "${spark_version}" | cut -d '.' -f 1,2 | tr -d '.')
   local scala_suffix=$([ "${scala_version}" == '2.13' ] && echo '-scala-2.13' || echo '')
   local scala_suffix_short=$([ "${scala_version}" == '2.13' ] && echo '-scala2.13' || echo '')
-  local mirror_host='https://www.apache.org/dyn/closer.lua/'
+  local mirror_host='https://mirror.lyrahosting.com/apache/'
   local url_query='?action=download'
   local checksum_suffix='sha512'
   local url_path="spark/spark-${spark_version}/"
