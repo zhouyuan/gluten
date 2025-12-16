@@ -1056,6 +1056,16 @@
       </properties>
     </profile>
     <profile>
+      <id>java-21</id>
+      <activation>
+        <jdk>21</jdk>
+      </activation>
+      <properties>
+        <java.version>21</java.version>
+        <caffeine.version>3.1.8</caffeine.version>
+      </properties>
+    </profile>
+    <profile>
       <id>spark-3.2</id>
       <properties>
         <sparkbundle.version>3.2</sparkbundle.version>
