@@ -1682,6 +1682,13 @@ std::string SubstraitToVeloxPlanConverter::findFuncSpec(uint64_t id) {
 }
 
 int32_t SubstraitToVeloxPlanConverter::getStreamIndex(const ::substrait::ReadRel& sRead) {
+  // Check if this is a Kafka stream
+  if (sRead.stream_kafka()) {
+    // For Kafka streams, we don't use the iterator pattern
+    // Return -1 to indicate this should be handled as a regular scan
+    return -1;
+  }
+  
   if (sRead.has_local_files()) {
     const auto& fileList = sRead.local_files().items();
     if (fileList.size() == 0) {
