@@ -17,49 +17,101 @@
 
 #pragma once
 
+#include <librdkafka/rdkafkacpp.h>
+#include <memory>
+#include <string>
+#include <unordered_map>
 #include "velox/connectors/Connector.h"
 #include "velox/exec/Operator.h"
+#include "velox/vector/ComplexVector.h"
 
 namespace gluten {
 
+/// Configuration for Kafka consumer
+struct KafkaReaderConfig {
+  std::string brokers;
+  std::string topic;
+  int32_t partition;
+  int64_t startOffset;
+  int64_t endOffset;
+  std::string groupId;
+  int32_t maxPollRecords;
+  int32_t pollTimeoutMs;
+  std::unordered_map<std::string, std::string> additionalProps;
+
+  KafkaReaderConfig()
+      : partition(0),
+        startOffset(RdKafka::Topic::OFFSET_BEGINNING),
+        endOffset(RdKafka::Topic::OFFSET_END),
+        maxPollRecords(1000),
+        pollTimeoutMs(1000) {}
+};
+
 /// Kafka reader operator for streaming Kafka data
-/// This is a placeholder implementation that will be extended
-/// to support actual Kafka consumption in the Velox backend
+/// Integrates with librdkafka to consume messages from Kafka topics
 class KafkaReader : public facebook::velox::exec::SourceOperator {
  public:
   KafkaReader(
       int32_t operatorId,
       facebook::velox::exec::DriverCtx* driverCtx,
-      const std::shared_ptr<const facebook::velox::core::PlanNode>& planNode)
-      : SourceOperator(
-            driverCtx,
-            planNode->outputType(),
-            operatorId,
-            planNode->id(),
-            "KafkaReader") {}
+      const std::shared_ptr<const facebook::velox::core::PlanNode>& planNode);
 
-  facebook::velox::RowVectorPtr getOutput() override {
-    // TODO: Implement actual Kafka reading logic
-    // This should:
-    // 1. Connect to Kafka broker
-    // 2. Read messages from the specified topic/partition
-    // 3. Convert Kafka messages to RowVector format
-    // 4. Handle offset management
-    return nullptr;
-  }
+  ~KafkaReader() override;
+
+  facebook::velox::RowVectorPtr getOutput() override;
 
   facebook::velox::BlockingReason isBlocked(
-      facebook::velox::ContinueFuture* future) override {
-    return facebook::velox::BlockingReason::kNotBlocked;
-  }
+      facebook::velox::ContinueFuture* future) override;
 
-  bool isFinished() override {
-    return noMoreSplits_ && !hasSplit_;
-  }
+  bool isFinished() override;
+
+  void addSplit(std::shared_ptr<facebook::velox::connector::ConnectorSplit> split) override;
+
+  void noMoreSplits() override;
 
  private:
+  /// Initialize Kafka consumer with configuration
+  void initializeConsumer();
+
+  /// Connect to Kafka broker and subscribe to topic/partition
+  void connectToKafka();
+
+  /// Poll messages from Kafka
+  std::vector<RdKafka::Message*> pollMessages();
+
+  /// Convert Kafka messages to RowVector format
+  facebook::velox::RowVectorPtr convertMessagesToRowVector(
+      const std::vector<RdKafka::Message*>& messages);
+
+  /// Handle offset management
+  void commitOffset(int64_t offset);
+
+  /// Cleanup Kafka resources
+  void cleanup();
+
+  /// Create vector for a specific column based on type
+  facebook::velox::VectorPtr createColumnVector(
+      const facebook::velox::TypePtr& type,
+      const std::vector<RdKafka::Message*>& messages,
+      size_t columnIndex);
+
+  // Kafka consumer and configuration
+  std::unique_ptr<RdKafka::KafkaConsumer> consumer_;
+  std::unique_ptr<RdKafka::Conf> conf_;
+  std::unique_ptr<RdKafka::Conf> tconf_;
+  KafkaReaderConfig config_;
+
+  // State management
   bool noMoreSplits_ = false;
   bool hasSplit_ = false;
+  bool consumerInitialized_ = false;
+  bool finished_ = false;
+  int64_t currentOffset_ = 0;
+  int64_t messagesRead_ = 0;
+
+  // Buffer for batching
+  std::vector<RdKafka::Message*> messageBuffer_;
+  size_t maxBatchSize_ = 1000;
 };
 
 } // namespace gluten
