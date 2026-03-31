@@ -150,6 +150,9 @@ class SubstraitToVeloxPlanConverter {
   // Construct a cuDF value stream node.
   core::PlanNodePtr constructCudfValueStreamNode(const ::substrait::ReadRel& sRead, int32_t streamIdx);
 
+  // Construct a Kafka stream node for reading from Kafka topics.
+  core::PlanNodePtr constructKafkaStreamNode(const ::substrait::ReadRel& sRead);
+
   // This is only used in benchmark and enable query trace, which will load all the data to ValuesNode.
   core::PlanNodePtr constructValuesNode(const ::substrait::ReadRel& sRead, int32_t streamIdx);
 

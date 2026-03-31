@@ -22,6 +22,7 @@
 
 #include "operators/functions/RegistrationAllFunctions.h"
 #include "operators/plannodes/RowVectorStream.h"
+#include "operators/reader/KafkaConnector.h"
 #include "utils/ConfigExtractor.h"
 
 #ifdef GLUTEN_ENABLE_QAT
@@ -324,6 +325,10 @@ void VeloxBackend::initConnector(const std::shared_ptr<velox::config::ConfigBase
       backendConf_->get<bool>(kValueStreamDynamicFilterEnabled, kValueStreamDynamicFilterEnabledDefault);
   velox::connector::registerConnector(
       std::make_shared<ValueStreamConnector>(kIteratorConnectorId, hiveConf, valueStreamDynamicFilterEnabled));
+  
+  // Register Kafka connector for streaming data from Kafka topics
+  velox::connector::registerConnector(
+      std::make_shared<gluten::KafkaConnector>(kKafkaConnectorId, hiveConf));
   
 #ifdef GLUTEN_ENABLE_GPU
   if (backendConf_->get<bool>(kCudfEnableTableScan, kCudfEnableTableScanDefault) &&

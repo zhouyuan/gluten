@@ -16,6 +16,7 @@
  */
 
 #include "KafkaReader.h"
+#include "KafkaSplit.h"
 #include <glog/logging.h>
 #include "velox/vector/FlatVector.h"
 
@@ -432,20 +433,23 @@ bool KafkaReader::isFinished() {
 void KafkaReader::addSplit(
     std::shared_ptr<facebook::velox::connector::ConnectorSplit> split) {
   // Extract Kafka configuration from split
-  // This is a simplified implementation - in practice, you'd parse the split
-  // to extract broker, topic, partition, and offset information
+  auto kafkaSplit = std::dynamic_pointer_cast<const KafkaConnectorSplit>(split);
+  if (!kafkaSplit) {
+    throw std::runtime_error("Split is not a KafkaConnectorSplit");
+  }
   
   hasSplit_ = true;
   
-  // TODO: Parse split to populate config_
-  // For now, using default configuration
-  config_.brokers = "localhost:9092";
-  config_.topic = "test-topic";
-  config_.partition = 0;
-  config_.groupId = "gluten-kafka-reader";
+  // Populate config from split
+  config_.brokers = kafkaSplit->getBrokers();
+  config_.topic = kafkaSplit->getTopic();
+  config_.partition = kafkaSplit->getPartition();
+  config_.startOffset = kafkaSplit->getStartOffset();
+  config_.endOffset = kafkaSplit->getEndOffset();
+  config_.groupId = kafkaSplit->getGroupId();
+  config_.additionalProps = kafkaSplit->getAdditionalProps();
   
-  LOG(INFO) << "Added Kafka split: topic=" << config_.topic 
-            << ", partition=" << config_.partition;
+  LOG(INFO) << "Added Kafka split: " << kafkaSplit->toString();
 }
 
 void KafkaReader::noMoreSplits() {
