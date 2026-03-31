@@ -135,6 +135,15 @@ std::shared_ptr<IcebergInsertTableHandle> createIcebergInsertTableHandle(
   for (const auto& field : spec->fields) {
     partitionColumns.push_back(field.name);
   }
+  
+  // Validate that nestedField.children size matches columnNames size
+  VELOX_CHECK_EQ(
+      nestedField.children.size(),
+      columnNames.size(),
+      "Mismatch between nestedField children size ({}) and column names size ({})",
+      nestedField.children.size(),
+      columnNames.size());
+  
   for (auto i = 0; i < columnNames.size(); ++i) {
     if (std::find(partitionColumns.begin(), partitionColumns.end(), columnNames[i]) != partitionColumns.end()) {
       columnHandles.push_back(
@@ -212,7 +221,47 @@ IcebergWriter::IcebergWriter(
 }
 
 void IcebergWriter::write(const VeloxColumnarBatch& batch) {
-  dataSink_->appendData(batch.getRowVector());
+  auto inputRowVector = batch.getRowVector();
+  auto inputRowType = asRowType(inputRowVector->type());
+  
+  // Filter columns to match the expected schema (rowType_)
+  // This is needed because Spark 4.0 adds metadata columns like __row_operation, _file, _pos
+  // which are not part of the Iceberg write schema
+  if (inputRowType->size() != rowType_->size()) {
+    std::vector<VectorPtr> filteredChildren;
+    filteredChildren.reserve(rowType_->size());
+    
+    // Build a map of column names to indices in the input
+    std::unordered_map<std::string, size_t> inputColumnIndices;
+    for (size_t i = 0; i < inputRowType->size(); i++) {
+      inputColumnIndices[inputRowType->nameOf(i)] = i;
+    }
+    
+    // Extract columns in the order specified by rowType_
+    for (size_t i = 0; i < rowType_->size(); i++) {
+      const auto& columnName = rowType_->nameOf(i);
+      auto it = inputColumnIndices.find(columnName);
+      VELOX_CHECK(
+          it != inputColumnIndices.end(),
+          "Column '{}' not found in input batch. Available columns: {}",
+          columnName,
+          folly::join(", ", inputRowType->names()));
+      filteredChildren.push_back(inputRowVector->childAt(it->second));
+    }
+    
+    // Create a new RowVector with filtered columns
+    auto filteredRowVector = std::make_shared<RowVector>(
+        pool_.get(),
+        rowType_,
+        inputRowVector->nulls(),
+        inputRowVector->size(),
+        std::move(filteredChildren));
+    
+    dataSink_->appendData(filteredRowVector);
+  } else {
+    // No filtering needed, schemas match
+    dataSink_->appendData(inputRowVector);
+  }
 }
 
 std::vector<std::string> IcebergWriter::commit() {
