@@ -428,7 +428,7 @@ object ConverterUtils extends Logging {
         sigName = sigName.concat(getTypeSigName(valueType))
         sigName = sigName.concat(">")
         sigName
-      case CharType(_) =>
+      case c: CharType =>
         "fchar"
       case NullType =>
         "nothing"

@@ -91,6 +91,9 @@ public class WritableColumnVectorShim extends WritableColumnVector {
   public void putShorts(int rowId, int count, byte[] src, int srcIndex) {}
 
   @Override
+  public void putShortsFromIntsLittleEndian(int rowId, int count, byte[] src, int srcIndex) {}
+
+  @Override
   public void putInt(int rowId, int value) {}
 
   @Override
