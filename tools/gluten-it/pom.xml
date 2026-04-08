@@ -343,6 +343,19 @@
         <delta.package.name>delta-spark</delta.package.name>
         <delta.version>4.0.0</delta.version>
       </properties>
+      <repositories>
+        <repository>
+          <releases>
+            <enabled>false</enabled>
+          </releases>
+          <snapshots>
+            <enabled>true</enabled>
+            <updatePolicy>always</updatePolicy>
+          </snapshots>
+          <id>apache-spark-snapshots</id>
+          <url>https://repository.apache.org/content/repositories/snapshots/org/apache/spark/</url>
+        </repository>
+      </repositories>
     </profile>
 
     <profile>
