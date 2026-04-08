@@ -240,7 +240,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [ "centos:8" ]
-        spark: [ "spark-3.3", "spark-3.4", "spark-3.5", "spark-4.0", "spark-4.1", "spark-4.2" ]
+        spark: [ "spark-3.3", "spark-3.4", "spark-3.5", "spark-4.0", "spark-4.1", "spark-4.2", "spark-main" ]
         java: [ "java-8", "java-11", "java-17" ]
         # Spark supports JDK17 since 3.3.
         exclude:
@@ -263,6 +263,10 @@ jobs:
           - spark: spark-4.2
             java: java-8
           - spark: spark-4.2
+            java: java-11
+          - spark: spark-main
+            java: java-8
+          - spark: spark-main
             java: java-11
 
     runs-on: ubuntu-22.04
@@ -308,7 +312,7 @@ jobs:
           echo "JAVA_HOME: $JAVA_HOME"
           cd $GITHUB_WORKSPACE/
           case "${{ matrix.spark }}" in
-            spark-4.0|spark-4.1|spark-4.2)
+            spark-4.0|spark-4.1|spark-4.2|spark-main)
               $MVN_CMD clean install -P${{ matrix.spark }} -P${{ matrix.java }} -Pscala-2.13 -Pbackends-velox -DskipTests
               ;;
             *)

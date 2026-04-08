@@ -334,6 +334,16 @@
         <delta.version>4.0.0</delta.version>
       </properties>
     </profile>
+    <profile>
+      <id>spark-main</id>
+      <properties>
+        <spark.version>4.2.0-SNAPSHOT</spark.version>
+        <scala.version>2.13.17</scala.version>
+        <scala.binary.version>2.13</scala.binary.version>
+        <delta.package.name>delta-spark</delta.package.name>
+        <delta.version>4.0.0</delta.version>
+      </properties>
+    </profile>
 
     <profile>
       <id>celeborn-0.5</id>
