@@ -175,8 +175,6 @@ class VeloxTestSettings extends BackendTestSettings {
   enableSuite[GlutenHigherOrderFunctionsSuite]
   enableSuite[GlutenIntervalExpressionsSuite]
   enableSuite[GlutenJsonExpressionsSuite]
-    // https://github.com/apache/gluten/issues/10948
-    .exclude("$['key with spaces']")
     // https://github.com/apache/gluten/issues/8102
     .exclude("$.store.book")
     .exclude("$")
