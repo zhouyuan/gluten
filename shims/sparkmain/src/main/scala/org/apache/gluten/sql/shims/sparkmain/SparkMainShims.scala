@@ -539,4 +539,9 @@ class SparkMainShims extends SparkShims {
   override def isLeftSingleJoinType(joinType: JoinType): Boolean = {
     joinType == LeftSingle
   }
+
+  override def getSampleExecSeed(plan: SampleExec): Long = {
+    // In Spark 4.0+, seed is Option[Long]
+    plan.seed.getOrElse(0L)
+  }
 }

@@ -533,4 +533,9 @@ class Spark34Shims extends SparkShims {
   override def isFinalAdaptivePlan(p: AdaptiveSparkPlanExec): Boolean = {
     p.isFinalPlan
   }
+
+  override def getSampleExecSeed(plan: SampleExec): Long = {
+    // In Spark 3.4, seed is Long (not Option[Long])
+    plan.seed
+  }
 }

@@ -283,4 +283,9 @@ class Spark33Shims extends SparkShims {
     assert(index >= 0)
     args.substring(index + "isFinalPlan=".length).trim.toBoolean
   }
+
+  override def getSampleExecSeed(plan: SampleExec): Long = {
+    // In Spark 3.3, seed is Long (not Option[Long])
+    plan.seed
+  }
 }
