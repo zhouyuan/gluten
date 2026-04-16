@@ -68,6 +68,71 @@ jobs:
           path: .m2/repository/org/apache/arrow/
           name: velox-arrow-jar-centos-7-${{github.sha}}
 
+  nightly-tpc-test-centos9-sparkmain:
+    needs: build-native-lib-x86
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ "centos:9" ]
+        spark: [ "spark-main" ]
+        java: [ "java-17" ]
+
+    runs-on: ubuntu-22.04
+    container: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download All Native Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: velox-native-lib-${{github.sha}}
+          path: ./cpp/build/
+      - name: Download All Arrow Jar Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: velox-arrow-jar-centos-7-${{github.sha}}
+          path: /root/.m2/repository/org/apache/arrow/
+      - name: Setup java
+        run: |
+          if [ "${{ matrix.java }}" = "java-17" ]; then
+            yum update -y && yum install -y java-17-openjdk-devel wget
+          elif [ "${{ matrix.java }}" = "java-11" ]; then
+            yum update -y && yum install -y java-11-openjdk-devel wget
+          else
+            yum update -y && yum install -y java-1.8.0-openjdk-devel wget
+          fi
+      - name: Set environment variables
+        run: |
+          if [ "${{ matrix.java }}" = "java-17" ]; then
+            echo "JAVA_HOME=/usr/lib/jvm/java-17-openjdk" >> $GITHUB_ENV
+          elif [ "${{ matrix.java }}" = "java-11" ]; then
+            echo "JAVA_HOME=/usr/lib/jvm/java-11-openjdk" >> $GITHUB_ENV
+          else
+            echo "JAVA_HOME=/usr/lib/jvm/java-1.8.0-openjdk" >> $GITHUB_ENV
+          fi
+      - name: Build gluten-it
+        run: |
+          echo "JAVA_HOME: $JAVA_HOME"
+          cd $GITHUB_WORKSPACE/
+          case "${{ matrix.spark }}" in
+            spark-4.0|spark-4.1|spark-4.2|spark-main)
+              $MVN_CMD clean install -P${{ matrix.spark }} -P${{ matrix.java }} -Pscala-2.13 -Pbackends-velox -DskipTests
+              ;;
+            *)
+              $MVN_CMD clean install -P${{ matrix.spark }} -P${{ matrix.java }} -Pbackends-velox -DskipTests
+              ;;
+          esac
+          cd $GITHUB_WORKSPACE/tools/gluten-it
+          $GITHUB_WORKSPACE/$MVN_CMD clean install -P${{ matrix.spark }} -P${{ matrix.java }}
+      - name: Run TPC-H / TPC-DS
+        run: |
+          echo "JAVA_HOME: $JAVA_HOME"
+          cd $GITHUB_WORKSPACE/tools/gluten-it
+          GLUTEN_IT_JVM_ARGS=-Xmx5G sbin/gluten-it.sh queries-compare \
+            --local --preset=velox --benchmark-type=h --error-on-memleak --off-heap-size=10g -s=1.0 --threads=16 --iterations=1
+          GLUTEN_IT_JVM_ARGS=-Xmx6G sbin/gluten-it.sh queries-compare \
+            --local --preset=velox --benchmark-type=ds --error-on-memleak --off-heap-size=10g -s=1.0 --threads=16 --iterations=1
+
+
   build-bundle-package-centos8-jdk8-x86:
     if: ${{ startsWith(github.repository, 'apache/') }}
     needs: build-native-lib-x86
