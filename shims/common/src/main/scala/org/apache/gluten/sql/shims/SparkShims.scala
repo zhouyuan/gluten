@@ -212,6 +212,8 @@ trait SparkShims {
 
   def withAnsiEvalMode(expr: Expression): Boolean = false
 
+  def isNullIntolerant(expr: Expression): Boolean
+
   def createParquetFilters(
       conf: SQLConf,
       schema: MessageType,
@@ -290,4 +292,10 @@ trait SparkShims {
    * similar to LeftOuter. Default implementation returns false for Spark 3.x compatibility.
    */
   def isLeftSingleJoinType(joinType: JoinType): Boolean = false
+
+  /**
+   * Extract seed value from SampleExec. In Spark 4.0+, seed is Option[Long], while in earlier
+   * versions it's Long. This method provides a unified interface across versions.
+   */
+  def getSampleExecSeed(plan: SampleExec): Long
 }

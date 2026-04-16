@@ -99,6 +99,18 @@
       </modules>
     </profile>
     <profile>
+      <id>spark-4.2</id>
+      <modules>
+        <module>spark42</module>
+      </modules>
+    </profile>
+    <profile>
+      <id>spark-main</id>
+      <modules>
+        <module>sparkmain</module>
+      </modules>
+    </profile>
+    <profile>
       <id>default</id>
       <activation>
         <activeByDefault>true</activeByDefault>

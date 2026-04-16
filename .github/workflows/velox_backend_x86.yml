@@ -107,7 +107,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [ "ubuntu:20.04", "ubuntu:22.04" ]
-        spark: [ "spark-3.3", "spark-3.4", "spark-3.5", "spark-4.0", "spark-4.1"  ]
+        spark: [ "spark-3.3", "spark-3.4", "spark-3.5", "spark-4.0", "spark-4.1", "spark-4.2" ]
         java: [ "java-8", "java-11", "java-17", "java-21" ]
         # Spark supports JDK17 since 3.3.
         exclude:
@@ -139,6 +139,10 @@ jobs:
             java: java-8
           - spark: spark-4.1
             java: java-11
+          - spark: spark-4.2
+            java: java-8
+          - spark: spark-4.2
+            java: java-11
 
     runs-on: ubuntu-22.04
     container: ${{ matrix.os }}
@@ -156,7 +160,7 @@ jobs:
           path: /root/.m2/repository/org/apache/arrow/
       - name: Setup tzdata
         run: |
-          #sed -i 's|http://archive|http://us.archive|g' /etc/apt/sources.list
+          sed -i 's|http://archive|http://eu.archive|g' /etc/apt/sources.list
           if [ "${{ matrix.os }}" = "ubuntu:22.04" ]; then
             apt-get update
             TZ="Etc/GMT" DEBIAN_FRONTEND=noninteractive apt-get install -y tzdata
@@ -197,7 +201,7 @@ jobs:
           export JAVA_HOME=/usr/lib/jvm/${{ matrix.java }}-openjdk-amd64
           echo "JAVA_HOME: $JAVA_HOME"
           case "${{ matrix.spark }}" in
-            spark-4.0|spark-4.1)
+            spark-4.0|spark-4.1|spark-4.2)
               $MVN_CMD clean install -P${{ matrix.spark }} -P${{ matrix.java }} -Pscala-2.13 -Pbackends-velox -DskipTests
               ;;
             *)
@@ -240,7 +244,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [ "centos:8" ]
-        spark: [ "spark-3.3", "spark-3.4", "spark-3.5", "spark-4.0", "spark-4.1" ]
+        spark: [ "spark-3.3", "spark-3.4", "spark-3.5", "spark-4.0", "spark-4.1", "spark-4.2"]
         java: [ "java-8", "java-11", "java-17" ]
         # Spark supports JDK17 since 3.3.
         exclude:
@@ -259,6 +263,10 @@ jobs:
           - spark: spark-4.1
             java: java-8
           - spark: spark-4.1
+            java: java-11
+          - spark: spark-4.2
+            java: java-8
+          - spark: spark-4.2
             java: java-11
 
     runs-on: ubuntu-22.04
@@ -304,7 +312,7 @@ jobs:
           echo "JAVA_HOME: $JAVA_HOME"
           cd $GITHUB_WORKSPACE/
           case "${{ matrix.spark }}" in
-            spark-4.0|spark-4.1)
+            spark-4.0|spark-4.1|spark-4.2)
               $MVN_CMD clean install -P${{ matrix.spark }} -P${{ matrix.java }} -Pscala-2.13 -Pbackends-velox -DskipTests
               ;;
             *)

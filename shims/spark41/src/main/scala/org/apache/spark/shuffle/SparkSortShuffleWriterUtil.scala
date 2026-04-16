@@ -16,7 +16,7 @@
  */
 package org.apache.spark.shuffle
 
-import org.apache.spark.TaskContext
+import org.apache.spark.{SparkConf, TaskContext}
 import org.apache.spark.shuffle.api.ShuffleExecutorComponents
 import org.apache.spark.shuffle.sort.SortShuffleWriter
 
@@ -28,5 +28,11 @@ object SparkSortShuffleWriterUtil {
       writeMetrics: ShuffleWriteMetricsReporter,
       shuffleExecutorComponents: ShuffleExecutorComponents): ShuffleWriter[K, V] = {
     new SortShuffleWriter(handle, mapId, context, writeMetrics, shuffleExecutorComponents)
+  }
+}
+
+object SparkIndexShuffleBlockResolverUtil {
+  def create(conf: SparkConf): IndexShuffleBlockResolver = {
+    new IndexShuffleBlockResolver(conf)
   }
 }
