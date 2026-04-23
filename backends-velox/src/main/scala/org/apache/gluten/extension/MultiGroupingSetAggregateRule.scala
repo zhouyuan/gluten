@@ -60,53 +60,86 @@ case class MultiGroupingSetAggregateRule(session: SparkSession) extends Rule[Spa
     // Find the ExpandExecTransformer, possibly through a pre-project inserted by
     // PullOutPreProject (which adds a ProjectExec between the aggregate and expand when
     // aggregate expressions contain non-attribute children such as SUM(b + c)).
-    val (expand, preProjectAliases): (ExpandExecTransformer, Map[ExprId, Expression]) =
+    // We capture the full Alias nodes (not just exprId->child) to reconstruct output Attributes.
+    val (expand, computedPreProjectAliases): (ExpandExecTransformer, Seq[Alias]) =
       agg.child match {
         case e: ExpandExecTransformer =>
-          (e, Map.empty)
+          (e, Seq.empty)
         case project: ProjectExecTransformer if project.child.isInstanceOf[ExpandExecTransformer] =>
           val e = project.child.asInstanceOf[ExpandExecTransformer]
-          // Build a substitution map for the extra attributes computed by the pre-project.
-          // Pass-through columns (whose exprId already exists in the expand output) are not
-          // included; their references remain valid against the expand output as-is.
+          // Collect only the aliases whose exprId is NOT already in the expand output;
+          // pass-through columns reference the expand output directly.
           val expandOutputIds = e.output.map(_.exprId).toSet
-          val aliases: Map[ExprId, Expression] = project.projectList.collect {
-            case alias: Alias if !expandOutputIds.contains(alias.exprId) =>
-              alias.exprId -> alias.child
-          }.toMap
-          (e, aliases)
+          val computedAliases = project.projectList.collect {
+            case alias: Alias if !expandOutputIds.contains(alias.exprId) => alias
+          }
+          (e, computedAliases)
         case _ => return None
       }
 
+    val preProjectAliasMap: Map[ExprId, Expression] =
+      computedPreProjectAliases.map(a => a.exprId -> a.child).toMap
+
     extractGroupingSets(expand, agg) match {
       case Some((groupingSets, _)) if isValidForMultiGroupingSet(agg, expand, groupingSets) =>
-        // If a pre-project was present, inline its computed aliases back into the aggregate's
-        // grouping expressions so we can use the ExpandExecTransformer as the direct child.
-        // However, do NOT inline aliases into aggregate function inputs: inlining would
-        // produce complex expressions (e.g. coalesce(multiply(...), 0)) as aggregate inputs,
-        // which Velox rejects with "Expression must be field access, constant, or lambda"
-        // (AggregateInfo.cpp:79). When that case arises, fall back to regular processing
-        // so the pre-project stays in the plan as an intermediate ProjectRel node.
-        val (groupingExprs, aggExprs) = if (preProjectAliases.isEmpty) {
-          (agg.groupingExpressions, agg.aggregateExpressions)
+        val (resolvedExpand, groupingExprs, aggExprs) = if (computedPreProjectAliases.isEmpty) {
+          // No pre-project: use the original expand and agg expressions unchanged.
+          (expand, agg.groupingExpressions, agg.aggregateExpressions)
         } else {
-          // Check whether any aggregate function input references a pre-project alias.
           val aggRefsPreProject = agg.aggregateExpressions.exists { aggExpr =>
             aggExpr.aggregateFunction.children.exists {
-              case attr: AttributeReference => preProjectAliases.contains(attr.exprId)
+              case attr: AttributeReference => preProjectAliasMap.contains(attr.exprId)
               case _ => false
             }
           }
-          if (aggRefsPreProject) return None
 
-          // Only grouping expressions may reference pre-project aliases (safe to inline
-          // since ROLLUP/CUBE grouping keys are always simple column refs after inlining).
-          def inlineAliases(expr: Expression): Expression = expr.transform {
-            case attr: AttributeReference if preProjectAliases.contains(attr.exprId) =>
-              preProjectAliases(attr.exprId)
+          if (aggRefsPreProject) {
+            // Aggregate function inputs reference computed pre-project aliases (e.g. SUM(b*c)
+            // where b*c was computed by the pre-project). Velox requires aggregate inputs to be
+            // field accesses (AggregateInfo.cpp:79), so we cannot simply inline these expressions
+            // into the AggregateRel. Instead we fold the pre-project INTO the expand:
+            //
+            //   Before: Agg -> ProjectExecTransformer(expand_out -> computed_cols) -> Expand
+            //   After:  Agg -> ExtendedExpand (projects = original ++ computed_cols per row)
+            //
+            // For each pre-project alias (expr over expand output attrs), we substitute each
+            // expand output AttributeReference with the corresponding expression from that
+            // projection row. Since computed aggregate inputs are never null-masked by expand
+            // (only grouping keys get nulled), the substitution is identical across rows.
+            // The extended expand output includes the new attributes (same exprIds as the
+            // pre-project aliases), so the agg's aggregate expressions resolve to field accesses.
+            // The ExpandRel remains the direct Substrait source of AggregateRel, so Velox
+            // can fuse them into MultiGroupingSetHashAggregation.
+            val expandOutputIdToPos: Map[ExprId, Int] =
+              expand.output.zipWithIndex.map { case (a, i) => a.exprId -> i }.toMap
+
+            def substituteInRow(expr: Expression, proj: Seq[Expression]): Expression =
+              expr.transform {
+                case attr: AttributeReference if expandOutputIdToPos.contains(attr.exprId) =>
+                  proj(expandOutputIdToPos(attr.exprId))
+              }
+
+            val newProjections = expand.projections.map { proj =>
+              proj ++ computedPreProjectAliases.map(a => substituteInRow(a.child, proj))
+            }
+            val newOutput = expand.output ++ computedPreProjectAliases.map(_.toAttribute)
+            val newExpand = expand.copy(projections = newProjections, output = newOutput)
+
+            // agg.groupingExpressions reference original expand output exprIds (present in
+            // newOutput). agg.aggregateExpressions reference computed alias exprIds (also
+            // present in newOutput). No inlining needed.
+            (newExpand, agg.groupingExpressions, agg.aggregateExpressions)
+          } else {
+            // Aggregate function inputs are already simple references; only grouping
+            // expressions may reference pre-project aliases. Inline those and drop the
+            // pre-project so the expand remains the direct child.
+            def inlineAliases(expr: Expression): Expression = expr.transform {
+              case attr: AttributeReference if preProjectAliasMap.contains(attr.exprId) =>
+                preProjectAliasMap(attr.exprId)
+            }
+            val g = agg.groupingExpressions.map(inlineAliases(_).asInstanceOf[NamedExpression])
+            (expand, g, agg.aggregateExpressions)
           }
-          val g = agg.groupingExpressions.map(inlineAliases(_).asInstanceOf[NamedExpression])
-          (g, agg.aggregateExpressions)
         }
 
         Some(
@@ -117,10 +150,10 @@ case class MultiGroupingSetAggregateRule(session: SparkSession) extends Rule[Spa
             agg.aggregateAttributes,
             agg.initialInputBufferOffset,
             agg.resultExpressions,
-            // Use the ExpandExecTransformer directly as the child. doTransform (inherited from
-            // HashAggregateExecTransformer) will emit ExpandRel → AggregateRel in the Substrait
-            // plan, which Velox fuses into MultiGroupingSetHashAggregation.
-            expand,
+            // ExpandExecTransformer (possibly extended) as direct child. doTransform inherited
+            // from HashAggregateExecTransformer emits ExpandRel -> AggregateRel, which Velox
+            // fuses into MultiGroupingSetHashAggregation.
+            resolvedExpand,
             groupingSets
           ))
       case _ => None
