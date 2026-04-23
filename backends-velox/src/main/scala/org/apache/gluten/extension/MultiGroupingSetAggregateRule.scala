@@ -25,7 +25,6 @@ import org.apache.spark.sql.catalyst.expressions.aggregate._
 import org.apache.spark.sql.catalyst.rules.Rule
 import org.apache.spark.sql.execution.SparkPlan
 
-import scala.collection.mutable
 
 /**
  * Optimization rule to convert Expand-Aggregate pattern (used for GROUPING SETS/ROLLUP/CUBE) into
@@ -94,40 +93,85 @@ case class MultiGroupingSetAggregateRule(session: SparkSession) extends Rule[Spa
           }
 
           if (aggRefsPreProject) {
-            // Aggregate function inputs reference computed pre-project aliases (e.g. SUM(b*c)
-            // where b*c was computed by the pre-project). Velox requires aggregate inputs to be
-            // field accesses (AggregateInfo.cpp:79), so we cannot simply inline these expressions
-            // into the AggregateRel. Instead we fold the pre-project INTO the expand:
+            // Aggregate inputs reference computed pre-project aliases (e.g. SUM(b*c) where
+            // b*c was computed by the pre-project referencing expand output attrs).
             //
-            //   Before: Agg -> ProjectExecTransformer(expand_out -> computed_cols) -> Expand
-            //   After:  Agg -> ExtendedExpand (projects = original ++ computed_cols per row)
+            // Two Velox constraints prevent simple approaches:
+            //   1. AggregateInfo.cpp:79 -- aggregate inputs must be field accesses/constants
+            //   2. SubstraitToVeloxPlan.cc:924 -- expand projections must be fields or literals
             //
-            // For each pre-project alias (expr over expand output attrs), we substitute each
-            // expand output AttributeReference with the corresponding expression from that
-            // projection row. Since computed aggregate inputs are never null-masked by expand
-            // (only grouping keys get nulled), the substitution is identical across rows.
-            // The extended expand output includes the new attributes (same exprIds as the
-            // pre-project aliases), so the agg's aggregate expressions resolve to field accesses.
-            // The ExpandRel remains the direct Substrait source of AggregateRel, so Velox
-            // can fuse them into MultiGroupingSetHashAggregation.
-            val expandOutputIdToPos: Map[ExprId, Int] =
-              expand.output.zipWithIndex.map { case (a, i) => a.exprId -> i }.toMap
+            // Solution: push the pre-project computation BELOW the expand so that:
+            //   - A new ProjectExecTransformer under the expand pre-computes the expressions
+            //     on the raw (unexpanded) data
+            //   - The expand passes those columns through as plain field references (allowed)
+            //   - The aggregate sees them as field accesses into the expand output (allowed)
+            //   - ExpandRel remains the direct source of AggregateRel -- Velox fuses them
+            //
+            // Safety: the referenced expand output attrs must flow unchanged in EVERY expand
+            // row (i.e., never null-masked). Grouping keys ARE null-masked in some rows, so
+            // if a computed expression references a grouping key, the semantics would change
+            // and we bail out. In practice, aggregate inputs reference data columns that are
+            // never null-masked by the expand (only grouping key columns are nulled).
 
-            def substituteInRow(expr: Expression, proj: Seq[Expression]): Expression =
-              expr.transform {
-                case attr: AttributeReference if expandOutputIdToPos.contains(attr.exprId) =>
-                  proj(expandOutputIdToPos(attr.exprId))
+            // Map expand output exprId -> the unique child AttributeReference that feeds it,
+            // but ONLY for positions that are never null-masked (same field ref in ALL rows).
+            val expandOutToChildRef: Map[ExprId, AttributeReference] =
+              expand.output.zipWithIndex.flatMap { case (outAttr, pos) =>
+                val rowExprs = expand.projections.map(_(pos))
+                val fieldRefs = rowExprs.collect { case r: AttributeReference => r }
+                // All rows must yield a consistent field reference (never a null literal).
+                if (
+                  fieldRefs.size == expand.projections.size &&
+                  fieldRefs.map(_.exprId).distinct.size == 1
+                ) {
+                  Some(outAttr.exprId -> fieldRefs.head)
+                } else None
+              }.toMap
+
+            // Re-express each pre-project alias in terms of expand.child output.
+            // Returns None if any referenced expand output attr is null-masked (bail out).
+            def substituteWithChildRefs(expr: Expression): Option[Expression] = {
+              var ok = true
+              val result = expr.transform {
+                case attr: AttributeReference =>
+                  expandOutToChildRef.get(attr.exprId) match {
+                    case Some(childRef) => childRef
+                    case None => ok = false; attr
+                  }
               }
-
-            val newProjections = expand.projections.map { proj =>
-              proj ++ computedPreProjectAliases.map(a => substituteInRow(a.child, proj))
+              if (ok) Some(result) else None
             }
-            val newOutput = expand.output ++ computedPreProjectAliases.map(_.toAttribute)
-            val newExpand = expand.copy(projections = newProjections, output = newOutput)
 
-            // agg.groupingExpressions reference original expand output exprIds (present in
-            // newOutput). agg.aggregateExpressions reference computed alias exprIds (also
-            // present in newOutput). No inlining needed.
+            val substitutedAliasOpts = computedPreProjectAliases.map { alias =>
+              substituteWithChildRefs(alias.child).map { subExpr =>
+                Alias(subExpr, alias.name)(alias.exprId, alias.qualifier, alias.explicitMetadata)
+              }
+            }
+            if (substitutedAliasOpts.exists(_.isEmpty)) return None
+            val substitutedAliases = substitutedAliasOpts.flatten
+
+            // Create ProjectExecTransformer below the expand: pass through expand.child.output
+            // plus the newly computed columns.
+            val preExpandProjList: Seq[NamedExpression] =
+              expand.child.output.map(_.asInstanceOf[NamedExpression]) ++ substitutedAliases
+            val preExpandProject = ProjectExecTransformer(preExpandProjList, expand.child)
+
+            // Extend every expand projection row with a plain AttributeReference to each
+            // computed column. These are field accesses -- allowed by Velox ExpandNode.
+            val computedAttrRefs: Seq[AttributeReference] = substitutedAliases.map { a =>
+              AttributeReference(a.name, a.dataType, a.nullable, a.metadata)(
+                a.exprId,
+                a.qualifier)
+            }
+            val newProjections = expand.projections.map(_ ++ computedAttrRefs)
+            val newOutput = expand.output ++ substitutedAliases.map(_.toAttribute)
+            val newExpand = expand.copy(
+              projections = newProjections,
+              output = newOutput,
+              child = preExpandProject)
+
+            // agg.groupingExpressions reference original expand output exprIds (in newOutput).
+            // agg.aggregateExpressions reference computed alias exprIds (also in newOutput).
             (newExpand, agg.groupingExpressions, agg.aggregateExpressions)
           } else {
             // Aggregate function inputs are already simple references; only grouping
