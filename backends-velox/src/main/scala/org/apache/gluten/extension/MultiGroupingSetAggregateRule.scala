@@ -60,7 +60,7 @@ case class MultiGroupingSetAggregateRule(session: SparkSession) extends Rule[Spa
     agg.child match {
       case expand: ExpandExecTransformer =>
         extractGroupingSets(expand, agg) match {
-          case Some((groupingSets, actualChild)) =>
+          case Some((groupingSets, _)) =>
             // Verify this is a valid pattern for multi-grouping-set optimization
             if (isValidForMultiGroupingSet(agg, expand, groupingSets)) {
               Some(
@@ -71,7 +71,11 @@ case class MultiGroupingSetAggregateRule(session: SparkSession) extends Rule[Spa
                   agg.aggregateAttributes,
                   agg.initialInputBufferOffset,
                   agg.resultExpressions,
-                  actualChild,
+                  // Keep the ExpandExecTransformer as the child so doTransform produces
+                  // ExpandRel → AggregateRel in the Substrait plan. Velox's
+                  // SubstraitToVeloxPlan converts this to ExpandNode → AggregationNode,
+                  // which the execution engine fuses into MultiGroupingSetHashAggregation.
+                  expand,
                   groupingSets
                 ))
             } else {
