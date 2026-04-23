@@ -25,7 +25,6 @@ import org.apache.spark.sql.catalyst.expressions.aggregate._
 import org.apache.spark.sql.catalyst.rules.Rule
 import org.apache.spark.sql.execution.SparkPlan
 
-
 /**
  * Optimization rule to convert Expand-Aggregate pattern (used for GROUPING SETS/ROLLUP/CUBE) into
  * Velox's MultiGroupingSetHashAggregation which uses a shared hash table for better performance and
@@ -163,8 +162,21 @@ case class MultiGroupingSetAggregateRule(session: SparkSession) extends Rule[Spa
                 a.exprId,
                 a.qualifier)
             }
-            val newProjections = expand.projections.map(_ ++ computedAttrRefs)
-            val newOutput = expand.output ++ substitutedAliases.map(_.toAttribute)
+
+            // CRITICAL: Velox's LocalPlanner fusion check (LocalPlanner.cpp) requires that the
+            // LAST element of every projection row is a ConstantTypedExpr (the grouping_id
+            // literal). If we append computed refs at the end, row.back() becomes a field ref
+            // and the fusion condition fails -- the ExpandNode executes normally, duplicating
+            // rows N times. Fix: insert computed refs BEFORE the last entry (grouping_id) so
+            // the last element stays the grouping_id literal constant in all rows.
+            val newProjections = expand.projections.map { proj =>
+              val (beforeGid, gidEntry) = proj.splitAt(proj.size - 1)
+              beforeGid ++ computedAttrRefs ++ gidEntry
+            }
+            val newOutput = {
+              val (beforeGid, gidAttr) = expand.output.splitAt(expand.output.size - 1)
+              beforeGid ++ substitutedAliases.map(_.toAttribute) ++ gidAttr
+            }
             val newExpand = expand.copy(
               projections = newProjections,
               output = newOutput,
