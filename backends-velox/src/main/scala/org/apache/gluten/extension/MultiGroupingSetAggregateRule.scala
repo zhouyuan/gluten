@@ -81,17 +81,32 @@ case class MultiGroupingSetAggregateRule(session: SparkSession) extends Rule[Spa
     extractGroupingSets(expand, agg) match {
       case Some((groupingSets, _)) if isValidForMultiGroupingSet(agg, expand, groupingSets) =>
         // If a pre-project was present, inline its computed aliases back into the aggregate's
-        // expressions so we can use the ExpandExecTransformer as the direct child.
+        // grouping expressions so we can use the ExpandExecTransformer as the direct child.
+        // However, do NOT inline aliases into aggregate function inputs: inlining would
+        // produce complex expressions (e.g. coalesce(multiply(...), 0)) as aggregate inputs,
+        // which Velox rejects with "Expression must be field access, constant, or lambda"
+        // (AggregateInfo.cpp:79). When that case arises, fall back to regular processing
+        // so the pre-project stays in the plan as an intermediate ProjectRel node.
         val (groupingExprs, aggExprs) = if (preProjectAliases.isEmpty) {
           (agg.groupingExpressions, agg.aggregateExpressions)
         } else {
+          // Check whether any aggregate function input references a pre-project alias.
+          val aggRefsPreProject = agg.aggregateExpressions.exists { aggExpr =>
+            aggExpr.aggregateFunction.children.exists {
+              case attr: AttributeReference => preProjectAliases.contains(attr.exprId)
+              case _ => false
+            }
+          }
+          if (aggRefsPreProject) return None
+
+          // Only grouping expressions may reference pre-project aliases (safe to inline
+          // since ROLLUP/CUBE grouping keys are always simple column refs after inlining).
           def inlineAliases(expr: Expression): Expression = expr.transform {
             case attr: AttributeReference if preProjectAliases.contains(attr.exprId) =>
               preProjectAliases(attr.exprId)
           }
           val g = agg.groupingExpressions.map(inlineAliases(_).asInstanceOf[NamedExpression])
-          val a = agg.aggregateExpressions.map(inlineAliases(_).asInstanceOf[AggregateExpression])
-          (g, a)
+          (g, agg.aggregateExpressions)
         }
 
         Some(
