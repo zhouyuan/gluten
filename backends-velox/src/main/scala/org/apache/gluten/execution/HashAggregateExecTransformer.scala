@@ -182,7 +182,7 @@ abstract class HashAggregateExecTransformer(
   }
 
   // Create aggregate function node.
-  private def makeFunctionNode(
+  protected def makeFunctionNode(
       context: SubstraitContext,
       aggregateFunction: AggregateFunction,
       childrenNodeList: JList[ExpressionNode],

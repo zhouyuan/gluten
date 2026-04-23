@@ -56,6 +56,9 @@ class VeloxConfig(conf: SQLConf) extends GlutenConfig(conf) {
   def enableVeloxFlushablePartialAggregation: Boolean =
     getConf(VELOX_FLUSHABLE_PARTIAL_AGGREGATION_ENABLED)
 
+  def enableMultiGroupingSetHashAggregation: Boolean =
+    getConf(VELOX_MULTI_GROUPING_SET_HASH_AGGREGATION_ENABLED)
+
   def enableBroadcastBuildRelationInOffheap: Boolean =
     getConf(VELOX_BROADCAST_BUILD_RELATION_USE_OFFHEAP)
 
@@ -388,6 +391,17 @@ object VeloxConfig extends ConfigRegistry {
         "Enable flushable aggregation. If true, Gluten will try converting regular aggregation " +
           "into Velox's flushable aggregation when applicable. A flushable aggregation could " +
           "emit intermediate result at anytime when memory is full / data reduction ratio is low."
+      )
+      .booleanConf
+      .createWithDefault(true)
+
+  val VELOX_MULTI_GROUPING_SET_HASH_AGGREGATION_ENABLED =
+    buildConf("spark.gluten.sql.columnar.backend.velox.multiGroupingSetHashAggregation")
+      .doc(
+        "Enable multi-grouping-set hash aggregation optimization. If true, Gluten will try " +
+          "converting Expand-Aggregate pattern (used for GROUPING SETS/ROLLUP/CUBE) into " +
+          "Velox's MultiGroupingSetHashAggregation which uses a shared hash table across " +
+          "multiple grouping sets for better performance and memory efficiency."
       )
       .booleanConf
       .createWithDefault(true)
