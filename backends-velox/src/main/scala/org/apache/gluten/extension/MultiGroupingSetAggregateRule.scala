@@ -57,32 +57,57 @@ case class MultiGroupingSetAggregateRule(session: SparkSession) extends Rule[Spa
   /** Try to convert a hash aggregate with an expand child into a multi-grouping-set aggregate. */
   private def tryConvertToMultiGroupingSetAgg(
       agg: HashAggregateExecTransformer): Option[MultiGroupingSetHashAggregateExecTransformer] = {
-    agg.child match {
-      case expand: ExpandExecTransformer =>
-        extractGroupingSets(expand, agg) match {
-          case Some((groupingSets, _)) =>
-            // Verify this is a valid pattern for multi-grouping-set optimization
-            if (isValidForMultiGroupingSet(agg, expand, groupingSets)) {
-              Some(
-                MultiGroupingSetHashAggregateExecTransformer(
-                  agg.requiredChildDistributionExpressions,
-                  agg.groupingExpressions,
-                  agg.aggregateExpressions,
-                  agg.aggregateAttributes,
-                  agg.initialInputBufferOffset,
-                  agg.resultExpressions,
-                  // Keep the ExpandExecTransformer as the child so doTransform produces
-                  // ExpandRel → AggregateRel in the Substrait plan. Velox's
-                  // SubstraitToVeloxPlan converts this to ExpandNode → AggregationNode,
-                  // which the execution engine fuses into MultiGroupingSetHashAggregation.
-                  expand,
-                  groupingSets
-                ))
-            } else {
-              None
-            }
-          case None => None
+    // Find the ExpandExecTransformer, possibly through a pre-project inserted by
+    // PullOutPreProject (which adds a ProjectExec between the aggregate and expand when
+    // aggregate expressions contain non-attribute children such as SUM(b + c)).
+    val (expand, preProjectAliases): (ExpandExecTransformer, Map[ExprId, Expression]) =
+      agg.child match {
+        case e: ExpandExecTransformer =>
+          (e, Map.empty)
+        case project: ProjectExecTransformer if project.child.isInstanceOf[ExpandExecTransformer] =>
+          val e = project.child.asInstanceOf[ExpandExecTransformer]
+          // Build a substitution map for the extra attributes computed by the pre-project.
+          // Pass-through columns (whose exprId already exists in the expand output) are not
+          // included; their references remain valid against the expand output as-is.
+          val expandOutputIds = e.output.map(_.exprId).toSet
+          val aliases: Map[ExprId, Expression] = project.projectList.collect {
+            case alias: Alias if !expandOutputIds.contains(alias.exprId) =>
+              alias.exprId -> alias.child
+          }.toMap
+          (e, aliases)
+        case _ => return None
+      }
+
+    extractGroupingSets(expand, agg) match {
+      case Some((groupingSets, _)) if isValidForMultiGroupingSet(agg, expand, groupingSets) =>
+        // If a pre-project was present, inline its computed aliases back into the aggregate's
+        // expressions so we can use the ExpandExecTransformer as the direct child.
+        val (groupingExprs, aggExprs) = if (preProjectAliases.isEmpty) {
+          (agg.groupingExpressions, agg.aggregateExpressions)
+        } else {
+          def inlineAliases(expr: Expression): Expression = expr.transform {
+            case attr: AttributeReference if preProjectAliases.contains(attr.exprId) =>
+              preProjectAliases(attr.exprId)
+          }
+          val g = agg.groupingExpressions.map(inlineAliases(_).asInstanceOf[NamedExpression])
+          val a = agg.aggregateExpressions.map(inlineAliases(_).asInstanceOf[AggregateExpression])
+          (g, a)
         }
+
+        Some(
+          MultiGroupingSetHashAggregateExecTransformer(
+            agg.requiredChildDistributionExpressions,
+            groupingExprs,
+            aggExprs,
+            agg.aggregateAttributes,
+            agg.initialInputBufferOffset,
+            agg.resultExpressions,
+            // Use the ExpandExecTransformer directly as the child. doTransform (inherited from
+            // HashAggregateExecTransformer) will emit ExpandRel → AggregateRel in the Substrait
+            // plan, which Velox fuses into MultiGroupingSetHashAggregation.
+            expand,
+            groupingSets
+          ))
       case _ => None
     }
   }

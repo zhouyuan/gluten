@@ -28,8 +28,8 @@ import org.apache.spark.sql.execution._
  * this node's [[doTransform]] (inherited from the parent) emits an ExpandRel followed by an
  * AggregateRel. Velox's SubstraitToVeloxPlan converts these into an ExpandNode sourcing an
  * AggregationNode, and Velox's internal execution engine then fuses the pair into a single
- * MultiGroupingSetHashAggregation operator (controlled by the
- * `inline_grouping_sets_aggregation` Velox query config, default true).
+ * MultiGroupingSetHashAggregation operator (controlled by the `inline_grouping_sets_aggregation`
+ * Velox query config, default true).
  *
  * @param requiredChildDistributionExpressions
  *   Required child distribution expressions
