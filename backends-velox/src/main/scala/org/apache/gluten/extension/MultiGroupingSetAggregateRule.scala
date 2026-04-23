@@ -26,6 +26,271 @@ import org.apache.spark.sql.catalyst.rules.Rule
 import org.apache.spark.sql.execution.SparkPlan
 
 /**
+ * Converts the Spark ROLLUP/CUBE/GROUPING SETS plan pattern:
+ *
+ * {{{
+ *   HashAggregateExecTransformer
+ *     +-- [ProjectExecTransformer]   (optional; inserted by PullOutPreProject for SUM(b*c))
+ *          +-- ExpandExecTransformer
+ *               +-- rawChild
+ * }}}
+ *
+ * into:
+ *
+ * {{{
+ *   MultiGroupingSetHashAggregateExecTransformer(child = rawChild)
+ * }}}
+ *
+ * The new node's [[doTransform]] constructs the Substrait ExpandRel + AggregateRel itself, with
+ * projection rows guaranteed to have the grouping_id literal as the last column so that Velox's
+ * LocalPlanner fusion check succeeds and creates a MultiGroupingSetHashAggregation operator
+ * instead of the separate Expand + HashAggregation operators.
+ *
+ * Expression rewriting
+ * --------------------
+ * After the transformation, all expressions (groupingExpressions and aggregate function inputs)
+ * must resolve against [[rawChild.output]].
+ *
+ *   - [[groupingExpressions]] from the original agg reference the expand output. The expand
+ *     output passes grouping key columns through from rawChild, so we replace each reference with
+ *     its corresponding rawChild attribute (via the expand's pass-through projection).
+ *
+ *   - Aggregate function inputs reference the expand output (or the optional pre-project output).
+ *     We substitute them through the expand (and optional pre-project) back to rawChild attributes.
+ *
+ * If any expression cannot be traced back to rawChild (e.g. because it references a column that
+ * is null-masked by the expand), we bail out and leave the plan unchanged.
+ */
+case class MultiGroupingSetAggregateRule(session: SparkSession) extends Rule[SparkPlan] {
+
+  override def apply(plan: SparkPlan): SparkPlan = {
+    if (!VeloxConfig.get.enableMultiGroupingSetHashAggregation) {
+      return plan
+    }
+    plan.transformUp {
+      case agg: RegularHashAggregateExecTransformer =>
+        tryConvert(agg).getOrElse(agg)
+      case agg: HashAggregateExecTransformer =>
+        tryConvert(agg).getOrElse(agg)
+    }
+  }
+
+  private def tryConvert(
+      agg: HashAggregateExecTransformer): Option[MultiGroupingSetHashAggregateExecTransformer] = {
+
+    // -----------------------------------------------------------------------
+    // Step 1: Peel off the optional pre-project and find the ExpandExecTransformer.
+    // -----------------------------------------------------------------------
+
+    // expandOutputToExpr: maps expand output exprId -> expression in expand.child.output.
+    // This lets us substitute agg expressions that reference expand output back to rawChild.
+    val (expand, expandOutputToChildExpr): (ExpandExecTransformer, Map[ExprId, Expression]) =
+      agg.child match {
+        case e: ExpandExecTransformer =>
+          // No pre-project. Expand output is a direct pass-through of its child's columns
+          // (plus the grouping_id slot). Build the substitution map from the expand projections:
+          // for each expand output attr, find the unique child expression (must be consistent
+          // across all projection rows and never null-masked).
+          val subMap = buildExpandPassThroughMap(e)
+          (e, subMap)
+
+        case proj: ProjectExecTransformer
+            if proj.child.isInstanceOf[ExpandExecTransformer] =>
+          val e = proj.child.asInstanceOf[ExpandExecTransformer]
+          // Build the expand pass-through map for expand->rawChild substitution.
+          val expandSubMap = buildExpandPassThroughMap(e)
+          // Now also inline the pre-project aliases: pre-project output -> expand.child expr.
+          // This gives us a map from pre-project output exprId -> rawChild expression.
+          val expandOutputIds = e.output.map(_.exprId).toSet
+          val projSubMap: Map[ExprId, Expression] = proj.projectList.flatMap {
+            case alias: Alias if !expandOutputIds.contains(alias.exprId) =>
+              // Computed alias: substitute its body through expandSubMap to get rawChild expr.
+              val substituted = substituteExpression(alias.child, expandSubMap)
+              substituted.map(alias.exprId -> _)
+            case alias: Alias =>
+              // Pass-through alias referencing expand output: look up in expandSubMap.
+              alias.child match {
+                case attr: AttributeReference =>
+                  expandSubMap.get(attr.exprId).map(alias.exprId -> _)
+                case _ => None
+              }
+            case attr: AttributeReference =>
+              expandSubMap.get(attr.exprId).map(attr.exprId -> _)
+            case _ => None
+          }.toMap
+          // Merge: pre-project exprIds take priority; fall back to expand map.
+          (e, expandSubMap ++ projSubMap)
+
+        case _ => return None
+      }
+
+    // -----------------------------------------------------------------------
+    // Step 2: Extract grouping sets from the expand.
+    // -----------------------------------------------------------------------
+    val groupingSets = extractGroupingSets(expand, agg) match {
+      case Some(gs) => gs
+      case None => return None
+    }
+
+    if (groupingSets.size < 2) return None
+
+    // -----------------------------------------------------------------------
+    // Step 3: Validate aggregate modes.
+    // -----------------------------------------------------------------------
+    val validModes = agg.aggregateExpressions.forall(e => e.mode == Partial || e.mode == Complete)
+    if (!validModes) return None
+
+    // -----------------------------------------------------------------------
+    // Step 4: Rewrite groupingExpressions to resolve against expand.child.output.
+    // groupingExpressions reference expand output attrs. We substitute each
+    // AttributeReference through expandOutputToChildExpr.
+    // -----------------------------------------------------------------------
+    val rawChild = expand.child
+    val newGroupingExprs: Seq[NamedExpression] = agg.groupingExpressions.map { ne =>
+      val substituted = substituteExpression(ne, expandOutputToChildExpr)
+      substituted match {
+        case Some(expr: NamedExpression) => expr
+        case Some(expr) =>
+          // Wrap in alias to preserve the original exprId/name.
+          Alias(expr, ne.name)(ne.toAttribute.exprId, ne.toAttribute.qualifier)
+        case None => return None // Cannot resolve; bail out.
+      }
+    }
+
+    // -----------------------------------------------------------------------
+    // Step 5: Rewrite aggregateExpressions to resolve against expand.child.output.
+    // -----------------------------------------------------------------------
+    val newAggExprs: Seq[AggregateExpression] = agg.aggregateExpressions.map { aggExpr =>
+      val newAggFunc = aggExpr.aggregateFunction.mapChildren { child =>
+        substituteExpression(child, expandOutputToChildExpr) match {
+          case Some(expr) => expr
+          case None => return None
+        }
+      }.asInstanceOf[AggregateFunction]
+      aggExpr.copy(aggregateFunction = newAggFunc)
+    }
+
+    // -----------------------------------------------------------------------
+    // Step 6: Create the new node with rawChild as direct child.
+    // -----------------------------------------------------------------------
+    Some(
+      MultiGroupingSetHashAggregateExecTransformer(
+        agg.requiredChildDistributionExpressions,
+        newGroupingExprs,
+        newAggExprs,
+        agg.aggregateAttributes,
+        agg.initialInputBufferOffset,
+        agg.resultExpressions,
+        rawChild,
+        groupingSets
+      ))
+  }
+
+  /**
+   * Build a substitution map: expand output exprId -> expression in expand.child.output.
+   * Only includes columns that are passed through consistently in ALL projection rows
+   * (i.e., the same field reference in every row, never null-masked).
+   * Columns that are null-masked in some rows (grouping keys that go absent) are NOT included.
+   */
+  private def buildExpandPassThroughMap(
+      expand: ExpandExecTransformer): Map[ExprId, Expression] = {
+    expand.output.zipWithIndex.flatMap {
+      case (outAttr, pos) =>
+        val rowExprs = expand.projections.map(_(pos))
+        val fieldRefs = rowExprs.collect { case r: AttributeReference => r }
+        // All rows must use the same field reference (never null-masked).
+        if (
+          fieldRefs.size == expand.projections.size &&
+          fieldRefs.map(_.exprId).distinct.size == 1
+        ) {
+          Some(outAttr.exprId -> fieldRefs.head)
+        } else {
+          None // null-masked in at least one row (e.g. a grouping key)
+        }
+    }.toMap
+  }
+
+  /**
+   * Substitute all AttributeReferences in `expr` using `subMap`. Returns None if any reference
+   * cannot be resolved (i.e., it references a column absent from the map).
+   */
+  private def substituteExpression(
+      expr: Expression,
+      subMap: Map[ExprId, Expression]): Option[Expression] = {
+    var ok = true
+    val result = expr.transform {
+      case attr: AttributeReference =>
+        subMap.get(attr.exprId) match {
+          case Some(replacement) => replacement
+          case None =>
+            // Check whether this attr is already in rawChild (not from expand).
+            // If it's not in the map at all, we can't resolve it.
+            ok = false
+            attr
+        }
+    }
+    if (ok) Some(result) else None
+  }
+
+  /**
+   * Extract grouping sets from the ExpandExecTransformer.
+   *
+   * Each returned element is the list of grouping key indices (into agg.groupingExpressions) that
+   * are ACTIVE (non-null) in that grouping set's projection row.
+   */
+  private def extractGroupingSets(
+      expand: ExpandExecTransformer,
+      agg: HashAggregateExecTransformer): Option[Seq[Seq[Int]]] = {
+    if (expand.projections.isEmpty) return None
+
+    // Map expand output exprId -> column position in projection rows.
+    val expandOutputIdToPos: Map[ExprId, Int] =
+      expand.output.zipWithIndex.map { case (attr, i) => attr.exprId -> i }.toMap
+
+    // Find the column position for each grouping expression.
+    val groupingPositions: Seq[Int] = agg.groupingExpressions.flatMap {
+      case attr: AttributeReference => expandOutputIdToPos.get(attr.exprId)
+      case alias: Alias =>
+        alias.child match {
+          case attr: AttributeReference => expandOutputIdToPos.get(attr.exprId)
+          case _ => None
+        }
+      case _ => None
+    }
+    if (groupingPositions.size != agg.groupingExpressions.size) return None
+
+    val groupingSets = expand.projections.map { projection =>
+      groupingPositions.zipWithIndex.collect {
+        case (pos, keyIdx)
+            if pos < projection.size && !projection(pos).isInstanceOf[Literal] =>
+          keyIdx
+        case (pos, keyIdx)
+            if pos < projection.size && projection(pos)
+              .asInstanceOf[Literal]
+              .value != null =>
+          keyIdx
+      }
+    }
+
+    Some(groupingSets)
+  }
+}
+
+object MultiGroupingSetAggregateRule {
+  // Helper methods can be added here if needed
+}
+
+
+import org.apache.gluten.config.VeloxConfig
+import org.apache.gluten.execution._
+
+import org.apache.spark.sql.SparkSession
+import org.apache.spark.sql.catalyst.expressions._
+import org.apache.spark.sql.catalyst.expressions.aggregate._
+import org.apache.spark.sql.catalyst.rules.Rule
+import org.apache.spark.sql.execution.SparkPlan
+
+/**
  * Optimization rule to convert Expand-Aggregate pattern (used for GROUPING SETS/ROLLUP/CUBE) into
  * Velox's MultiGroupingSetHashAggregation which uses a shared hash table for better performance and
  * memory efficiency.
