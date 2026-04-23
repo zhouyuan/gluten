@@ -115,6 +115,9 @@ case class MultiGroupingSetAggregateRule(session: SparkSession) extends Rule[Spa
   /**
    * Extract grouping sets from the Expand operator. Returns the grouping sets and the actual child
    * (below the Expand).
+   *
+   * Each element of the returned grouping sets is a list of indices into
+   * `agg.groupingExpressions` that are active (non-null) for that grouping set row.
    */
   private def extractGroupingSets(
       expand: ExpandExecTransformer,
@@ -123,37 +126,42 @@ case class MultiGroupingSetAggregateRule(session: SparkSession) extends Rule[Spa
       return None
     }
 
-    try {
-      // Each projection in Expand represents one grouping set
-      // We need to identify which grouping expressions are active in each set
-      val groupingSets = mutable.ArrayBuffer[Seq[Int]]()
-      val numGroupingExprs = agg.groupingExpressions.size
+    // Map each expand output attribute exprId to its column index in the projection rows.
+    val expandOutputIdToPos: Map[ExprId, Int] =
+      expand.output.zipWithIndex.map { case (attr, idx) => attr.exprId -> idx }.toMap
 
-      // The last column in expand output is typically the grouping ID
-      // We need to analyze the projections to determine which columns are nulled out
-      for (projection <- expand.projections) {
-        val activeGroupingIndices = mutable.ArrayBuffer[Int]()
-
-        // Analyze each grouping expression position
-        for (i <- 0 until numGroupingExprs) {
-          if (i < projection.size) {
-            projection(i) match {
-              case Literal(null, _) =>
-              // This grouping expression is not active in this set
-              case _ =>
-                // This grouping expression is active
-                activeGroupingIndices += i
-            }
-          }
+    // Find the projection-row position of each grouping expression.
+    // groupingExpressions are AttributeReferences to expand output (either directly or
+    // via the pre-project passthrough). Use exprId to locate the correct column.
+    val groupingPositions: Seq[Int] = agg.groupingExpressions.flatMap {
+      case attr: AttributeReference =>
+        expandOutputIdToPos.get(attr.exprId)
+      case alias: Alias =>
+        alias.child match {
+          case attr: AttributeReference => expandOutputIdToPos.get(attr.exprId)
+          case _ => None
         }
-
-        groupingSets += activeGroupingIndices.toSeq
-      }
-
-      Some((groupingSets.toSeq, expand.child))
-    } catch {
-      case _: Exception => None
+      case _ => None
     }
+
+    // All grouping expressions must be locatable in the expand output.
+    if (groupingPositions.size != agg.groupingExpressions.size) {
+      return None
+    }
+
+    // For each projection row (= one grouping set), record which grouping key indices are active.
+    val groupingSets = expand.projections.map {
+      projection =>
+        groupingPositions.zipWithIndex.collect {
+          case (pos, keyIdx) if pos < projection.size =>
+            projection(pos) match {
+              case Literal(null, _) => None // null-masked: not active in this grouping set
+              case _ => Some(keyIdx) // active
+            }
+        }.flatten
+    }
+
+    Some((groupingSets, expand.child))
   }
 
   /** Check if the aggregate-expand pattern is valid for multi-grouping-set optimization. */
