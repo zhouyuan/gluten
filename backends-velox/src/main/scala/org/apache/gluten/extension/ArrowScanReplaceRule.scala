@@ -16,8 +16,8 @@
  */
 package org.apache.gluten.extension
 
-import org.apache.gluten.datasource.ArrowCSVFileFormat
-import org.apache.gluten.datasource.v2.ArrowCSVScan
+import org.apache.gluten.datasource.{ArrowCSVFileFormat, ArrowJSONFileFormat}
+import org.apache.gluten.datasource.v2.{ArrowCSVScan, ArrowJSONScan}
 import org.apache.gluten.execution.datasource.v2.ArrowBatchScanExec
 
 import org.apache.spark.sql.SparkSession
@@ -30,7 +30,11 @@ case class ArrowScanReplaceRule(spark: SparkSession) extends Rule[SparkPlan] {
     plan.transformUp {
       case plan: FileSourceScanExec if plan.relation.fileFormat.isInstanceOf[ArrowCSVFileFormat] =>
         ArrowFileSourceScanExec(plan)
+      case plan: FileSourceScanExec if plan.relation.fileFormat.isInstanceOf[ArrowJSONFileFormat] =>
+        ArrowFileSourceScanExec(plan)
       case plan: BatchScanExec if plan.scan.isInstanceOf[ArrowCSVScan] =>
+        ArrowBatchScanExec(plan)
+      case plan: BatchScanExec if plan.scan.isInstanceOf[ArrowJSONScan] =>
         ArrowBatchScanExec(plan)
       case plan: BatchScanExec => plan
       case p => p
