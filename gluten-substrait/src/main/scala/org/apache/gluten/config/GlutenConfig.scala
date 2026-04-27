@@ -19,6 +19,7 @@ package org.apache.gluten.config
 import org.apache.gluten.shuffle.SupportsColumnarShuffle
 
 import org.apache.spark.network.util.{ByteUnit, JavaUtils}
+import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.internal.{GlutenConfigUtil, SQLConf}
 
 import org.apache.hadoop.security.UserGroupInformation
@@ -63,7 +64,9 @@ case object GpuHashShuffleWriterType extends ShuffleWriterType {
  * Note: Gluten configiguration.md is automatically generated from this code.
  * Make sure to run dev/gen-all-config-docs.sh after making changes to this file.
  */
-class GlutenConfig(conf: SQLConf) extends GlutenCoreConfig(conf) {
+class GlutenConfig(sessionOpt: Option[SparkSession] = None) extends GlutenCoreConfig(sessionOpt) {
+  def this(spark: SparkSession) = this(Some(spark))
+
   import GlutenConfig._
 
   def enableAnsiMode: Boolean = conf.ansiEnabled
@@ -457,9 +460,7 @@ object GlutenConfig extends ConfigRegistry {
   val SPARK_SHUFFLE_SPILL_COMPRESS_DEFAULT: Boolean = true
   val SPARK_MAX_BROADCAST_TABLE_SIZE = "spark.sql.maxBroadcastTableSize"
 
-  def get: GlutenConfig = {
-    new GlutenConfig(SQLConf.get)
-  }
+  def get: GlutenConfig = new GlutenConfig()
 
   def prefixOf(backendName: String): String = s"spark.gluten.sql.columnar.backend.$backendName"
   def prefixSessionOf(backendName: String): String = s"spark.gluten.$backendName"

@@ -18,10 +18,15 @@ package org.apache.gluten.config
 
 import org.apache.spark.internal.Logging
 import org.apache.spark.network.util.ByteUnit
+import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.internal.{SQLConf, SQLConfProvider}
 
-class GlutenCoreConfig(conf: SQLConf) extends Logging {
+class GlutenCoreConfig(sessionOpt: Option[SparkSession] = None) extends Logging {
   import GlutenCoreConfig._
+
+  def this(spark: SparkSession) = this(Some(spark))
+
+  def conf: SQLConf = sessionOpt.map(_.sessionState.conf).getOrElse(SQLConf.get)
 
   private lazy val configProvider = new SQLConfProvider(conf)
 
@@ -62,7 +67,7 @@ class GlutenCoreConfig(conf: SQLConf) extends Logging {
  */
 object GlutenCoreConfig extends ConfigRegistry {
   override def get: GlutenCoreConfig = {
-    new GlutenCoreConfig(SQLConf.get)
+    new GlutenCoreConfig()
   }
 
   val SPARK_OFFHEAP_SIZE_KEY = "spark.memory.offHeap.size"

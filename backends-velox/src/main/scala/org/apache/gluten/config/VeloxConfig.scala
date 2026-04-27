@@ -17,7 +17,7 @@
 package org.apache.gluten.config
 
 import org.apache.spark.network.util.ByteUnit
-import org.apache.spark.sql.internal.SQLConf
+import org.apache.spark.sql.SparkSession
 
 import java.util.Locale
 import java.util.concurrent.TimeUnit
@@ -26,7 +26,7 @@ import java.util.concurrent.TimeUnit
  * Note: Gluten configiguration.md is automatically generated from this code.
  * Make sure to run dev/gen-all-config-docs.sh after making changes to this file.
  */
-class VeloxConfig(conf: SQLConf) extends GlutenConfig(conf) {
+class VeloxConfig(sessionOpt: Option[SparkSession] = None) extends GlutenConfig(sessionOpt) {
   import VeloxConfig._
 
   def veloxSpillFileSystem: String = getConf(COLUMNAR_VELOX_SPILL_FILE_SYSTEM)
@@ -105,7 +105,7 @@ class VeloxConfig(conf: SQLConf) extends GlutenConfig(conf) {
 
 object VeloxConfig extends ConfigRegistry {
   override def get: VeloxConfig = {
-    new VeloxConfig(SQLConf.get)
+    new VeloxConfig()
   }
 
   // velox caching options.

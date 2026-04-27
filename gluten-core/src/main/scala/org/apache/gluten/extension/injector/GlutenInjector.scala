@@ -39,7 +39,7 @@ class GlutenInjector private[injector] (control: InjectorControl) {
   }
 
   private def applier(session: SparkSession): ColumnarRuleApplier = {
-    val conf = new GlutenCoreConfig(session.sessionState.conf)
+    val conf = new GlutenCoreConfig(session)
     legacy.createApplier(session)
   }
 }

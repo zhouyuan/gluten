@@ -103,7 +103,7 @@ object VeloxRuleApi {
     injector.injectTransform(
       c =>
         HeuristicTransform.WithRewrites(
-          validatorBuilder(new GlutenConfig(c.sqlConf)),
+          validatorBuilder(new GlutenConfig(c.session)),
           rewrites,
           offloads))
 
@@ -132,9 +132,9 @@ object VeloxRuleApi {
     SparkShimLoader.getSparkShims
       .getExtendedColumnarPostRules()
       .foreach(each => injector.injectPost(c => each(c.session)))
-    injector.injectPost(c => ColumnarCollapseTransformStages(new GlutenConfig(c.sqlConf)))
+    injector.injectPost(c => ColumnarCollapseTransformStages(new GlutenConfig(c.session)))
     injector.injectPost(_ => GenerateTransformStageId())
-    injector.injectPost(c => CudfNodeValidationRule(new GlutenConfig(c.sqlConf)))
+    injector.injectPost(c => CudfNodeValidationRule(new GlutenConfig(c.session)))
 
     injector.injectPost(c => GlutenNoopWriterRule(c.session))
 
@@ -143,8 +143,8 @@ object VeloxRuleApi {
     injector.injectFinal(
       c => PreventBatchTypeMismatchInTableCache(c.caller.isCache(), Set(VeloxBatchType)))
     injector.injectFinal(
-      c => GlutenAutoAdjustStageResourceProfile(new GlutenConfig(c.sqlConf), c.session))
-    injector.injectFinal(c => GlutenFallbackReporter(new GlutenConfig(c.sqlConf), c.session))
+      c => GlutenAutoAdjustStageResourceProfile(new GlutenConfig(c.session), c.session))
+    injector.injectFinal(c => GlutenFallbackReporter(new GlutenConfig(c.session), c.session))
     injector.injectFinal(_ => RemoveFallbackTagRule())
   }
 }
