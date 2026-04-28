@@ -17,7 +17,7 @@
 package org.apache.gluten
 
 import org.apache.gluten.component.Component
-import org.apache.gluten.config.GlutenCoreConfig
+import org.apache.gluten.config.{GlutenConfigRegistries, GlutenCoreConfig}
 import org.apache.gluten.exception.GlutenException
 import org.apache.gluten.extension.GlutenSessionExtensions
 import org.apache.gluten.initializer.CodedInputStreamClassInitializer
@@ -177,6 +177,8 @@ private[gluten] class GlutenExecutorPlugin extends ExecutorPlugin {
 
   /** Initialize the executor plugin. */
   override def init(ctx: PluginContext, extraConf: util.Map[String, String]): Unit = {
+    GlutenConfigRegistries.ensureInitialized()
+
     CodedInputStreamClassInitializer.modifyDefaultRecursionLimitUnsafe
     // Initialize Backend.
     Component.sorted().foreach(_.onExecutorStart(ctx))
