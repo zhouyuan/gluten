@@ -31,22 +31,19 @@ package org.apache.gluten.config
  * GlutenPlugin.DriverPlugin.init()) to guarantee that all Gluten keys are visible to
  * spark.conf.isModifiable() for the lifetime of the JVM.
  */
-object GlutenConfigRegistries extends org.apache.gluten.config.GlutenConfigRegistries {
+object GlutenConfigRegistries {
 
   /**
    * Touch every config object so their static initializers run. The discard `val _ =` pattern
    * forces Scala to evaluate the object reference, which triggers its initialization if not yet
    * done.
-   *
-   * This overrides the gluten-core version to also initialize substrait-specific configs.
    */
-  override def ensureInitialized(): Unit = {
-    // Initialize core configs first
-    super.ensureInitialized()
-    
-    // Substrait-specific configs
-    val _2 = GlutenConfig.getClass
-    touchObject(GlutenConfig)
+  def ensureInitialized(): Unit = {
+    // Core configs
+    val _1 = GlutenCoreConfig.getClass
+    // Force the companion objects themselves (holds the ConfigEntry vals).
+    // Accessing .getClass on the object is sufficient to trigger <clinit>.
+    touchObject(GlutenCoreConfig)
   }
 
   // Accepts Any so callers don't need to import every config type.
@@ -54,3 +51,5 @@ object GlutenConfigRegistries extends org.apache.gluten.config.GlutenConfigRegis
     val _ = obj.getClass.getName // triggers <clinit> if not yet run
   }
 }
+
+// Made with Bob
