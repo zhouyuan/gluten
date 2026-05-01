@@ -63,8 +63,16 @@ const std::string kAbandonPartialAggregationMinRows =
     "spark.gluten.sql.columnar.backend.velox.abandonPartialAggregationMinRows";
 
 // hashmap build
+const std::string kMinTableRowsForParallelJoinBuild = "spark.gluten.velox.minTableRowsForParallelJoinBuild";
+const uint32_t kMinTableRowsForParallelJoinBuildDefault = 1'000;
+
+const std::string kJoinBuildVectorHasherMaxNumDistinct = "spark.gluten.velox.joinBuildVectorHasherMaxNumDistinct";
+const uint32_t kJoinBuildVectorHasherMaxNumDistinctDefault = 1'000'000;
+
 const std::string kAbandonDedupHashMapMinRows = "spark.gluten.velox.abandonDedupHashMap.minRows";
+const uint32_t kAbandonDedupHashMapMinRowsDefault = 100'000;
 const std::string kAbandonDedupHashMapMinPct = "spark.gluten.velox.abandonDedupHashMap.minPct";
+const uint32_t kAbandonDedupHashMapMinPctDefault = 0;
 
 // execution
 const std::string kSparkBloomFilterExpectedNumItems = "spark.sql.optimizer.runtime.bloomFilter.expectedNumItems";
@@ -165,8 +173,9 @@ const std::string kMemoryPoolCapacityTransferAcrossTasks =
     "spark.gluten.sql.columnar.backend.velox.memoryPoolCapacityTransferAcrossTasks";
 const std::string kOrcUseColumnNames = "spark.gluten.sql.columnar.backend.velox.orcUseColumnNames";
 const std::string kParquetUseColumnNames = "spark.gluten.sql.columnar.backend.velox.parquetUseColumnNames";
+const std::string kAllowInt32Narrowing = "spark.gluten.sql.columnar.backend.velox.allowInt32Narrowing";
 
-// write fies
+// write files
 const std::string kMaxPartitions = "spark.gluten.sql.columnar.backend.velox.maxPartitionsPerWritersSession";
 const std::string kMaxTargetFileSize = "spark.gluten.sql.columnar.backend.velox.maxTargetFileSize";
 
@@ -175,6 +184,9 @@ const uint32_t kGlogVerboseLevelDefault = 0;
 const uint32_t kGlogVerboseLevelMaximum = 99;
 const std::string kGlogSeverityLevel = "spark.gluten.sql.columnar.backend.velox.glogSeverityLevel";
 const uint32_t kGlogSeverityLevelDefault = 1;
+
+// Iceberg write configs
+const std::string kWriteParquetPageSizeBytes = "spark.gluten.sql.columnar.backend.velox.parquet.pageSizeBytes";
 
 // Query trace
 /// Enable query tracing flag.

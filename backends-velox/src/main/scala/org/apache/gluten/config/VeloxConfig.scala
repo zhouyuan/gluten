@@ -62,8 +62,8 @@ class VeloxConfig(conf: SQLConf) extends GlutenConfig(conf) {
   def enableBroadcastBuildOncePerExecutor: Boolean =
     getConf(VELOX_BROADCAST_BUILD_HASHTABLE_ONCE_PER_EXECUTOR)
 
-  def veloxBroadcastHashTableBuildThreads: Int =
-    getConf(COLUMNAR_VELOX_BROADCAST_HASH_TABLE_BUILD_THREADS)
+  def veloxBroadcastHashTableBuildTargetBytes: Long =
+    getConf(COLUMNAR_VELOX_BROADCAST_HASH_TABLE_BUILD_TARGET_BYTES)
 
   def veloxOrcScanEnabled: Boolean =
     getConf(VELOX_ORC_SCAN_ENABLED)
@@ -92,6 +92,8 @@ class VeloxConfig(conf: SQLConf) extends GlutenConfig(conf) {
 
   def parquetUseColumnNames: Boolean = getConf(PARQUET_USE_COLUMN_NAMES)
 
+  def parquetPageSizeBytes: Long = getConf(PARQUET_PAGE_SIZE_BYTES)
+
   def hashProbeBloomFilterPushdownMaxSize: Long = getConf(HASH_PROBE_BLOOM_FILTER_PUSHDOWN_MAX_SIZE)
 
   def hashProbeDynamicFilterPushdownEnabled: Boolean =
@@ -99,6 +101,8 @@ class VeloxConfig(conf: SQLConf) extends GlutenConfig(conf) {
 
   def valueStreamDynamicFilterEnabled: Boolean =
     getConf(VALUE_STREAM_DYNAMIC_FILTER_ENABLED)
+
+  def enableTimestampNtzValidation: Boolean = getConf(ENABLE_TIMESTAMP_NTZ_VALIDATION)
 }
 
 object VeloxConfig extends ConfigRegistry {
@@ -204,19 +208,21 @@ object VeloxConfig extends ConfigRegistry {
       .intConf
       .createOptional
 
-  val COLUMNAR_VELOX_BROADCAST_HASH_TABLE_BUILD_THREADS =
-    buildStaticConf("spark.gluten.sql.columnar.backend.velox.broadcastHashTableBuildThreads")
-      .doc("The number of threads used to build the broadcast hash table. " +
-        "If not set or set to 0, it will use the default number of threads (available processors).")
-      .intConf
-      .createWithDefault(1)
+  val COLUMNAR_VELOX_BROADCAST_HASH_TABLE_BUILD_TARGET_BYTES =
+    buildStaticConf("spark.gluten.velox.broadcast.build.targetBytesPerThread")
+      .doc(
+        "It is used to calculate the number of hash table build threads. Based on our testing" +
+          " across various thresholds (1MB to 128MB), we recommend a value of 32MB or 64MB," +
+          " as these consistently provided the most significant performance gains.")
+      .bytesConf(ByteUnit.BYTE)
+      .createWithDefaultString("32MB")
 
   val COLUMNAR_VELOX_ASYNC_TIMEOUT =
     buildStaticConf("spark.gluten.sql.columnar.backend.velox.asyncTimeoutOnTaskStopping")
       .doc(
         "Timeout for asynchronous execution when task is being stopped in Velox backend. " +
           "It's recommended to set to a number larger than network connection timeout that the " +
-          "possible aysnc tasks are relying on.")
+          "possible async tasks are relying on.")
       .timeConf(TimeUnit.MILLISECONDS)
       .createWithDefault(30000)
 
@@ -561,7 +567,7 @@ object VeloxConfig extends ConfigRegistry {
     buildConf("spark.gluten.velox.castFromVarcharAddTrimNode")
       .doc(
         "If true, will add a trim node " +
-          "which has the same sementic as vanilla Spark to CAST-from-varchar." +
+          "which has the same semantic as vanilla Spark to CAST-from-varchar." +
           "Otherwise, do nothing.")
       .booleanConf
       .createWithDefault(false)
@@ -580,6 +586,22 @@ object VeloxConfig extends ConfigRegistry {
       .doc("Experimental: abandon hashmap build if duplicated rows more than this number.")
       .intConf
       .createWithDefault(100000)
+
+  val VELOX_MIN_TABLE_ROWS_FOR_PARALLEL_JOIN_BUILD =
+    buildConf("spark.gluten.velox.minTableRowsForParallelJoinBuild")
+      .experimental()
+      .doc("Experimental: the minimum number of table rows that can trigger " +
+        "the parallel hash join table build.")
+      .intConf
+      .createWithDefault(1000)
+
+  val VELOX_JOIN_BUILD_VECTOR_HASHER_MAX_NUM_DISTINCT =
+    buildConf("spark.gluten.velox.joinBuildVectorHasherMaxNumDistinct")
+      .experimental()
+      .doc("Experimental: maximum number of distinct values to keep when " +
+        "merging vector hashers in join HashBuild.")
+      .intConf
+      .createWithDefault(1000000)
 
   val VELOX_HASHMAP_ABANDON_BUILD_DUPHASH_MIN_PCT =
     buildConf("spark.gluten.velox.abandonDedupHashMap.minPct")
@@ -694,7 +716,7 @@ object VeloxConfig extends ConfigRegistry {
   val CUDF_SHUFFLE_MAX_PREFETCH_BYTES =
     buildConf("spark.gluten.sql.columnar.backend.velox.cudf.shuffleMaxPrefetchBytes")
       .doc("Maximum bytes to prefetch in CPU memory during GPU shuffle read while waiting" +
-        "for GPU available.")
+        " for GPU available.")
       .bytesConf(ByteUnit.BYTE)
       .createWithDefaultString("1028MB")
 
@@ -753,6 +775,21 @@ object VeloxConfig extends ConfigRegistry {
   val PARQUET_USE_COLUMN_NAMES =
     buildConf("spark.gluten.sql.columnar.backend.velox.parquetUseColumnNames")
       .doc("Maps table field names to file field names using names, not indices for Parquet files.")
+      .booleanConf
+      .createWithDefault(true)
+
+  val PARQUET_PAGE_SIZE_BYTES =
+    buildConf("spark.gluten.sql.columnar.backend.velox.parquet.pageSizeBytes")
+      .doc("The page size in bytes is for compression.")
+      .bytesConf(ByteUnit.BYTE)
+      .createWithDefaultString("1MB")
+
+  val ENABLE_TIMESTAMP_NTZ_VALIDATION =
+    buildConf("spark.gluten.sql.columnar.backend.velox.enableTimestampNtzValidation")
+      .doc(
+        "Enable validation fallback for TimestampNTZ type. When true (default), any plan " +
+          "containing TimestampNTZ will fall back to Spark execution. Set to false during " +
+          "development/testing of TimestampNTZ support to allow native execution.")
       .booleanConf
       .createWithDefault(true)
 }

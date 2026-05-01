@@ -359,7 +359,7 @@ object TpcdsTableLayout {
         StructField("c_birth_country", StringType),
         StructField("c_login", StringType),
         StructField("c_email_address", StringType),
-        StructField("c_last_review_date", StringType)
+        StructField("c_last_review_date_sk", LongType)
       ))
   }
 

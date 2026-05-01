@@ -18,7 +18,8 @@
 
 #include "VeloxBackend.h"
 
-#include <folly/executors/IOThreadPoolExecutor.h>
+#include <folly/executors/CPUThreadPoolExecutor.h>
+#include <folly/executors/task_queue/UnboundedBlockingQueue.h>
 
 #include "operators/functions/RegistrationAllFunctions.h"
 #include "operators/plannodes/RowVectorStream.h"
@@ -31,7 +32,9 @@
 #include "operators/plannodes/CudfVectorStream.h"
 #include "velox/experimental/cudf/CudfConfig.h"
 #include "velox/experimental/cudf/connectors/hive/CudfHiveConnector.h"
+#include "velox/experimental/cudf/exec/SparkAggregateFunctions.h"
 #include "velox/experimental/cudf/exec/ToCudf.h"
+#include "velox/experimental/cudf/expression/SparkFunctions.h"
 #endif
 
 #include "compute/VeloxRuntime.h"
@@ -39,6 +42,7 @@
 #include "jni/JniFileSystem.h"
 #include "memory/GlutenBufferedInputBuilder.h"
 #include "operators/functions/SparkExprToSubfieldFilterParser.h"
+#include "operators/plannodes/RowVectorStream.h"
 #include "shuffle/ArrowShuffleDictionaryWriter.h"
 #include "udf/UdfLoader.h"
 #include "utils/Exception.h"
@@ -47,7 +51,6 @@
 #include "velox/connectors/hive/BufferedInputBuilder.h"
 #include "velox/connectors/hive/HiveConnector.h"
 #include "velox/connectors/hive/HiveDataSource.h"
-#include "operators/plannodes/RowVectorStream.h"
 #include "velox/connectors/hive/storage_adapters/abfs/RegisterAbfsFileSystem.h" // @manual
 #include "velox/connectors/hive/storage_adapters/gcs/RegisterGcsFileSystem.h" // @manual
 #include "velox/connectors/hive/storage_adapters/hdfs/HdfsFileSystem.h"
@@ -101,16 +104,6 @@ void VeloxBackend::init(
   backendConf_ =
       std::make_shared<facebook::velox::config::ConfigBase>(std::unordered_map<std::string, std::string>(conf));
 
-  globalMemoryManager_ = std::make_unique<VeloxMemoryManager>(kVeloxBackendKind, std::move(listener), *backendConf_);
-
-  // Register factories.
-  MemoryManager::registerFactory(kVeloxBackendKind, veloxMemoryManagerFactory, veloxMemoryManagerReleaser);
-  Runtime::registerFactory(kVeloxBackendKind, veloxRuntimeFactory, veloxRuntimeReleaser);
-
-  if (backendConf_->get<bool>(kDebugModeEnabled, false)) {
-    LOG(INFO) << "VeloxBackend config:" << printConfig(backendConf_->rawConfigs());
-  }
-
   // Init glog and log level.
   if (!backendConf_->get<bool>(kDebugModeEnabled, false)) {
     FLAGS_v = backendConf_->get<uint32_t>(kGlogVerboseLevel, kGlogVerboseLevelDefault);
@@ -124,6 +117,16 @@ void VeloxBackend::init(
   }
   FLAGS_logtostderr = true;
   google::InitGoogleLogging("gluten");
+
+  globalMemoryManager_ = std::make_unique<VeloxMemoryManager>(kVeloxBackendKind, std::move(listener), *backendConf_);
+
+  // Register factories.
+  MemoryManager::registerFactory(kVeloxBackendKind, veloxMemoryManagerFactory, veloxMemoryManagerReleaser);
+  Runtime::registerFactory(kVeloxBackendKind, veloxRuntimeFactory, veloxRuntimeReleaser);
+
+  if (backendConf_->get<bool>(kDebugModeEnabled, false)) {
+    LOG(INFO) << "VeloxBackend config:" << printConfig(backendConf_->rawConfigs());
+  }
 
   // Allow growing buffer in another task through its memory pool.
   FLAGS_velox_memory_pool_capacity_transfer_across_tasks =
@@ -177,12 +180,13 @@ void VeloxBackend::init(
         {velox::cudf_velox::CudfConfig::kCudfMemoryResource,
          backendConf_->get(kCudfMemoryResource, kCudfMemoryResourceDefault)},
         {velox::cudf_velox::CudfConfig::kCudfMemoryPercent,
-         backendConf_->get(kCudfMemoryPercent, kCudfMemoryPercentDefault)},
-        {velox::cudf_velox::CudfConfig::kCudfFunctionEngine, "spark"}};
+         backendConf_->get(kCudfMemoryPercent, kCudfMemoryPercentDefault)}};
     auto& cudfConfig = velox::cudf_velox::CudfConfig::getInstance();
     cudfConfig.initialize(std::move(options));
     velox::cudf_velox::registerCudf();
     velox::exec::Operator::registerOperator(std::make_unique<CudfVectorStreamOperatorTranslator>());
+    velox::cudf_velox::registerSparkFunctions("");
+    velox::cudf_velox::registerSparkAggregateFunctions("");
   }
 #endif
 
@@ -314,17 +318,18 @@ void VeloxBackend::initConnector(const std::shared_ptr<velox::config::ConfigBase
       ioThreads >= 0,
       kVeloxIOThreads + " was set to negative number " + std::to_string(ioThreads) + ", this should not happen.");
   if (ioThreads > 0) {
-    ioExecutor_ = std::make_unique<folly::CPUThreadPoolExecutor>(ioThreads);
+    ioExecutor_ = std::make_unique<folly::CPUThreadPoolExecutor>(
+        ioThreads, std::make_unique<folly::UnboundedBlockingQueue<folly::CPUThreadPoolExecutor::CPUTask>>());
   }
   velox::connector::registerConnector(
       std::make_shared<velox::connector::hive::HiveConnector>(kHiveConnectorId, hiveConf, ioExecutor_.get()));
-  
+
   // Register value-stream connector for runtime iterator-based inputs
   auto valueStreamDynamicFilterEnabled =
       backendConf_->get<bool>(kValueStreamDynamicFilterEnabled, kValueStreamDynamicFilterEnabledDefault);
   velox::connector::registerConnector(
       std::make_shared<ValueStreamConnector>(kIteratorConnectorId, hiveConf, valueStreamDynamicFilterEnabled));
-  
+
 #ifdef GLUTEN_ENABLE_GPU
   if (backendConf_->get<bool>(kCudfEnableTableScan, kCudfEnableTableScanDefault) &&
       backendConf_->get<bool>(kCudfEnabled, kCudfEnabledDefault)) {
@@ -365,6 +370,9 @@ void VeloxBackend::tearDown() {
   for (const auto& [_, filesystem] : facebook::velox::filesystems::registeredFilesystems) {
     filesystem->close();
   }
+#endif
+#ifdef ENABLE_S3
+  velox::filesystems::finalizeS3FileSystem();
 #endif
 
   // Destruct IOThreadPoolExecutor will join all threads.

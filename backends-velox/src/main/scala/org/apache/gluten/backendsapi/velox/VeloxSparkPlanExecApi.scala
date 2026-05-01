@@ -162,10 +162,9 @@ class VeloxSparkPlanExecApi extends SparkPlanExecApi with Logging {
     }
   }
 
-  override def getDecimalArithmeticExprName(exprName: String): String = if (
-    !SQLConf.get.decimalOperationsAllowPrecisionLoss
-  ) { exprName + "_deny_precision_loss" }
-  else { exprName }
+  override def getDecimalArithmeticExprName(exprName: String): String =
+    if (!SQLConf.get.decimalOperationsAllowPrecisionLoss) { exprName + "_deny_precision_loss" }
+    else { exprName }
 
   /** Transform map_entries to Substrait. */
   override def genMapEntriesTransformer(
@@ -284,6 +283,14 @@ class VeloxSparkPlanExecApi extends SparkPlanExecApi with Logging {
       startDate: ExpressionTransformer,
       original: DateDiff): ExpressionTransformer = {
     GenericExpressionTransformer(substraitExprName, Seq(endDate, startDate), original)
+  }
+
+  /** Transform map_from_entries to Substrait. */
+  override def genMapFromEntriesTransformer(
+      substraitExprName: String,
+      child: ExpressionTransformer,
+      expr: Expression): ExpressionTransformer = {
+    GenericExpressionTransformer(substraitExprName, Seq(child), expr)
   }
 
   override def genPreciseTimestampConversionTransformer(
@@ -698,7 +705,8 @@ class VeloxSparkPlanExecApi extends SparkPlanExecApi with Logging {
       mode: BroadcastMode,
       child: SparkPlan,
       numOutputRows: SQLMetric,
-      dataSize: SQLMetric): BuildSideRelation = {
+      dataSize: SQLMetric,
+      buildThreads: SQLMetric): BuildSideRelation = {
 
     val buildKeys = mode match {
       case mode1: HashedRelationBroadcastMode =>
@@ -843,6 +851,13 @@ class VeloxSparkPlanExecApi extends SparkPlanExecApi with Logging {
     numOutputRows += serialized.map(_.numRows).sum
     dataSize += rawSize
 
+    val rawThreads =
+      math
+        .ceil(dataSize.value.toDouble / VeloxConfig.get.veloxBroadcastHashTableBuildTargetBytes)
+        .toInt
+    val buildThreadsValue = if (rawThreads < 1) 1 else rawThreads
+    buildThreads += buildThreadsValue
+
     if (useOffheapBroadcastBuildRelation) {
       TaskResources.runUnsafe {
         UnsafeColumnarBuildSideRelation(
@@ -850,7 +865,8 @@ class VeloxSparkPlanExecApi extends SparkPlanExecApi with Logging {
           serialized.flatMap(_.offHeapData().asScala),
           mode,
           newBuildKeys,
-          offload)
+          offload,
+          buildThreadsValue)
       }
     } else {
       ColumnarBuildSideRelation(
@@ -858,7 +874,8 @@ class VeloxSparkPlanExecApi extends SparkPlanExecApi with Logging {
         serialized.flatMap(_.onHeapData().asScala).toArray,
         mode,
         newBuildKeys,
-        offload)
+        offload,
+        buildThreadsValue)
     }
   }
 

@@ -16,6 +16,7 @@
  */
 package org.apache.gluten.utils.velox
 
+import org.apache.gluten.config.GlutenConfig
 import org.apache.gluten.utils.{BackendTestSettings, SQLQueryTestSettings}
 
 import org.apache.spark.GlutenSortShuffleSuite
@@ -38,7 +39,7 @@ import org.apache.spark.sql.execution.exchange.{GlutenEnsureRequirementsSuite, G
 import org.apache.spark.sql.execution.joins._
 import org.apache.spark.sql.execution.metric.{GlutenCustomMetricsSuite, GlutenSQLMetricsSuite}
 import org.apache.spark.sql.execution.python._
-import org.apache.spark.sql.extension.{GlutenCollapseProjectExecTransformerSuite, GlutenSessionExtensionSuite, TestFileSourceScanExecTransformer}
+import org.apache.spark.sql.extension.{GlutenCollapseProjectExecTransformerSuite, GlutenSessionExtensionSuite}
 import org.apache.spark.sql.gluten.{GlutenFallbackStrategiesSuite, GlutenFallbackSuite}
 import org.apache.spark.sql.hive.execution.GlutenHiveSQLQuerySuite
 import org.apache.spark.sql.sources._
@@ -48,6 +49,8 @@ import org.apache.spark.sql.streaming._
 // scalastyle:off line.size.limit
 
 class VeloxTestSettings extends BackendTestSettings {
+  private val ansiNoFallback: Boolean =
+    sys.props.get(GlutenConfig.GLUTEN_ANSI_FALLBACK_ENABLED.key).contains("false")
   enableSuite[GlutenStringFunctionsSuite]
   enableSuite[GlutenBloomFilterAggregateQuerySuite]
   enableSuite[GlutenBloomFilterAggregateQuerySuiteCGOff]
@@ -138,6 +141,8 @@ class VeloxTestSettings extends BackendTestSettings {
     // Rewrite in Gluten to replace Seq with Array
     .exclude("Shuffle")
     .excludeGlutenTest("Shuffle")
+    // Rewrite
+    .exclude("MapFromEntries")
   enableSuite[GlutenConditionalExpressionSuite]
   enableSuite[GlutenConstraintExpressionSuite]
   enableSuite[GlutenDateExpressionsSuite]
@@ -173,8 +178,6 @@ class VeloxTestSettings extends BackendTestSettings {
   enableSuite[GlutenHigherOrderFunctionsSuite]
   enableSuite[GlutenIntervalExpressionsSuite]
   enableSuite[GlutenJsonExpressionsSuite]
-    // https://github.com/apache/gluten/issues/10948
-    .exclude("$['key with spaces']")
     // https://github.com/apache/gluten/issues/8102
     .exclude("$.store.book")
     .exclude("$")
@@ -228,12 +231,16 @@ class VeloxTestSettings extends BackendTestSettings {
   enableSuite[GlutenBitmapExpressionUtilsSuite]
   enableSuite[GlutenCallMethodViaReflectionSuite]
   enableSuite[GlutenCanonicalizeSuite]
-  // TODO: 4.x enableSuite[GlutenCastWithAnsiOnSuite]  // 10 failures
+  if (ansiNoFallback) {
+    enableSuite[GlutenCastWithAnsiOnSuite]
+      .exclude("data type casting")
+      .exclude("cast string to timestamp")
+  }
   enableSuite[GlutenCodeGenerationSuite]
   enableSuite[GlutenCodeGeneratorWithInterpretedFallbackSuite]
   enableSuite[GlutenCollationExpressionSuite]
   // TODO: 4.x enableSuite[GlutenCollationRegexpExpressionsSuite]  // 1 failure
-  // TODO: 4.x enableSuite[GlutenCsvExpressionsSuite]  // failures with GlutenPlugin
+  enableSuite[GlutenCsvExpressionsSuite]
   enableSuite[GlutenDynamicPruningSubquerySuite]
   enableSuite[GlutenExprIdSuite]
   // TODO: 4.x enableSuite[GlutenExpressionEvalHelperSuite]  // 2 failures
@@ -335,13 +342,17 @@ class VeloxTestSettings extends BackendTestSettings {
   enableSuite[GlutenJsonParsingOptionsSuite]
   // Generated suites for org.apache.spark.sql.execution.datasources.parquet
   enableSuite[GlutenParquetAvroCompatibilitySuite]
+    // TODO: https://github.com/apache/gluten/issues/11865
+    .exclude("various complex types")
   enableSuite[GlutenParquetCommitterSuite]
   enableSuite[GlutenParquetFieldIdSchemaSuite]
   enableSuite[GlutenParquetTypeWideningSuite]
+    // Velox does not support DELTA_BYTE_ARRAY encoding for FIXED_LEN_BYTE_ARRAY decimals.
     .exclude("parquet decimal precision change Decimal(20, 2) -> Decimal(22, 2)")
     .exclude("parquet decimal precision and scale change Decimal(20, 7) -> Decimal(22, 5)")
     .exclude("parquet decimal precision and scale change Decimal(20, 5) -> Decimal(22, 8)")
     .exclude("parquet decimal precision and scale change Decimal(20, 2) -> Decimal(22, 4)")
+    // Velox native reader aligns with vectorized reader behavior, always rejecting incompatible decimal conversions.
     .exclude("parquet decimal precision and scale change Decimal(10, 4) -> Decimal(12, 7)")
     .exclude("parquet decimal precision and scale change Decimal(10, 6) -> Decimal(12, 4)")
     .exclude("parquet decimal precision and scale change Decimal(10, 7) -> Decimal(5, 2)")
@@ -353,22 +364,12 @@ class VeloxTestSettings extends BackendTestSettings {
     .exclude("parquet decimal precision and scale change Decimal(22, 5) -> Decimal(20, 7)")
     .exclude("parquet decimal precision and scale change Decimal(5, 2) -> Decimal(6, 4)")
     .exclude("parquet decimal precision and scale change Decimal(7, 4) -> Decimal(5, 2)")
-    .exclude("parquet decimal precision and scale change Decimal(10, 2) -> Decimal(12, 4)")
-    .exclude("parquet decimal precision and scale change Decimal(10, 2) -> Decimal(20, 12)")
-    .exclude("parquet decimal precision and scale change Decimal(5, 2) -> Decimal(10, 7)")
-    .exclude("parquet decimal precision and scale change Decimal(5, 2) -> Decimal(20, 17)")
-    .exclude("parquet decimal precision and scale change Decimal(5, 2) -> Decimal(7, 4)")
     .exclude("parquet decimal precision change Decimal(10, 2) -> Decimal(5, 2)")
     .exclude("parquet decimal precision change Decimal(12, 2) -> Decimal(10, 2)")
     .exclude("parquet decimal precision change Decimal(20, 2) -> Decimal(10, 2)")
     .exclude("parquet decimal precision change Decimal(20, 2) -> Decimal(5, 2)")
     .exclude("parquet decimal precision change Decimal(22, 2) -> Decimal(20, 2)")
     .exclude("parquet decimal precision change Decimal(7, 2) -> Decimal(5, 2)")
-    .exclude("parquet decimal precision change Decimal(10, 2) -> Decimal(12, 2)")
-    .exclude("parquet decimal precision change Decimal(10, 2) -> Decimal(20, 2)")
-    .exclude("parquet decimal precision change Decimal(5, 2) -> Decimal(10, 2)")
-    .exclude("parquet decimal precision change Decimal(5, 2) -> Decimal(20, 2)")
-    .exclude("parquet decimal precision change Decimal(5, 2) -> Decimal(7, 2)")
     .exclude("parquet decimal type change Decimal(5, 2) -> Decimal(3, 2) overflows with parquet-mr")
     .exclude("unsupported parquet conversion ByteType -> DecimalType(1,0)")
     .exclude("unsupported parquet conversion ByteType -> DecimalType(2,0)")
@@ -378,11 +379,9 @@ class VeloxTestSettings extends BackendTestSettings {
     .exclude("unsupported parquet conversion IntegerType -> DecimalType(10,1)")
     .exclude("unsupported parquet conversion IntegerType -> DecimalType(5,0)")
     .exclude("unsupported parquet conversion IntegerType -> DecimalType(9,0)")
-    .exclude("unsupported parquet conversion LongType -> DateType")
     .exclude("unsupported parquet conversion LongType -> DecimalType(10,0)")
     .exclude("unsupported parquet conversion LongType -> DecimalType(19,0)")
     .exclude("unsupported parquet conversion LongType -> DecimalType(20,1)")
-    .exclude("unsupported parquet conversion LongType -> IntegerType")
     .exclude("unsupported parquet conversion ShortType -> DecimalType(3,0)")
     .exclude("unsupported parquet conversion ShortType -> DecimalType(4,0)")
     .exclude("unsupported parquet conversion ShortType -> DecimalType(5,0)")
@@ -403,8 +402,8 @@ class VeloxTestSettings extends BackendTestSettings {
     .exclude("parquet widening conversion ShortType -> DoubleType")
   enableSuite[GlutenParquetVariantShreddingSuite]
   // Generated suites for org.apache.spark.sql.execution.datasources.text
-  // TODO: 4.x enableSuite[GlutenWholeTextFileV1Suite]  // 1 failure
-  // TODO: 4.x enableSuite[GlutenWholeTextFileV2Suite]  // 1 failure
+  enableSuite[GlutenWholeTextFileV1Suite]
+  enableSuite[GlutenWholeTextFileV2Suite]
   // Generated suites for org.apache.spark.sql.execution.datasources.v2
   enableSuite[GlutenFileWriterFactorySuite]
   enableSuite[GlutenV2SessionCatalogNamespaceSuite]
@@ -666,17 +665,27 @@ class VeloxTestSettings extends BackendTestSettings {
   enableSuite[GlutenAggregatingAccumulatorSuite]
   enableSuite[GlutenCoGroupedIteratorSuite]
   // TODO: 4.x enableSuite[GlutenColumnarRulesSuite]  // 1 failure
-  // TODO: 4.x enableSuite[GlutenDataSourceScanExecRedactionSuite]  // 2 failures
-  // TODO: 4.x enableSuite[GlutenDataSourceV2ScanExecRedactionSuite]  // 2 failures
+  enableSuite[GlutenDataSourceScanExecRedactionSuite]
+    .exclude("explain is redacted using SQLConf")
+    .exclude("SPARK-31793: FileSourceScanExec metadata should contain limited file paths")
+  enableSuite[GlutenDataSourceV2ScanExecRedactionSuite]
+    .exclude("explain is redacted using SQLConf")
+    .exclude("FileScan description")
   enableSuite[GlutenExecuteImmediateEndToEndSuite]
-  // TODO: 4.x enableSuite[GlutenExternalAppendOnlyUnsafeRowArraySuite]  // 14 failures
+  enableSuite[GlutenExternalAppendOnlyUnsafeRowArraySuite]
   enableSuite[GlutenGlobalTempViewSuite]
   enableSuite[GlutenGlobalTempViewTestSuite]
   enableSuite[GlutenGroupedIteratorSuite]
   // TODO: 4.x enableSuite[GlutenHiveResultSuite]  // 1 failure
-  // TODO: 4.x enableSuite[GlutenInsertSortForLimitAndOffsetSuite]  // 6 failures
+  enableSuite[GlutenInsertSortForLimitAndOffsetSuite]
+    .exclude("root LIMIT preserves data ordering with top-K sort")
+    .exclude("middle LIMIT preserves data ordering with top-K sort")
+    .exclude("root LIMIT preserves data ordering with CollectLimitExec")
+    .exclude("middle LIMIT preserves data ordering with the extra sort")
+    .exclude("root OFFSET preserves data ordering with CollectLimitExec")
+    .exclude("middle OFFSET preserves data ordering with the extra sort")
   enableSuite[GlutenLocalTempViewTestSuite]
-  // TODO: 4.x enableSuite[GlutenLogicalPlanTagInSparkPlanSuite]  // RUN ABORTED
+  enableSuite[GlutenLogicalPlanTagInSparkPlanSuite]
   enableSuite[GlutenOptimizeMetadataOnlyQuerySuite]
   enableSuite[GlutenPersistedViewTestSuite]
   // TODO: 4.x enableSuite[GlutenPlannerSuite]  // 1 failure
@@ -685,18 +694,19 @@ class VeloxTestSettings extends BackendTestSettings {
   // TODO: 4.x enableSuite[GlutenRemoveRedundantProjectsSuite]  // 14 failures
   // TODO: 4.x enableSuite[GlutenRemoveRedundantSortsSuite]  // 1 failure
   enableSuite[GlutenRowToColumnConverterSuite]
-  // TODO: 4.x enableSuite[GlutenSQLExecutionSuite]  // 1 failure
+  enableSuite[GlutenSQLExecutionSuite]
   enableSuite[GlutenSQLFunctionSuite]
-  // TODO: 4.x enableSuite[GlutenSQLJsonProtocolSuite]  // 1 failure
-  // TODO: 4.x enableSuite[GlutenShufflePartitionsUtilSuite]  // 1 failure
+  enableSuite[GlutenSQLJsonProtocolSuite]
+  enableSuite[GlutenShufflePartitionsUtilSuite]
   // TODO: 4.x enableSuite[GlutenSimpleSQLViewSuite]  // 2 failures
-  // TODO: 4.x enableSuite[GlutenSparkPlanSuite]  // 1 failure
+  enableSuite[GlutenSparkPlanSuite]
+    .exclude("SPARK-37779: ColumnarToRowExec should be canonicalizable after being (de)serialized")
   enableSuite[GlutenSparkPlannerSuite]
   enableSuite[GlutenSparkScriptTransformationSuite]
   enableSuite[GlutenSparkSqlParserSuite]
   enableSuite[GlutenUnsafeFixedWidthAggregationMapSuite]
   enableSuite[GlutenUnsafeKVExternalSorterSuite]
-  // TODO: 4.x enableSuite[GlutenUnsafeRowSerializerSuite]  // 1 failure
+  enableSuite[GlutenUnsafeRowSerializerSuite]
   // TODO: 4.x enableSuite[GlutenWholeStageCodegenSparkSubmitSuite]  // 1 failure
   // TODO: 4.x enableSuite[GlutenWholeStageCodegenSuite]  // 24 failures
   enableSuite[GlutenBroadcastExchangeSuite]
@@ -722,7 +732,6 @@ class VeloxTestSettings extends BackendTestSettings {
     .exclude("test with low buffer spill threshold")
   enableSuite[GlutenTakeOrderedAndProjectSuite]
   enableSuite[GlutenSessionExtensionSuite]
-  enableSuite[TestFileSourceScanExecTransformer]
   enableSuite[GlutenBucketedReadWithoutHiveSupportSuite]
     // Exclude the following suite for plan changed from SMJ to SHJ.
     .exclude("avoid shuffle when join 2 bucketed tables")
@@ -781,14 +790,7 @@ class VeloxTestSettings extends BackendTestSettings {
   enableSuite[GlutenSaveLoadSuite]
   enableSuite[GlutenTableScanSuite]
   // Generated suites for org.apache.spark.sql.sources
-  // TODO: 4.x enableSuite[GlutenBucketedReadWithHiveSupportSuite]  // 2 failures
-  // TODO: 4.x enableSuite[GlutenBucketedWriteWithHiveSupportSuite]  // 2 failures
-  // TODO: 4.x enableSuite[GlutenCommitFailureTestRelationSuite]  // 2 failures
   enableSuite[GlutenDataSourceAnalysisSuite]
-  // TODO: 4.x enableSuite[GlutenDisableUnnecessaryBucketedScanWithHiveSupportSuite]  // 2 failures
-  // TODO: 4.x enableSuite[GlutenJsonHadoopFsRelationSuite]  // 2 failures
-  // TODO: 4.x enableSuite[GlutenParquetHadoopFsRelationSuite]  // 2 failures
-  // TODO: 4.x enableSuite[GlutenSimpleTextHadoopFsRelationSuite]  // 2 failures
   // Generated suites for org.apache.spark.sql
   enableSuite[GlutenCacheManagerSuite]
   enableSuite[GlutenDataFrameShowSuite]
@@ -799,7 +801,8 @@ class VeloxTestSettings extends BackendTestSettings {
   // TODO: 4.x enableSuite[GlutenExplainSuite]  // 1 failure
   enableSuite[GlutenICUCollationsMapSuite]
   enableSuite[GlutenInlineTableParsingImprovementsSuite]
-  // TODO: 4.x enableSuite[GlutenJoinHintSuite]  // 1 failure
+  enableSuite[GlutenJoinHintSuite]
+    .exclude("join strategy hint - shuffle-replicate-nl")
   enableSuite[GlutenLogQuerySuite]
     // Overridden
     .exclude("Query Spark logs with exception using SQL")
@@ -813,6 +816,7 @@ class VeloxTestSettings extends BackendTestSettings {
   // TODO: 4.x enableSuite[GlutenSetCommandSuite]  // 1 failure
   enableSuite[GlutenSparkSessionBuilderSuite]
   enableSuite[GlutenSparkSessionJobTaggingAndCancellationSuite]
+    .exclude("Tags set from session are prefixed with session UUID")
   enableSuite[GlutenTPCDSCollationQueryTestSuite]
   enableSuite[GlutenTPCDSModifiedPlanStabilitySuite]
   enableSuite[GlutenTPCDSModifiedPlanStabilityWithStatsSuite]
@@ -833,6 +837,10 @@ class VeloxTestSettings extends BackendTestSettings {
   enableSuite[GlutenVariantEndToEndSuite]
   enableSuite[GlutenVariantShreddingSuite]
   enableSuite[GlutenVariantSuite]
+    // TODO: Velox parquet writer marks all struct fields as OPTIONAL (nullable),
+    //  but Spark's variant type requires REQUIRED fields. Needs Velox-side fix.
+    .exclude("SPARK-47546: invalid variant binary")
+    .exclude("SPARK-47546: valid variant binary")
   enableSuite[GlutenVariantWriteShreddingSuite]
   enableSuite[GlutenXmlFunctionsSuite]
   enableSuite[GlutenApproxCountDistinctForIntervalsQuerySuite]
@@ -1121,9 +1129,6 @@ class VeloxTestSettings extends BackendTestSettings {
     // Velox assert_not_null throws VeloxUserError instead of SparkRuntimeException
     .exclude("merge with NOT NULL checks")
   enableSuite[GlutenDeltaBasedUpdateAsDeleteAndInsertTableSuite]
-    // FIXME: complex type result mismatch
-    .exclude("update nested struct fields")
-    .exclude("update char/varchar columns")
     // Velox assert_not_null throws VeloxUserError instead of SparkRuntimeException
     .exclude("update with NOT NULL checks")
   enableSuite[GlutenDeltaBasedUpdateTableSuite]
@@ -1166,8 +1171,6 @@ class VeloxTestSettings extends BackendTestSettings {
     .exclude("detect escaped path and report the migration guide")
     .exclude("ignore the escaped path check when the flag is off")
     .excludeByPrefix("SPARK-51187")
-    // Rewrite for the query plan check
-    .excludeByPrefix("SPARK-49905")
     // TODO: fix on Spark-4.1 introduced by https://github.com/apache/spark/pull/52645
     .exclude("SPARK-53942: changing the number of stateless shuffle partitions via config")
     .exclude("SPARK-53942: stateful shuffle partitions are retained from old checkpoint")
@@ -1200,35 +1203,39 @@ class VeloxTestSettings extends BackendTestSettings {
   enableSuite[GlutenSQLMetricsSuite]
   enableSuite[GlutenAcceptsLatestSeenOffsetSuite]
   enableSuite[GlutenCommitLogSuite]
-  // TODO: 4.x enableSuite[GlutenEventTimeWatermarkSuite]
+  enableSuite[GlutenEventTimeWatermarkSuite]
   enableSuite[GlutenFileStreamSinkV1Suite]
-  // TODO: 4.x enableSuite[GlutenFileStreamSinkV2Suite]  // 1 failure
+  enableSuite[GlutenFileStreamSinkV2Suite]
   enableSuite[GlutenFileStreamSourceStressTestSuite]
-  // TODO: 4.x enableSuite[GlutenFileStreamSourceSuite]
+  enableSuite[GlutenFileStreamSourceSuite]
   enableSuite[GlutenFileStreamStressSuite]
-  // TODO: 4.x enableSuite[GlutenFlatMapGroupsInPandasWithStateDistributionSuite]  // failures with GlutenPlugin
+  enableSuite[GlutenFlatMapGroupsInPandasWithStateDistributionSuite]
   enableSuite[GlutenFlatMapGroupsInPandasWithStateSuite]
-  // TODO: 4.x enableSuite[GlutenFlatMapGroupsWithStateDistributionSuite]
-  // TODO: 4.x enableSuite[GlutenFlatMapGroupsWithStateSuite]
+  enableSuite[GlutenFlatMapGroupsWithStateDistributionSuite]
+  enableSuite[GlutenFlatMapGroupsWithStateSuite]
   enableSuite[GlutenFlatMapGroupsWithStateWithInitialStateSuite]
   enableSuite[GlutenGroupStateSuite]
   enableSuite[GlutenLongOffsetSuite]
   enableSuite[GlutenMemorySourceStressSuite]
-  // TODO: 4.x enableSuite[GlutenMultiStatefulOperatorsSuite]  // 2 failures
+  enableSuite[GlutenMultiStatefulOperatorsSuite]
   enableSuite[GlutenReportSinkMetricsSuite]
-  // TODO: 4.x enableSuite[GlutenRocksDBStateStoreFlatMapGroupsWithStateSuite]
-  // TODO: 4.x enableSuite[GlutenRocksDBStateStoreStreamingAggregationSuite]
-  // TODO: 4.x enableSuite[GlutenRocksDBStateStoreStreamingDeduplicationSuite]
-  // TODO: 4.x enableSuite[GlutenStreamSuite]
-  // TODO: 4.x enableSuite[GlutenStreamingAggregationDistributionSuite]
-  // TODO: 4.x enableSuite[GlutenStreamingAggregationSuite]
-  // TODO: 4.x enableSuite[GlutenStreamingDeduplicationDistributionSuite]
-  // TODO: 4.x enableSuite[GlutenStreamingDeduplicationSuite]
+  enableSuite[GlutenRocksDBStateStoreFlatMapGroupsWithStateSuite]
+  enableSuite[GlutenRocksDBStateStoreStreamingAggregationSuite]
+    // Spark 4.x: these cases can hang waiting for expected failure with stateSchemaCheck off.
+    .excludeByPrefix("changing schema of state when restarting query - schema check off")
+  enableSuite[GlutenRocksDBStateStoreStreamingDeduplicationSuite]
+  enableSuite[GlutenStreamSuite]
+  enableSuite[GlutenStreamingAggregationDistributionSuite]
+  enableSuite[GlutenStreamingAggregationSuite]
+    // Spark 4.x: these cases can hang waiting for expected failure with stateSchemaCheck off.
+    .excludeByPrefix("changing schema of state when restarting query - schema check off")
+  enableSuite[GlutenStreamingDeduplicationDistributionSuite]
+  enableSuite[GlutenStreamingDeduplicationSuite]
   enableSuite[GlutenStreamingDeduplicationWithinWatermarkSuite]
   enableSuite[GlutenStreamingFullOuterJoinSuite]
-  // TODO: 4.x enableSuite[GlutenStreamingInnerJoinSuite]
+  enableSuite[GlutenStreamingInnerJoinSuite]
   enableSuite[GlutenStreamingLeftSemiJoinSuite]
-  // TODO: 4.x enableSuite[GlutenStreamingOuterJoinSuite]
+  enableSuite[GlutenStreamingOuterJoinSuite]
   enableSuite[GlutenStreamingQueryHashPartitionVerifySuite]
   enableSuite[GlutenStreamingQueryListenerSuite]
   enableSuite[GlutenStreamingQueryListenersConfSuite]
@@ -1236,9 +1243,9 @@ class VeloxTestSettings extends BackendTestSettings {
   enableSuite[GlutenStreamingQueryOptimizationCorrectnessSuite]
   enableSuite[GlutenStreamingQueryStatusAndProgressSuite]
   enableSuite[GlutenStreamingSelfUnionSuite]
-  // TODO: 4.x enableSuite[GlutenStreamingSessionWindowDistributionSuite]
+  enableSuite[GlutenStreamingSessionWindowDistributionSuite]
   enableSuite[GlutenStreamingSessionWindowSuite]
-  // TODO: 4.x enableSuite[GlutenStreamingStateStoreFormatCompatibilitySuite]
+  enableSuite[GlutenStreamingStateStoreFormatCompatibilitySuite]
   enableSuite[GlutenStreamingSymmetricHashJoinHelperSuite]
   enableSuite[GlutenTransformWithListStateSuite]
   enableSuite[GlutenTransformWithListStateTTLSuite]
