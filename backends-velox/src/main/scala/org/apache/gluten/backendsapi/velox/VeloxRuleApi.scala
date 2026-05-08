@@ -21,6 +21,7 @@ import org.apache.gluten.config.GlutenConfig
 import org.apache.gluten.extension._
 import org.apache.gluten.extension.columnar._
 import org.apache.gluten.extension.columnar.MiscColumnarRules.{PreventBatchTypeMismatchInTableCache, RemoveGlutenTableCacheColumnarToRow, RemoveTopmostColumnarToRow, RewriteSubqueryBroadcast}
+import org.apache.gluten.extension.columnar.PushPartialAggThroughExpand
 import org.apache.gluten.extension.columnar.V2WritePostRule
 import org.apache.gluten.extension.columnar.heuristic.{ExpandFallbackPolicy, HeuristicTransform}
 import org.apache.gluten.extension.columnar.offload.{OffloadExchange, OffloadJoin, OffloadOthers}
@@ -80,6 +81,7 @@ object VeloxRuleApi {
     injector.injectPreTransform(c => FallbackOnANSIMode.apply(c.session))
     injector.injectPreTransform(c => FallbackMultiCodegens.apply(c.session))
     injector.injectPreTransform(c => MergeTwoPhasesHashBaseAggregate(c.session))
+    injector.injectPreTransform(_ => PushPartialAggThroughExpand)
     injector.injectPreTransform(_ => RewriteSubqueryBroadcast())
     injector.injectPreTransform(
       c =>

@@ -151,6 +151,9 @@ class GlutenConfig(conf: SQLConf) extends GlutenCoreConfig(conf) {
   def enableExtendedColumnPruning: Boolean =
     getConf(ENABLE_EXTENDED_COLUMN_PRUNING)
 
+  def pushAggregateThroughExpandEnabled: Boolean =
+    getConf(PUSH_AGGREGATE_THROUGH_EXPAND_ENABLED)
+
   def pushAggregateThroughJoinEnabled: Boolean =
     getConf(PUSH_AGGREGATE_THROUGH_JOIN_ENABLED)
 
@@ -715,6 +718,18 @@ object GlutenConfig extends ConfigRegistry {
       .doc("Flatten nested functions as one for optimization.")
       .stringConf
       .createWithDefault("and,or")
+
+  val PUSH_AGGREGATE_THROUGH_EXPAND_ENABLED =
+    buildConf("spark.gluten.sql.pushAggregateThroughExpand.enabled")
+      .doc(
+        "Enables the push-aggregate-through-expand optimization in Gluten. " +
+          "When enabled, aggregate operators may be pushed below expand " +
+          "during logical optimization " +
+          "and corresponding physical plans may be rewritten to execute " +
+          "the aggregation earlier."
+      )
+      .booleanConf
+      .createWithDefault(false)
 
   val PUSH_AGGREGATE_THROUGH_JOIN_ENABLED =
     buildConf("spark.gluten.sql.pushAggregateThroughJoin.enabled")
