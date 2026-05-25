@@ -85,7 +85,10 @@ if [ "$ENABLE_GCS" = "ON" ]; then
   EXTRA_FEATURES+="--x-feature=velox-gcs "
 fi
 if [ "$ENABLE_ABFS" = "ON" ]; then
-  EXTRA_FEATURES+="--x-feature=velox-abfs"
+  EXTRA_FEATURES+="--x-feature=velox-abfs "
+fi
+if [ "${VCPKG_DYNAMIC_OPENSSL:-OFF}" = "ON" ]; then
+  EXTRA_FEATURES+="--x-feature=dynamic-openssl "
 fi
 
 
