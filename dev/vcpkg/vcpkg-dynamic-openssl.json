@@ -10,7 +10,7 @@
         {
           "name": "openssl",
           "features": ["fips"]
-        }
+        },
         "zstd",
         "lz4",
         "double-conversion",
