@@ -28,8 +28,12 @@ export VCPKG_ROOT="$SCRIPT_ROOT/.vcpkg"
 export VCPKG="$SCRIPT_ROOT/.vcpkg/vcpkg"
 export VCPKG_DYNAMIC_OPENSSL=${VCPKG_DYNAMIC_OPENSSL:-OFF}
 export VCPKG_TRIPLET=$([ "${CPU_TARGET:-}" = "aarch64" ] && echo "arm64-linux-neon" || echo "x64-linux-avx")
-if [ "${VCPKG_DYNAMIC_OPENSSL}" = "ON" ] && [ "${VCPKG_TRIPLET}" = "x64-linux-avx" ]; then
-    export VCPKG_TRIPLET="x64-linux-avx-dynamic-openssl"
+if [ "${VCPKG_DYNAMIC_OPENSSL}" = "ON" ]; then
+    if [ "${VCPKG_TRIPLET}" = "arm64-linux-neon" ]; then
+        export VCPKG_TRIPLET="arm64-linux-neon-dynamic-openssl"
+    elif [ "${VCPKG_TRIPLET}" = "x64-linux-avx" ]; then
+        export VCPKG_TRIPLET="x64-linux-avx-dynamic-openssl"
+    fi
 fi
 export VCPKG_TRIPLET_INSTALL_DIR=${SCRIPT_ROOT}/vcpkg_installed/${VCPKG_TRIPLET}
 
