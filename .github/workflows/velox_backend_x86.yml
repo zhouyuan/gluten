@@ -77,7 +77,6 @@ jobs:
             export CCACHE_MAXSIZE=1G
             mkdir -p /work/.ccache
             ccache -sz
-            export VCPKG_DYNAMIC_OPENSSL=ON
             bash dev/ci-velox-buildstatic-centos-7.sh
             ccache -s
             mkdir -p /work/.m2/repository/org/apache/arrow/
@@ -295,11 +294,11 @@ jobs:
       - name: Setup java
         run: |
           if [ "${{ matrix.java }}" = "java-17" ]; then
-            yum update -y && yum install -y java-17-openjdk-devel wget openssl-devel
+            yum update -y && yum install -y java-17-openjdk-devel wget
           elif [ "${{ matrix.java }}" = "java-11" ]; then
-            yum update -y && yum install -y java-11-openjdk-devel wget openssl-devel
+            yum update -y && yum install -y java-11-openjdk-devel wget
           else
-            yum update -y && yum install -y java-1.8.0-openjdk-devel wget openssl-devel
+            yum update -y && yum install -y java-1.8.0-openjdk-devel wget
           fi
       - name: Set environment variables
         run: |
