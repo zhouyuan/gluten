@@ -1473,10 +1473,11 @@ core::PlanNodePtr SubstraitToVeloxPlanConverter::constructValuesNode(
   // It loads all data from the iterator at plan construction time
   VELOX_CHECK_LT(streamIdx, inputIters_.size(), "Could not find stream index {} in input iterator list.", streamIdx);
   const auto iter = std::move(inputIters_[streamIdx]);
+  auto pool = defaultLeafVeloxMemoryPool();
   std::vector<RowVectorPtr> rowVectors;
   while (iter->hasNext()) {
     auto batch = iter->next();
-    auto veloxBatch = VeloxColumnarBatch::from(defaultLeafVeloxMemoryPool().get(), batch);
+    auto veloxBatch = VeloxColumnarBatch::from(pool.get(), batch);
     rowVectors.emplace_back(veloxBatch->getRowVector());
   }
   auto node = std::make_shared<facebook::velox::core::ValuesNode>(nextPlanNodeId(), std::move(rowVectors));
