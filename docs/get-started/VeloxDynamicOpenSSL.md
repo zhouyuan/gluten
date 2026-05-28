@@ -1,11 +1,11 @@
 ---
 layout: page
-title: Dynamic OpenSSL with FIPS Support
+title: Dynamic OpenSSL with FIPS Support in vcpkg Build
 nav_order: 8
 parent: Getting-Started
 ---
 
-# Dynamic OpenSSL with FIPS Support
+# Dynamic OpenSSL with FIPS Support in vcpkg Build
 
 ## Overview
 
