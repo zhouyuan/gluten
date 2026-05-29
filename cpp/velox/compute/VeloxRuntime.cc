@@ -82,12 +82,20 @@ class HookedExecutor final : public folly::Executor {
         state_(std::make_shared<State>()) {}
 
   ~HookedExecutor() override {
+    shuttingDown_.store(true, std::memory_order_release);
     if (!join()) {
       LOG(WARNING) << "Timed out waiting for hooked executor " << name_ << " to finish after " << joinTimeout_.count()
                    << " ms.";
       if (debug_) {
         dumpOutstandingTasks();
       }
+    }
+    // We do NOT assume ownership of parent lifecycle,
+    // so we do NOT call join() blindly.
+    //
+    // Instead, we only try a "soft fence" by pushing a no-op barrier.
+    if (parent_) {
+      parent_->add([] {});
     }
   }
 
@@ -144,12 +152,18 @@ class HookedExecutor final : public folly::Executor {
  public:
   void add(folly::Func func) override {
     GLUTEN_CHECK(parent_ != nullptr, "Parent executor is null.");
+    if (UNLIKELY(shuttingDown_.load(std::memory_order_acquire))) {
+      return;
+    }
     state_->inFlight.fetch_add(1, std::memory_order_relaxed);
     parent_->add(wrap(std::move(func), 0));
   }
 
   void addWithPriority(folly::Func func, int8_t priority) override {
     GLUTEN_CHECK(parent_ != nullptr, "Parent executor is null.");
+    if (UNLIKELY(shuttingDown_.load(std::memory_order_acquire))) {
+      return;
+    }
     state_->inFlight.fetch_add(1, std::memory_order_relaxed);
     parent_->addWithPriority(wrap(std::move(func), priority), priority);
   }
@@ -194,6 +208,7 @@ class HookedExecutor final : public folly::Executor {
   bool debug_;
   std::chrono::milliseconds joinTimeout_;
   std::shared_ptr<State> state_;
+  std::atomic<bool> shuttingDown_{false};
 };
 
 std::unique_ptr<folly::Executor> makeHookedExecutor(
