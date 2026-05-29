@@ -489,6 +489,20 @@ class GlutenFunctionValidateSuite extends GlutenClickHouseWholeStageTransformerS
     runQueryAndCompare(sql1)(checkGlutenPlan[ProjectExecTransformer])
   }
 
+  test("test str2map with nullable string input") {
+    val sql =
+      """
+        |select id, str_to_map(str, ',', ':')
+        |from (
+        |  select id,
+        |    if(id = 1, cast(null as string), concat('k:', cast(id as string))) as str
+        |  from range(4)
+        |)
+        |order by id
+        |""".stripMargin
+    runQueryAndCompare(sql)(checkGlutenPlan[ProjectExecTransformer])
+  }
+
   test("test parse_url") {
     val sql1 =
       """
