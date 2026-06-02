@@ -42,8 +42,13 @@ When `VCPKG_DYNAMIC_OPENSSL=ON` is set:
 3. **Build Process**: The `init.sh` script adds the `--x-feature=dynamic-openssl` flag to vcpkg install
 4. **Library Packaging**: OpenSSL shared libraries are excluded from static linking but must be available at runtime
 
+> **_NOTE:_**
+At runtime, `LD_LIBRARY_PATH` must include the OS-provided OpenSSL libraries, including `libssl.so`, `libcrypto.so`, and the FIPS-certified `fips.so`. These libraries must be available and loadable; otherwise, Gluten will fail to start.
+At the time of the Gluten 1.7 release, Gluten is built and tested with OpenSSL `3.5.2`. Users should ensure that the OpenSSL libraries (`libssl.so` and `libcrypto.so`) available at runtime are compatible with those used during linking. To minimize the risk of ABI or API compatibility issues, we recommend using the same major OpenSSL version for both build-time and runtime environments.
+
 ## References
 
 - [OpenSSL FIPS Module](https://www.openssl.org/docs/fips.html)
 - [FIPS 140-2 Standard](https://csrc.nist.gov/publications/detail/fips/140/2/final)
 - [vcpkg Documentation](https://vcpkg.io/)
+- [OpenSSL Package in vcpkg](https://github.com/microsoft/vcpkg/blob/2025.09.17/ports/openssl/vcpkg.json)
