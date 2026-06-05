@@ -372,7 +372,7 @@ object VeloxConfig extends ConfigRegistry {
       .createOptional
 
   val COLUMNAR_VELOX_RESIZE_BATCHES_SHUFFLE_INPUT_OUTPUT_MIN_SIZE =
-    buildConf("spark.gluten.sql.columnar.backend.velox.resizeBatches.shuffleInputOuptut.minSize")
+    buildConf("spark.gluten.sql.columnar.backend.velox.resizeBatches.shuffleInputOutput.minSize")
       .doc(
         s"The minimum batch size for shuffle input and output. " +
           s"If size of an input batch is " +
