@@ -923,9 +923,13 @@ jobs:
           dnf module -y install python39 && \
           alternatives --set python3 /usr/bin/python3.9 && \
           pip3 install setuptools==77.0.3 && \
-          pip3 install pyspark==3.5.5 cython && \
+          pip3 install pyspark==3.5.8 cython && \
           pip3 install pandas==2.2.3 pyarrow==20.0.0
-      - name: Build and Run unit test for Spark 3.5.5 (other tests)
+      - name: Prepare spark.test.home for Spark 3.5.8 (other tests)
+        run: |
+          rm -rf /opt/shims/spark35
+          bash .github/workflows/util/install-spark-resources.sh 3.5
+      - name: Build and Run unit test for Spark 3.5.8 (other tests)
         run: |
           cd $GITHUB_WORKSPACE/
           export SPARK_SCALA_VERSION=2.12
@@ -981,9 +985,13 @@ jobs:
           dnf module -y install python39 && \
           alternatives --set python3 /usr/bin/python3.9 && \
           pip3 install setuptools==77.0.3 && \
-          pip3 install pyspark==3.5.5 cython && \
+          pip3 install pyspark==3.5.8 cython && \
           pip3 install pandas==2.2.3 pyarrow==20.0.0
-      - name: Build and Run unit test for Spark 3.5.5 with scala-2.13 (other tests)
+      - name: Prepare spark.test.home for Spark 3.5.8 with scala-2.13 (other tests)
+        run: |
+          rm -rf /opt/shims/spark35-scala-2.13
+          bash .github/workflows/util/install-spark-resources.sh 3.5-scala2.13
+      - name: Build and Run unit test for Spark 3.5.8 with scala-2.13 (other tests)
         run: |
           cd $GITHUB_WORKSPACE/
           export SPARK_SCALA_VERSION=2.13
@@ -1030,11 +1038,11 @@ jobs:
         with:
           name: arrow-jars-centos-7-${{github.sha}}
           path: /root/.m2/repository/org/apache/arrow/
-      - name: Prepare Spark Resources for Spark 3.5.5 #TODO remove after image update
+      - name: Prepare Spark Resources for Spark 3.5.8 #TODO remove after image update
         run: |
           rm -rf /opt/shims/spark35
           bash .github/workflows/util/install-spark-resources.sh 3.5
-      - name: Build and Run unit test for Spark 3.5.5 (slow tests)
+      - name: Build and Run unit test for Spark 3.5.8 (slow tests)
         run: |
           cd $GITHUB_WORKSPACE/
           yum install -y java-17-openjdk-devel
@@ -1086,9 +1094,13 @@ jobs:
           dnf module -y install python39 && \
           alternatives --set python3 /usr/bin/python3.9 && \
           pip3 install setuptools==77.0.3 && \
-          pip3 install pyspark==3.5.5 cython && \
+          pip3 install pyspark==3.5.8 cython && \
           pip3 install pandas==2.2.3 pyarrow==20.0.0
-      - name: Build and Run unit test for Spark 3.5.5 (other tests)
+      - name: Prepare spark.test.home for Spark 3.5.8 (other tests)
+        run: |
+          rm -rf /opt/shims/spark35
+          bash .github/workflows/util/install-spark-resources.sh 3.5
+      - name: Build and Run unit test for Spark 3.5.8 (other tests)
         run: |
           cd $GITHUB_WORKSPACE/
           export SPARK_SCALA_VERSION=2.12
@@ -1134,11 +1146,11 @@ jobs:
         with:
           name: arrow-jars-centos-7-${{github.sha}}
           path: /root/.m2/repository/org/apache/arrow/
-      - name: Prepare Spark Resources for Spark 3.5.5 #TODO remove after image update
+      - name: Prepare Spark Resources for Spark 3.5.8 #TODO remove after image update
         run: |
           rm -rf /opt/shims/spark35
           bash .github/workflows/util/install-spark-resources.sh 3.5
-      - name: Build and Run unit test for Spark 3.5.5 (slow tests)
+      - name: Build and Run unit test for Spark 3.5.8 (slow tests)
         run: |
           cd $GITHUB_WORKSPACE/
           yum install -y java-17-openjdk-devel
@@ -1306,7 +1318,7 @@ jobs:
           dnf module -y install python39 && \
           alternatives --set python3 /usr/bin/python3.9 && \
           pip3 install setuptools==77.0.3 && \
-          pip3 install pyspark==3.5.5 cython && \
+          pip3 install pyspark==3.5.8 cython && \
           pip3 install pandas==2.2.3 pyarrow==20.0.0
       - name: Prepare Spark Resources for Spark 4.0.2 #TODO remove after image update
         run: |
@@ -1417,7 +1429,7 @@ jobs:
           alternatives --install /usr/bin/python3 python3 /usr/bin/python3.11 1 && \
           alternatives --set python3 /usr/bin/python3.11 && \
           pip3 install setuptools==77.0.3 && \
-          pip3 install pyspark==3.5.5 cython && \
+          pip3 install pyspark==3.5.8 cython && \
           pip3 install pandas==2.2.3 pyarrow==20.0.0
       - name: Prepare Spark Resources for Spark 4.1.1 #TODO remove after image update
         run: |

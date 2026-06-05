@@ -9,16 +9,16 @@ parent: Getting-Started
 
 | Type  | Version                      |
 |-------|------------------------------|
-| Spark | 3.2.2, 3.3.1, 3.4.4, 3.5.5   |
-| OS    | Ubuntu20.04/22.04, Centos7/8 |
+| Spark | 3.3.1, 3.4.4, 3.5.8          |
+| OS    | Ubuntu20.04/22.04, Centos8/9 |
 | jdk   | openjdk8/jdk17               |
 | scala | 2.12                         |
 
 # Prerequisite
 
-Currently, with static build Gluten+Velox backend supports all the Linux OSes, but is only tested on **Ubuntu20.04/Ubuntu22.04/Centos7/Centos8**. With dynamic build, Gluten+Velox backend support **Ubuntu20.04/Ubuntu22.04/Centos7/Centos8** and their variants.
+Currently, with static build Gluten+Velox backend supports all the Linux OSes, but is only tested on **Ubuntu20.04/Ubuntu22.04/Centos8/Centos9**. With dynamic build, Gluten+Velox backend support **Ubuntu20.04/Ubuntu22.04/Centos8/Centos9** and their variants.
 
-Currently, the officially supported Spark versions are 3.2.2, 3.3.1, 3.4.4 and 3.5.5.
+Currently, the officially supported Spark versions are 3.3.1, 3.4.4 and 3.5.8.
 
 We need to set up the `JAVA_HOME` env. Currently, Gluten supports **java 8** and **java 17**.
 
