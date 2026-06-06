@@ -108,12 +108,12 @@ if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
   3.5)
       # Spark-3.5
       cd ${INSTALL_DIR} && \
-      install_spark "3.5.8" "3" "2.12"
+      install_spark "3.5.5" "3" "2.12"
       ;;
   3.5-scala2.13)
       # Spark-3.5, scala 2.13
       cd ${INSTALL_DIR} && \
-      install_spark "3.5.8" "3" "2.13"
+      install_spark "3.5.5" "3" "2.13"
       ;;
   4.0)
       # Spark-4.0, scala 2.12 // using 2.12 as a hack as 4.0 does not have 2.13 suffix
