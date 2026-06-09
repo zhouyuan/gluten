@@ -1524,31 +1524,37 @@ arrow::Result<int64_t> VeloxHashShuffleWriter::evictPartitionBuffersMinSize(int6
   // shrinking is not enough. In this case partitionBufferSize_ == partitionBufferBase_
   VELOX_CHECK(!partitionBufferInUse_);
   int64_t beforeEvict = partitionBufferPool_->bytes_allocated();
-  int64_t evicted = 0;
-  std::vector<std::pair<uint32_t, uint32_t>> pidToSize;
+  const auto partitionBytes = estimatePartitionBufferBytes();
+  std::vector<std::pair<uint32_t, int64_t>> pidToSize;
   for (auto pid = 0; pid < numPartitions_; ++pid) {
     if (partitionBufferSize_[pid] == 0) {
       continue;
     }
-    pidToSize.emplace_back(pid, partitionBufferSize_[pid]);
+    pidToSize.emplace_back(pid, partitionBytes[pid]);
   }
   std::sort(pidToSize.begin(), pidToSize.end(), [&](const auto& a, const auto& b) { return a.second > b.second; });
-  if (!pidToSize.empty()) {
-    for (auto& item : pidToSize) {
-      auto pid = item.first;
-      ARROW_ASSIGN_OR_RAISE(auto buffers, assembleBuffers(pid, false));
-      auto* types = partitionWriter_->enableTypeAwareCompress() ? &tacBufferTypes_ : nullptr;
-      auto payload = std::make_unique<InMemoryPayload>(
-          item.second, &isValidityBuffer_, schema_, std::move(buffers), hasComplexType_, types);
-      metrics_.totalBytesToEvict += payload->rawSize();
-      RETURN_NOT_OK(partitionWriter_->hashEvict(pid, std::move(payload), Evict::kSpill, false, writtenBytes_));
-      evicted = beforeEvict - partitionBufferPool_->bytes_allocated();
-      if (evicted >= size) {
-        break;
-      }
+
+  std::vector<uint32_t> selectedPids;
+  int64_t selectedBytes = 0;
+  for (auto& item : pidToSize) {
+    selectedPids.push_back(item.first);
+    selectedBytes += item.second;
+    if (selectedBytes >= size) {
+      break;
     }
   }
-  return evicted;
+
+  std::sort(selectedPids.begin(), selectedPids.end());
+  for (auto pid : selectedPids) {
+    auto numRows = partitionBufferBase_[pid];
+    ARROW_ASSIGN_OR_RAISE(auto buffers, assembleBuffers(pid, false));
+    auto* types = partitionWriter_->enableTypeAwareCompress() ? &tacBufferTypes_ : nullptr;
+    auto payload = std::make_unique<InMemoryPayload>(
+        numRows, &isValidityBuffer_, schema_, std::move(buffers), hasComplexType_, types);
+    metrics_.totalBytesToEvict += payload->rawSize();
+    RETURN_NOT_OK(partitionWriter_->hashEvict(pid, std::move(payload), Evict::kSpill, false, writtenBytes_));
+  }
+  return beforeEvict - partitionBufferPool_->bytes_allocated();
 }
 
 bool VeloxHashShuffleWriter::shrinkPartitionBuffersAfterSpill() const {
