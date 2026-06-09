@@ -69,7 +69,6 @@ function process_setup_ubuntu {
 }
 
 function process_setup_centos9 {
-  sed -i "s|-DGFLAGS_SHARED=FALSE|-DGFLAGS_SHARED=TRUE|g" scripts/setup-common.sh
   echo "Using setup script from Velox"
 }
 
