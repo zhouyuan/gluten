@@ -1310,6 +1310,34 @@ JNIEXPORT jobject JNICALL Java_org_apache_gluten_vectorized_ColumnarBatchSeriali
   JNI_METHOD_END(nullptr)
 }
 
+JNIEXPORT jobject JNICALL Java_org_apache_gluten_vectorized_ColumnarBatchSerializerJniWrapper_serializeAll( // NOLINT
+    JNIEnv* env,
+    jobject wrapper,
+    jlongArray handles) {
+  JNI_METHOD_START
+  auto ctx = getRuntime(env, wrapper);
+  GLUTEN_CHECK(handles != nullptr, "serializeAll requires non-null handles array");
+  const jsize numBatches = env->GetArrayLength(handles);
+  GLUTEN_CHECK(numBatches > 0, "serializeAll requires at least one batch");
+
+  auto safeArray = getLongArrayElementsSafe(env, handles);
+  auto serializer = ctx->createColumnarBatchSerializer(nullptr);
+  for (int32_t i = 0; i < numBatches; i++) {
+    auto batch = ObjectStore::retrieve<ColumnarBatch>(safeArray.elems()[i]);
+    GLUTEN_DCHECK(
+        batch != nullptr, "Cannot find the ColumnarBatch with handle " + std::to_string(safeArray.elems()[i]));
+    serializer->append(batch);
+  }
+  auto serializedSize = serializer->maxSerializedSize();
+  auto byteBuffer = env->CallStaticObjectMethod(jniUnsafeByteBufferClass, jniUnsafeByteBufferAllocate, serializedSize);
+  auto byteBufferAddress = env->CallLongMethod(byteBuffer, jniUnsafeByteBufferAddress);
+  auto byteBufferSize = env->CallLongMethod(byteBuffer, jniUnsafeByteBufferSize);
+  serializer->serializeTo(reinterpret_cast<uint8_t*>(byteBufferAddress), byteBufferSize);
+
+  return byteBuffer;
+  JNI_METHOD_END(nullptr)
+}
+
 // Framed [magic | statsLen | statsBlob | bytesLen | bytesBlob] entry point. Uses the
 // ColumnarBatchSerializer::framedSerializeWithStats virtual hook; non-Velox backends inherit
 // the default empty-vector return so callers fall back to the legacy serialize() path.
