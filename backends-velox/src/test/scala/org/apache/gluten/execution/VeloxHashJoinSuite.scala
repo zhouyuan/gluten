@@ -22,7 +22,9 @@ import org.apache.gluten.sql.shims.SparkShimLoader
 import org.apache.spark.SparkConf
 import org.apache.spark.sql.Row
 import org.apache.spark.sql.catalyst.expressions.AttributeReference
-import org.apache.spark.sql.execution.{ColumnarSubqueryBroadcastExec, InputIteratorTransformer}
+import org.apache.spark.sql.execution.{ColumnarBroadcastExchangeExec, ColumnarSubqueryBroadcastExec, InputIteratorTransformer}
+import org.apache.spark.sql.execution.exchange.ReusedExchangeExec
+import org.apache.spark.sql.execution.joins.HashedRelationBroadcastMode
 
 class VeloxHashJoinSuite extends VeloxWholeStageTransformerSuite {
   override protected val resourcePath: String = "/tpch-data-parquet"
@@ -352,6 +354,95 @@ class VeloxHashJoinSuite extends VeloxWholeStageTransformerSuite {
             assert(broadcastJoins.head.rightKeys.length == 2)
         }
       }
+    }
+  }
+
+  test("Reuse broadcast exchange with different hash table") {
+    withSQLConf(
+      ("spark.sql.adaptive.enabled", "false")
+    ) {
+      withTable("t1", "t2") {
+        spark
+          .range(100)
+          .selectExpr("id as key", "id as value")
+          .write
+          .saveAsTable("t1")
+
+        spark
+          .range(100)
+          .selectExpr("id % 7 as key", "id as value")
+          .write
+          .saveAsTable("t2")
+
+        val query = """
+          SELECT /*+ BROADCAST(t2) */ t1.key, t1.value
+          FROM t1
+          LEFT SEMI JOIN t2 ON t1.key = t2.key
+          UNION ALL
+          SELECT /*+ BROADCAST(t2) */ t1.key, t1.value
+          from t1
+          JOIN t2 on t1.key = t2.key
+        """
+
+        runQueryAndCompare(query) {
+          df =>
+            // Check that columnar broadcast exchange is reused.
+            val plan = df.queryExecution.executedPlan
+            assert(collect(plan) { case b: ColumnarBroadcastExchangeExec => b }.size == 1)
+            assert(collect(plan) {
+              case r @ ReusedExchangeExec(_, _: ColumnarBroadcastExchangeExec) => r
+            }.size == 1)
+        }
+      }
+    }
+  }
+
+  test("Do not reuse broadcast exchange for different null aware flag") {
+    Seq("true", "false").foreach {
+      enableBroadcastBuildOncePerExecutor =>
+        withSQLConf(
+          ("spark.sql.adaptive.enabled", "false"),
+          (
+            VeloxConfig.VELOX_BROADCAST_BUILD_HASHTABLE_ONCE_PER_EXECUTOR.key,
+            enableBroadcastBuildOncePerExecutor)
+        ) {
+          withTable("t1", "t2") {
+            spark
+              .range(100)
+              .selectExpr("id as key", "id as value")
+              .write
+              .saveAsTable("t1")
+
+            spark
+              .range(100)
+              .selectExpr("id % 7 as key", "id as value")
+              .write
+              .saveAsTable("t2")
+
+            val query = """
+              SELECT /*+ BROADCAST(t2) */ t1.key, t1.value
+              FROM t1
+              WHERE key not in (SELECT key FROM t2)
+              UNION ALL
+              SELECT /*+ BROADCAST(t2) */ t1.key, t1.value
+              from t1
+              JOIN t2 on t1.key = t2.key
+            """
+
+            runQueryAndCompare(query) {
+              df =>
+                val plan = df.queryExecution.executedPlan
+                // Columnar broadcast exchange is not reused because the
+                // HashedRelationBroadcastMode's isNullAware flag is different.
+                assert(collect(plan) { case b: ColumnarBroadcastExchangeExec => b }.size == 2)
+                val modes = collect(plan) {
+                  case ColumnarBroadcastExchangeExec(mode: HashedRelationBroadcastMode, _) => mode
+                }
+                assert(modes.size == 2)
+                assert(modes.exists(_.isNullAware) && modes.exists(!_.isNullAware))
+            }
+          }
+        }
     }
   }
 }
