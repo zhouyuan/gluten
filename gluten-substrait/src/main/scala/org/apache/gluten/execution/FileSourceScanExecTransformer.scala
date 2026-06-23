@@ -35,9 +35,8 @@ import org.apache.spark.sql.types.StructType
 import org.apache.spark.util.SparkVersionUtil
 import org.apache.spark.util.collection.BitSet
 
-import org.apache.hadoop.conf.Configuration
-
 import org.apache.commons.lang3.StringUtils
+import org.apache.hadoop.conf.Configuration
 
 case class FileSourceScanExecTransformer(
     @transient override val relation: HadoopFsRelation,
@@ -124,14 +123,13 @@ abstract class FileSourceScanExecTransformerBase(
   override def scanFilters: Seq[Expression] = dataFilters
 
   /**
-   * Overrides [[BasicScanExecTransformer#getHadoopConf]] to additionally merge
-   * the per-relation options (e.g. `fs.azure.account.auth.type` passed via
-   * `DataFrameReader.option()`).  This is what vanilla Spark's
-   * `SessionState#newHadoopConfWithOptions` does, restoring parity with the
+   * Overrides [[BasicScanExecTransformer#getHadoopConf]] to additionally merge the per-relation
+   * options (e.g. `fs.azure.account.auth.type` passed via `DataFrameReader.option()`). This is what
+   * vanilla Spark's `SessionState#newHadoopConfWithOptions` does, restoring parity with the
    * non-Gluten code path.
    */
   override def getHadoopConf: Configuration =
-    sqlContext.sparkSession.sessionState.newHadoopConfWithOptions(relation.options)
+    relation.sparkSession.sessionState.newHadoopConfWithOptions(relation.options)
 
   override def getMetadataColumns(): Seq[AttributeReference] = metadataColumns
 

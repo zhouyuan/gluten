@@ -28,10 +28,9 @@ import org.apache.gluten.substrait.rel.LocalFilesNode.ReadFileFormat
 import org.apache.spark.Partition
 import org.apache.spark.sql.catalyst.expressions._
 
-import org.apache.hadoop.conf.Configuration
-
 import com.google.protobuf.StringValue
 import io.substrait.proto.NamedStruct
+import org.apache.hadoop.conf.Configuration
 
 import scala.collection.JavaConverters._
 
@@ -126,18 +125,16 @@ trait BasicScanExecTransformer extends LeafTransformSupport with BaseDataSource 
   }
 
   /**
-   * Returns a Hadoop [[Configuration]] that merges the session-level SQLConf entries
-   * (including any {@code fs.*} keys set via {@code spark.conf.set}) with the global
-   * {@code SparkContext.hadoopConfiguration}.  Sub-classes may override to supply
-   * additional per-scan options (e.g. from {@code HadoopFsRelation.options}).
+   * Returns a Hadoop [[Configuration]] that merges the session-level SQLConf entries (including any
+   * {@code fs.*} keys set via {@code spark.conf.set}) with the global
+   * {@code SparkContext.hadoopConfiguration}. Sub-classes must override to supply the appropriate
+   * SparkSession and any per-scan options (e.g. from {@code HadoopFsRelation.options}).
    *
-   * This mirrors what vanilla Spark's [[SessionState#newHadoopConfWithOptions]] does
-   * for DSv1/DSv2 scans, and is the fix for the Gluten issue where session-scoped
-   * Hadoop configurations (e.g. {@code fs.azure.account.auth.type}) were silently
-   * dropped by the native scan path.
+   * This mirrors what vanilla Spark's [[SessionState#newHadoopConfWithOptions]] does for DSv1/DSv2
+   * scans, and is the fix for the Gluten issue where session-scoped Hadoop configurations (e.g.
+   * {@code fs.azure.account.auth.type}) were silently dropped by the native scan path.
    */
-  def getHadoopConf: Configuration =
-    sqlContext.sparkSession.sessionState.newHadoopConf()
+  def getHadoopConf: Configuration
 
   override protected def doValidateInternal(): ValidationResult = {
     val validationResult = BackendsApiManager.getSettings
