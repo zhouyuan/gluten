@@ -372,6 +372,29 @@ std::shared_ptr<facebook::velox::connector::Connector> VeloxBackend::createHiveC
   return std::make_shared<velox::connector::hive::HiveConnector>(connectorId, hiveConnectorConfig_, ioExecutor);
 }
 
+std::shared_ptr<facebook::velox::connector::Connector>
+VeloxBackend::createHiveConnectorWithSessionOverrides(
+    const std::string& connectorId,
+    folly::Executor* ioExecutor,
+    const std::unordered_map<std::string, std::string>& sessionConf) const {
+  // Build a connector config that layers session-level overrides on top of
+  // the static hiveConnectorConfig_ captured at SparkContext initialisation.
+  // This is needed because velox::filesystems::registerAzureClientProvider()
+  // is called once at startup with the static config, so it cannot pick up
+  // credentials that are set at session level via spark.conf.set().
+  auto sessionHiveConfig =
+      createHiveConnectorConfigWithSessionOverrides(backendConf_, sessionConf);
+
+#ifdef ENABLE_ABFS
+  // Re-register the Azure client provider with the session-merged config so
+  // the ABFS credential resolution uses the per-query auth settings.
+  velox::filesystems::registerAzureClientProvider(*sessionHiveConfig);
+#endif
+
+  return std::make_shared<velox::connector::hive::HiveConnector>(
+      connectorId, sessionHiveConfig, ioExecutor);
+}
+
 std::shared_ptr<facebook::velox::connector::Connector> VeloxBackend::createDeltaConnector(
     const std::string& connectorId,
     folly::Executor* ioExecutor) const {

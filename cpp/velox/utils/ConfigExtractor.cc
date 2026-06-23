@@ -324,4 +324,39 @@ void overwriteVeloxConf(
   }
 }
 
+std::shared_ptr<facebook::velox::config::ConfigBase> createHiveConnectorConfigWithSessionOverrides(
+    const std::shared_ptr<facebook::velox::config::ConfigBase>& backendConf,
+    const std::unordered_map<std::string, std::string>& sessionConf,
+    FileSystemType fsType) {
+  // Start from the static backend config (built at SparkContext init time).
+  auto base = createHiveConnectorConfig(backendConf, fsType);
+
+  // Layer any session-scoped fs.azure.* / fs.s3a.* / fs.gs.* overrides on top.
+  // These arrive here from the JVM side as a flat map already stripped of the
+  // "spark.hadoop." prefix (i.e. the key is literally "fs.azure.account.auth.type").
+  // We merge them into a fresh map so we don't mutate the shared backend config.
+  auto merged = base->rawConfigs();  // copy
+
+  // Keys we want to forward: fs.azure.*, fs.s3a.*, fs.gs.*
+  // Using exact prefix matching mirrors getAbfsHiveConfig / getS3HiveConfig logic.
+  static const std::vector<std::string_view> kForwardPrefixes = {
+      "fs.azure.",
+      "fs.s3a.",
+      "fs.gs.",
+  };
+
+  for (const auto& [k, v] : sessionConf) {
+    for (const auto& prefix : kForwardPrefixes) {
+      if (k.starts_with(prefix)) {
+        // Session value wins — last-write wins semantics, matching Spark's own
+        // newHadoopConfWithOptions() which layers options on top of SQLConf.
+        merged[k] = v;
+        break;
+      }
+    }
+  }
+
+  return std::make_shared<facebook::velox::config::ConfigBase>(std::move(merged));
+}
+
 } // namespace gluten
