@@ -189,14 +189,14 @@ install_almalinux_8.10() {
         cmake perl-IPC-Cmd autoconf automake libtool \
         gcc-toolset-12 \
         flex bison python3 python3-pip \
-        java-17-openjdk java-17-openjdk-devel
+        java-17-openjdk java-17-openjdk-devel cmake
 
     pip3 install --upgrade pip
 
     # Requires cmake >= 3.28.3
     pip3 install cmake==3.28.3
 
-    dnf -y install autoconf ninja-build
+    dnf config-manager --set-enabled powertools && dnf -y install autoconf ninja-build
 
     install_maven_from_source
 }
