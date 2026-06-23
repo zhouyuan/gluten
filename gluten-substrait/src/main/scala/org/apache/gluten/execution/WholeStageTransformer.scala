@@ -348,6 +348,13 @@ case class WholeStageTransformer(child: SparkPlan, materializeInput: Boolean = f
 
     if (GlutenConfig.get.enableHdfsViewfs) {
       val viewfsToHdfsCache: mutable.Map[String, String] = mutable.Map.empty
+      // Use the first leaf transformer's merged Hadoop configuration so that any
+      // session-level or per-scan options (e.g. fs.azure.account.auth.type) set via
+      // spark.conf.set() or DataFrameReader.option() are correctly propagated to the
+      // ViewFileSystem resolution logic.
+      val hadoopConf = leafTransformers.headOption
+        .collect { case s: BasicScanExecTransformer => s.getHadoopConf }
+        .getOrElse(sparkContext.hadoopConfiguration)
       allSplitInfos.foreach {
         splitInfos =>
           splitInfos.foreach {
@@ -355,7 +362,7 @@ case class WholeStageTransformer(child: SparkPlan, materializeInput: Boolean = f
               val newPaths = ViewFileSystemUtils.convertViewfsToHdfs(
                 splitInfo.getPaths.asScala.toSeq,
                 viewfsToHdfsCache,
-                sparkContext.hadoopConfiguration)
+                hadoopConf)
               splitInfo.setPaths(newPaths.asJava)
           }
       }

@@ -33,6 +33,8 @@ import org.apache.spark.sql.execution.datasources.v2.{BatchScanExecShim, FileSca
 import org.apache.spark.sql.execution.metric.SQLMetric
 import org.apache.spark.sql.types.StructType
 
+import org.apache.hadoop.conf.Configuration
+
 import com.google.common.base.Objects
 
 /** Columnar Based BatchScanExec. */
@@ -118,6 +120,20 @@ abstract class BatchScanExecTransformerBase(
     case _ =>
       // todo: support other DSv2 scan
       Seq.empty
+  }
+
+  /**
+   * Overrides [[BasicScanExecTransformer#getHadoopConf]] to additionally merge
+   * the options carried by the [[FileScan]] (e.g. `fs.azure.account.auth.type` passed
+   * via `DataFrameReader.option()`).  Mirrors vanilla Spark's
+   * `SessionState#newHadoopConfWithOptions` behaviour that Gluten's native scan path
+   * was previously bypassing.
+   */
+  override def getHadoopConf: Configuration = scan match {
+    case fileScan: FileScan =>
+      sqlContext.sparkSession.sessionState.newHadoopConfWithOptions(fileScan.options)
+    case _ =>
+      sqlContext.sparkSession.sessionState.newHadoopConf()
   }
 
   override def getMetadataColumns(): Seq[AttributeReference] = Seq.empty
