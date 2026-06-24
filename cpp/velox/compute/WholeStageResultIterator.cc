@@ -282,25 +282,9 @@ WholeStageResultIterator::WholeStageResultIterator(
 
 std::shared_ptr<velox::core::QueryCtx> WholeStageResultIterator::createNewVeloxQueryCtx() {
   std::unordered_map<std::string, std::shared_ptr<velox::config::ConfigBase>> connectorConfigs;
-  // Build the hive connector config for this query by merging session-level
-  // fs.azure.* / fs.s3a.* / fs.gs.* overrides (e.g. set via spark.conf.set()
-  // or DataFrameReader.option()) on top of the static backend config.
-  //
-  // This is the correct place for the merge — connectorConfigs feeds into
-  // ConnectorQueryCtx which HiveConnector reads per-split when it opens the
-  // remote file.  This avoids mutating the global AzureClientProvider
-  // singleton (registerAzureClientProvider) which is not thread-safe and
-  // would cause a race condition if multiple tasks with different credentials
-  // run concurrently.
-  //
-  // veloxCfg_ is built from confMap_ (the per-task session conf serialised
-  // from the JVM via RuntimeJniWrapper.createRuntime), so it already contains
-  // any key that was set via spark.conf.set() at session level.
-  auto mergedHiveConfig =
-      createHiveConnectorConfigWithSessionOverrides(VeloxBackend::get()->getBackendConf(), veloxCfg_->rawConfigs());
   auto hiveSessionConfig = createHiveConnectorSessionConfig(veloxCfg_);
-  connectorConfigs[connectorIds_.hive] = mergedHiveConfig;
-  connectorConfigs[connectorIds_.delta] = mergedHiveConfig;
+  connectorConfigs[connectorIds_.hive] = hiveSessionConfig;
+  connectorConfigs[connectorIds_.delta] = hiveSessionConfig;
   connectorConfigs[connectorIds_.iterator] = hiveSessionConfig;
 #ifdef GLUTEN_ENABLE_GPU
   if (!connectorIds_.cudfHive.empty()) {

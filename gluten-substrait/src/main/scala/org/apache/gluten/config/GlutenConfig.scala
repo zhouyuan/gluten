@@ -584,39 +584,6 @@ object GlutenConfig extends ConfigRegistry {
       }
       .foreach { case (k, v) => nativeConfMap.put(k, v) }
 
-    // Forward all ABFS / S3 / GCS keys set at session level so that the Velox
-    // native ABFS connector can pick up credentials changed via spark.conf.set()
-    // at runtime (e.g. fs.azure.account.auth.type or its spark.hadoop.* variant).
-    //
-    // Two forms are accepted and normalised to the bare fs.* key:
-    //   - "fs.azure.xxx"              set via spark.conf.set("fs.azure.xxx", ...)
-    //   - "spark.hadoop.fs.azure.xxx" set via spark-defaults.conf or --conf
-    //
-    // This mirrors what the static GlutenConfig.getNativeStaticConf() already does
-    // for startup-time config (see the s3Prefix / azurePrefix / gsPrefix filter
-    // in that method), extending it to runtime session-level changes.
-    val fsAzurePrefix = ABFS_PREFIX // "fs.azure."
-    val fsS3aPrefix = S3A_PREFIX // "fs.s3a."
-    val fsGsPrefix = GCS_PREFIX // "fs.gs."
-    val hadoopPfx = HADOOP_PREFIX // "spark.hadoop."
-
-    conf.foreach {
-      case (k, v)
-          if k.startsWith(fsAzurePrefix) ||
-            k.startsWith(fsS3aPrefix) ||
-            k.startsWith(fsGsPrefix) =>
-        // Bare form: "fs.azure.xxx" — forward as-is.
-        nativeConfMap.put(k, v)
-      case (k, v)
-          if k.startsWith(hadoopPfx + fsAzurePrefix) ||
-            k.startsWith(hadoopPfx + fsS3aPrefix) ||
-            k.startsWith(hadoopPfx + fsGsPrefix) =>
-        // spark.hadoop.* form — strip the "spark.hadoop." prefix so the native
-        // side sees the canonical "fs.*" key, matching the static-conf path.
-        nativeConfMap.put(k.substring(hadoopPfx.length), v)
-      case _ => // ignore other keys
-    }
-
     // When `orc.force.positional.evolution=true`, vanilla Spark maps ORC columns by
     // position rather than by name (see OrcUtils.requestedColumnIds). The Velox ORC reader
     // must do the same, otherwise name-based matching against a mismatched file schema
