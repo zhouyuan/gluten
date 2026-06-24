@@ -258,7 +258,7 @@ VeloxRuntime::VeloxRuntime(
   connectorIds_ = makeScopedConnectorIds(runtimeId++);
 
   initializeExecutors();
-  registerConnectors();
+  // registerConnectors();
 }
 
 VeloxRuntime::~VeloxRuntime() {
@@ -483,7 +483,8 @@ std::shared_ptr<ResultIterator> VeloxRuntime::createResultIterator(
       connectorIds_,
       spillDir,
       veloxCfg_,
-      taskInfo_.has_value() ? taskInfo_.value() : SparkTaskInfo{});
+      taskInfo_.has_value() ? taskInfo_.value() : SparkTaskInfo{},
+      this);
 
   auto remainingInputIterators = veloxPlanConverter.remainingInputIterators();
   if (!remainingInputIterators.empty()) {

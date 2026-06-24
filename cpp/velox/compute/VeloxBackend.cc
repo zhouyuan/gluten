@@ -386,6 +386,7 @@ VeloxBackend::createHiveConnectorWithSessionOverrides(
   // concurrent tasks with different Azure/S3 credentials do not share state.
   auto mergedConfig = createHiveConnectorConfigWithSessionOverrides(
       hiveConnectorConfig_, sessionConf);
+  LOG(INFO) << "Merged HiveConnector config: " << printConfig(mergedConfig->rawConfigs());
   return std::make_shared<velox::connector::hive::HiveConnector>(
       connectorId, mergedConfig, ioExecutor);
 }

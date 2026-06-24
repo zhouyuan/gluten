@@ -98,6 +98,9 @@ class VeloxBackend {
 #endif
 
   void tearDown();
+  std::once_flag regFlag;
+  std::mutex registerMutex;
+  std::string azureAccount;
 
  private:
   explicit VeloxBackend(
