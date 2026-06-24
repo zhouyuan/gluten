@@ -18,6 +18,9 @@
 // This File includes common helper functions with Arrow dependency.
 
 #include "ConfigExtractor.h"
+
+#include <fmt/format.h>
+#include <unordered_set>
 #include <stdexcept>
 
 #include "config/VeloxConfig.h"
@@ -322,6 +325,100 @@ void overwriteVeloxConf(
       to[k.substr(prefix.size())] = v;
     }
   }
+}
+
+std::shared_ptr<facebook::velox::config::ConfigBase> createHiveConnectorConfigWithSessionOverrides(
+    const std::shared_ptr<facebook::velox::config::ConfigBase>& backendConf,
+    const std::unordered_map<std::string, std::string>& sessionConf,
+    FileSystemType fsType) {
+  // Start from the static backend config (built at SparkContext init time).
+  auto base = createHiveConnectorConfig(backendConf, fsType);
+  auto merged = base->rawConfigs(); // copy — we must not mutate the shared base
+
+  // ── Step 1: forward all per-account and generic fs.azure.* / fs.s3a.* / fs.gs.*
+  // keys from the session config into the merged map.  Session value always wins.
+  static const std::vector<std::string_view> kForwardPrefixes = {
+      "fs.azure.",
+      "fs.s3a.",
+      "fs.gs.",
+  };
+  for (const auto& [k, v] : sessionConf) {
+    for (const auto& prefix : kForwardPrefixes) {
+      if (k.starts_with(prefix)) {
+        merged[k] = v;
+        break;
+      }
+    }
+  }
+
+  // ── Step 2: expand Hadoop-style account-agnostic auth keys to the
+  // per-account form that Velox's AbfsUtil::extractCacheKeyFromConfig()
+  // and AzureClientProviderFactories::getClientFactory() require.
+  //
+  // Hadoop users set:
+  //   fs.azure.account.auth.type = OAuth          (applies to all accounts)
+  //   fs.azure.account.auth.type.<acct>.<sfx> = OAuth  (per-account)
+  //
+  // Velox ONLY understands the per-account form:
+  //   fs.azure.account.auth.type.<accountNameWithSuffix>
+  // e.g. fs.azure.account.auth.type.sparkadlsiae.dfs.core.windows.net
+  //
+  // Strategy: if we see "fs.azure.account.auth.type" (no suffix) in the merged
+  // config, and per-account credential keys exist (which reveal the account names),
+  // synthesise the per-account auth-type key for every account we can infer.
+  // This covers the common case where a user sets the global auth type plus
+  // per-account credentials without repeating the auth type per account.
+  //
+  // Account names are inferred from per-account credential keys whose format is:
+  //   fs.azure.account.key.<accountNameWithSuffix>
+  //   fs.azure.account.oauth2.client.id.<accountNameWithSuffix>
+  //   etc.
+  // The suffix after "fs.azure.account.<subkey>." is <accountNameWithSuffix>.
+  static constexpr std::string_view kAuthTypeKey{"fs.azure.account.auth.type"};
+  static constexpr std::string_view kAccountPrefix{"fs.azure.account."};
+  // Sub-keys that carry <accountNameWithSuffix> as suffix — used to infer accounts.
+  static const std::vector<std::string_view> kAccountSubKeys = {
+      "fs.azure.account.key.",
+      "fs.azure.account.oauth2.client.id.",
+      "fs.azure.account.oauth2.client.secret.",
+      "fs.azure.account.oauth2.client.endpoint.",
+      "fs.azure.sas.",
+      "fs.azure.account.auth.type.",  // per-account form already present
+  };
+
+  auto genericAuthIt = merged.find(std::string(kAuthTypeKey));
+  if (genericAuthIt != merged.end()) {
+    const std::string& genericAuthType = genericAuthIt->second;
+    // Collect all <accountNameWithSuffix> values we can infer from the config.
+    std::unordered_set<std::string> accounts;
+    for (const auto& [k, _] : merged) {
+      for (const auto& subKey : kAccountSubKeys) {
+        if (k.starts_with(subKey) && k.size() > subKey.size()) {
+          // Everything after the subkey prefix is <accountNameWithSuffix>.
+          accounts.insert(k.substr(subKey.size()));
+          break;
+        }
+      }
+    }
+    // Also scan sessionConf so newly-added session keys contribute account names.
+    for (const auto& [k, _] : sessionConf) {
+      for (const auto& subKey : kAccountSubKeys) {
+        if (k.starts_with(subKey) && k.size() > subKey.size()) {
+          accounts.insert(k.substr(subKey.size()));
+          break;
+        }
+      }
+    }
+    // Synthesise per-account auth-type keys for every discovered account,
+    // but only when there is no explicit per-account override already present.
+    for (const auto& account : accounts) {
+      auto perAccountKey =
+          fmt::format("{}.{}", kAuthTypeKey, account);
+      merged.emplace(perAccountKey, genericAuthType); // emplace = don't overwrite explicit values
+    }
+  }
+
+  return std::make_shared<facebook::velox::config::ConfigBase>(std::move(merged));
 }
 
 } // namespace gluten

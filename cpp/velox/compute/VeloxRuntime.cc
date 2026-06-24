@@ -283,15 +283,37 @@ void VeloxRuntime::initializeExecutors() {
 
 void VeloxRuntime::registerConnectors() {
   auto* backend = VeloxBackend::get();
-  connectorIds_.hiveRegistered =
-      velox::connector::registerConnector(backend->createHiveConnector(connectorIds_.hive, ioExecutor_.get()));
+  // Use createHiveConnectorWithSessionOverrides so the HiveConnector for this
+  // runtime instance is constructed with a config that merges session-level
+  // fs.azure.* / fs.s3a.* / fs.gs.* keys on top of the static backend config.
+  //
+  // Why this is the right place:
+  //   - VeloxRuntime is a per-task resource (created once per JNI task call).
+  //   - veloxCfg_ is built from confMap_ which contains all fs.azure.* keys
+  //     serialised from the JVM via GlutenPartition.fsConf -> extraConf.
+  //   - registerConnectors() is called in the VeloxRuntime constructor, before
+  //     any QueryCtx or Task is created for this runtime.
+  //   - Each runtime gets a unique connector ID (hive-runtime-N), so the
+  //     global registry holds one HiveConnector per task, each with its own
+  //     FileHandleGenerator(mergedConfig).
+  //   - When AbfsFileSystem is first opened by this task's HiveConnector,
+  //     abfsFileSystemGenerator receives the merged config, so AbfsFileSystem
+  //     is initialised with the session OAuth credentials.
+  //
+  // The AbfsFileSystem singleton is keyed per FileHandleGenerator instance
+  // (not process-wide) because each HiveConnector owns its own factory.
+  // Concurrent tasks with different credentials are therefore isolated.
+  connectorIds_.hiveRegistered = velox::connector::registerConnector(
+      backend->createHiveConnectorWithSessionOverrides(
+          connectorIds_.hive, ioExecutor_.get(), veloxCfg_->rawConfigs()));
   GLUTEN_CHECK(connectorIds_.hiveRegistered, "Failed to register scoped hive connector: " + connectorIds_.hive);
   GLUTEN_CHECK(
       velox::connector::hasConnector(connectorIds_.hive),
       "Scoped hive connector not found after registration: " + connectorIds_.hive);
 
-  connectorIds_.deltaRegistered =
-      velox::connector::registerConnector(backend->createDeltaConnector(connectorIds_.delta, ioExecutor_.get()));
+  connectorIds_.deltaRegistered = velox::connector::registerConnector(
+      backend->createHiveConnectorWithSessionOverrides(
+          connectorIds_.delta, ioExecutor_.get(), veloxCfg_->rawConfigs()));
   GLUTEN_CHECK(connectorIds_.deltaRegistered, "Failed to register scoped delta connector: " + connectorIds_.delta);
   GLUTEN_CHECK(
       velox::connector::hasConnector(connectorIds_.delta),

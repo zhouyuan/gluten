@@ -374,6 +374,22 @@ std::shared_ptr<facebook::velox::connector::Connector> VeloxBackend::createHiveC
   return std::make_shared<velox::connector::hive::HiveConnector>(connectorId, hiveConnectorConfig_, ioExecutor);
 }
 
+std::shared_ptr<facebook::velox::connector::Connector>
+VeloxBackend::createHiveConnectorWithSessionOverrides(
+    const std::string& connectorId,
+    folly::Executor* ioExecutor,
+    const std::unordered_map<std::string, std::string>& sessionConf) const {
+  // Merge session-scoped fs.* keys onto the static hiveConnectorConfig_.
+  // The resulting config is passed to a NEW HiveConnector instance which
+  // constructs its own FileHandleGenerator with the merged credentials.
+  // Each VeloxRuntime (task) therefore gets an isolated HiveConnector —
+  // concurrent tasks with different Azure/S3 credentials do not share state.
+  auto mergedConfig = createHiveConnectorConfigWithSessionOverrides(
+      hiveConnectorConfig_, sessionConf);
+  return std::make_shared<velox::connector::hive::HiveConnector>(
+      connectorId, mergedConfig, ioExecutor);
+}
+
 std::shared_ptr<facebook::velox::connector::Connector> VeloxBackend::createDeltaConnector(
     const std::string& connectorId,
     folly::Executor* ioExecutor) const {
