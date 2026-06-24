@@ -74,16 +74,6 @@ class VeloxBackend {
       const std::string& connectorId,
       folly::Executor* ioExecutor) const;
 
-  /// Like createHiveConnector() but merges per-query session overrides
-  /// (e.g. fs.azure.account.auth.type set via spark.conf.set at runtime) into
-  /// the connector config before constructing the HiveConnector.  This ensures
-  /// the Velox-side ABFS/S3/GCS client providers see up-to-date credentials
-  /// for each query rather than the startup-time snapshot.
-  std::shared_ptr<facebook::velox::connector::Connector> createHiveConnectorWithSessionOverrides(
-      const std::string& connectorId,
-      folly::Executor* ioExecutor,
-      const std::unordered_map<std::string, std::string>& sessionConf) const;
-
   std::shared_ptr<facebook::velox::connector::Connector> createDeltaConnector(
       const std::string& connectorId,
       folly::Executor* ioExecutor) const;

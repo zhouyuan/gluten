@@ -283,13 +283,8 @@ void VeloxRuntime::initializeExecutors() {
 
 void VeloxRuntime::registerConnectors() {
   auto* backend = VeloxBackend::get();
-  // Use createHiveConnectorWithSessionOverrides so that session-level
-  // fs.azure.account.auth.type (and equivalent S3/GCS keys) set via
-  // spark.conf.set() at runtime are visible to the Velox ABFS/S3/GCS client
-  // providers.  The static createHiveConnector() path only saw the config
-  // snapshot taken at SparkContext initialisation time (VeloxBackend::init).
-  connectorIds_.hiveRegistered = velox::connector::registerConnector(
-      backend->createHiveConnectorWithSessionOverrides(connectorIds_.hive, ioExecutor_.get(), confMap_));
+  connectorIds_.hiveRegistered =
+      velox::connector::registerConnector(backend->createHiveConnector(connectorIds_.hive, ioExecutor_.get()));
   GLUTEN_CHECK(connectorIds_.hiveRegistered, "Failed to register scoped hive connector: " + connectorIds_.hive);
   GLUTEN_CHECK(
       velox::connector::hasConnector(connectorIds_.hive),
