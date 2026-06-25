@@ -39,7 +39,7 @@ class VeloxIteratorApiFsConfSuite extends SharedSparkSession {
     WholeStageTransformContext(PlanBuilder.empty())
 
   test("genPartitions embeds fs.azure.* keys from Hadoop conf into GlutenPartition.fsConf") {
-    val hadoopConf = spark.sparkContext.hadoopConfiguration
+    val hadoopConf = spark.sessionState.newHadoopConf()
     hadoopConf.set("fs.azure.account.auth.type.myaccount.dfs.core.windows.net", "OAuth")
     hadoopConf.set("fs.azure.account.oauth.provider.type", "ClientCredentials")
     try {
@@ -61,7 +61,7 @@ class VeloxIteratorApiFsConfSuite extends SharedSparkSession {
   }
 
   test("genPartitions embeds fs.s3a.* keys from Hadoop conf into GlutenPartition.fsConf") {
-    val hadoopConf = spark.sparkContext.hadoopConfiguration
+    val hadoopConf = spark.sessionState.newHadoopConf()
     hadoopConf.set("fs.s3a.access.key", "AKIAIOSFODNN7EXAMPLE")
     hadoopConf.set("fs.s3a.secret.key", "wJalrXUtnFEMI")
     try {
@@ -78,7 +78,7 @@ class VeloxIteratorApiFsConfSuite extends SharedSparkSession {
   }
 
   test("genPartitions embeds fs.gs.* keys from Hadoop conf into GlutenPartition.fsConf") {
-    val hadoopConf = spark.sparkContext.hadoopConfiguration
+    val hadoopConf = spark.sessionState.newHadoopConf()
     hadoopConf.set("fs.gs.auth.service.account.json.keyfile", "/tmp/sa.json")
     try {
       val partitions = api.genPartitions(emptyWsCtx, Seq(Seq.empty), Seq.empty)
@@ -94,7 +94,7 @@ class VeloxIteratorApiFsConfSuite extends SharedSparkSession {
   }
 
   test("genPartitions does not include non-fs.* keys in GlutenPartition.fsConf") {
-    val hadoopConf = spark.sparkContext.hadoopConfiguration
+    val hadoopConf = spark.sessionState.newHadoopConf()
     hadoopConf.set("fs.s3a.access.key", "KEY")
     hadoopConf.set("spark.some.conf", "value")
     hadoopConf.set("mapreduce.input.fileinputformat.split.maxsize", "128000000")
@@ -115,7 +115,7 @@ class VeloxIteratorApiFsConfSuite extends SharedSparkSession {
 
   test("genPartitions produces empty fsConf when no fs.* keys are set") {
     // Use a key guaranteed not to exist in the Hadoop conf under any test profile.
-    val hadoopConf = spark.sparkContext.hadoopConfiguration
+    val hadoopConf = spark.sessionState.newHadoopConf()
     val uniqueKey = "fs.azure.__test_only_unique_key__"
     hadoopConf.unset(uniqueKey)
     // Count only keys matching our prefixes.
