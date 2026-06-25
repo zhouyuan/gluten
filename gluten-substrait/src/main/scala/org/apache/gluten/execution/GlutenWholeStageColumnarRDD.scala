@@ -37,8 +37,13 @@ case class GlutenPartition(
     index: Int,
     plan: Array[Byte],
     splitInfos: Array[SplitInfo] = Array.empty[SplitInfo],
-    files: Array[String] =
-      Array.empty[String] // touched files, for implementing UDF input_file_name
+    files: Array[String] = Array.empty[String], // touched files, for UDF input_file_name
+    // fs.azure.* / fs.s3a.* / fs.gs.* keys captured on the driver from
+    // sessionState.newHadoopConf() and serialised here so they survive the
+    // RDD partition boundary.  Spark's withSQLConfPropagated only propagates
+    // keys that start with "spark", so these keys are otherwise invisible on
+    // the executor side (the executor's SQLConf never sees them).
+    fsConf: Map[String, String] = Map.empty
 ) extends BaseGlutenPartition {
 
   override def preferredLocations(): Array[String] =
