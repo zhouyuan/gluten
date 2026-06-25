@@ -190,9 +190,7 @@ WholeStageResultIterator::WholeStageResultIterator(
       }
     }
     // register the hive connectors
-    std::call_once(gluten::VeloxBackend::get()->regFlag, [&]() {
-      runtime_->registerConnectors();
-    });
+    runtime_->registerConnectors();
   }
 
   for (size_t scanInfoIdx = 0; scanInfoIdx < scanInfos.size(); ++scanInfoIdx) {
