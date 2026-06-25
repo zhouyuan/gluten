@@ -135,7 +135,7 @@ class VeloxIteratorApi extends IteratorApi with Logging {
     // SQLConf.  Serialising them inside the partition is the only safe way
     // to make them available to the native runtime on the executor.
     // Capture fs.azure.* / fs.s3a.* / fs.gs.* keys while on the driver.
-    // SparkPlan.sqlContext is available on the driver — using the first leaf
+    // SparkPlan.sqlContext is available on the driver -- using the first leaf
     // gives us access to sessionState.newHadoopConf() which includes all keys
     // set via spark.conf.set(), sparkContext.hadoopConfiguration, and
     // DataFrameReader.option().  These are NOT propagated to executors by
@@ -236,7 +236,8 @@ class VeloxIteratorApi extends IteratorApi with Logging {
     // task local properties), this is the only path these credentials can take to
     // reach the native session config and ultimately the Velox ABFS connector.
     val partitionFsConf = inputPartition.asInstanceOf[GlutenPartition].fsConf
-    val extraConf = (partitionFsConf + (GlutenConfig.COLUMNAR_CUDF_ENABLED.key -> enableCudf.toString)).asJava
+    val extraConf = (partitionFsConf +
+      (GlutenConfig.COLUMNAR_CUDF_ENABLED.key -> enableCudf.toString)).asJava
     val transKernel = NativePlanEvaluator.create(BackendsApiManager.getBackendName, extraConf)
 
     val splitInfoByteArray = inputPartition
