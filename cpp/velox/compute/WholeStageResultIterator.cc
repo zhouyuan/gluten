@@ -189,9 +189,9 @@ WholeStageResultIterator::WholeStageResultIterator(
         }
       }
     }
-    // register the hive connectors
-    runtime_->registerConnectors();
   }
+  // register the hive connectors
+  runtime_->registerConnectors();
 
   for (size_t scanInfoIdx = 0; scanInfoIdx < scanInfos.size(); ++scanInfoIdx) {
     const auto& scanInfo = scanInfos[scanInfoIdx];
