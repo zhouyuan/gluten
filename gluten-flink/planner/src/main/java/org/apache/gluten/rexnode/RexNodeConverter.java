@@ -23,6 +23,7 @@ import org.apache.gluten.util.LogicalTypeConverter;
 import io.github.zhztheplayer.velox4j.expression.ConstantTypedExpr;
 import io.github.zhztheplayer.velox4j.expression.FieldAccessTypedExpr;
 import io.github.zhztheplayer.velox4j.expression.TypedExpr;
+import io.github.zhztheplayer.velox4j.type.ArrayType;
 import io.github.zhztheplayer.velox4j.type.Type;
 import io.github.zhztheplayer.velox4j.variant.ArrayValue;
 import io.github.zhztheplayer.velox4j.variant.BigIntValue;
@@ -144,7 +145,7 @@ public class RexNodeConverter {
       values.add(toVariant(range.lowerEndpoint(), relDataType.getSqlTypeName()));
     }
     Variant arrayValue = new ArrayValue(values);
-    return ConstantTypedExpr.create(arrayValue);
+    return new ConstantTypedExpr(ArrayType.create(toType(relDataType)), arrayValue, null);
   }
 
   public static List<TypedExpr> toTypedExpr(Range range, RelDataType relDataType) {
@@ -164,6 +165,9 @@ public class RexNodeConverter {
       case INTEGER:
         return new IntegerValue(((BigDecimal) comparable).intValue());
       case VARCHAR:
+        if (comparable instanceof NlsString) {
+          return new VarCharValue(((NlsString) comparable).getValue());
+        }
         return new VarCharValue(comparable.toString());
       case CHAR:
         return new VarCharValue(((NlsString) comparable).getValue());
