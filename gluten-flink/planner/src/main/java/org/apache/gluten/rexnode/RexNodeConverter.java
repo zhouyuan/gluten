@@ -111,7 +111,7 @@ public class RexNodeConverter {
       case DOUBLE:
         return new DoubleValue(Double.valueOf(literal.getValue().toString()));
       case VARCHAR:
-        return new VarCharValue(literal.getValue().toString());
+        return new VarCharValue(literal.getValueAs(String.class));
       case CHAR:
         // For CHAR, we convert it to VARCHAR
         return new VarCharValue(literal.getValueAs(String.class));
