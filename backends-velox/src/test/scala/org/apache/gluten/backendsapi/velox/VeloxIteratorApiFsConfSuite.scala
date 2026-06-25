@@ -25,6 +25,10 @@ import org.apache.spark.sql.test.SharedSparkSession
  * Tests that [[VeloxIteratorApi.genPartitions]] captures fs.azure.*, fs.s3a.*, and fs.gs.* keys
  * from the driver-side Hadoop configuration and embeds them in [[GlutenPartition.fsConf]], so they
  * are available on executors where Spark's SQLConf propagation does not reach "fs.*" keys.
+ *
+ * Keys must be set on `sparkContext.hadoopConfiguration` (the mutable base configuration) because
+ * `sessionState.newHadoopConf()` creates a fresh copy each time - mutations to its return value are
+ * discarded before the next call.
  */
 class VeloxIteratorApiFsConfSuite extends SharedSparkSession {
 
@@ -38,89 +42,105 @@ class VeloxIteratorApiFsConfSuite extends SharedSparkSession {
   private def emptyWsCtx: WholeStageTransformContext =
     WholeStageTransformContext(PlanBuilder.empty())
 
+  /**
+   * Set Hadoop conf keys on the underlying mutable configuration and restore their previous values
+   * (or unset them) after the block. `sessionState.newHadoopConf()` copies from
+   * `sparkContext.hadoopConfiguration`, so this is the correct mutation point.
+   */
+  private def withHadoopConf(pairs: (String, String)*)(body: => Unit): Unit = {
+    // scalastyle:off hadoopconfiguration
+    val hadoopConf = spark.sparkContext.hadoopConfiguration
+    // scalastyle:off hadoopconfiguration
+    val prev: Seq[(String, Option[String])] = pairs.map {
+      case (k, _) => k -> Option(hadoopConf.get(k))
+    }
+    pairs.foreach { case (k, v) => hadoopConf.set(k, v) }
+    try body
+    finally prev.foreach {
+        case (k, Some(old)) => hadoopConf.set(k, old)
+        case (k, None) => hadoopConf.unset(k)
+      }
+  }
+
   test("genPartitions embeds fs.azure.* keys from Hadoop conf into GlutenPartition.fsConf") {
-    val hadoopConf = spark.sessionState.newHadoopConf()
-    hadoopConf.set("fs.azure.account.auth.type.myaccount.dfs.core.windows.net", "OAuth")
-    hadoopConf.set("fs.azure.account.oauth.provider.type", "ClientCredentials")
-    try {
+    withHadoopConf(
+      "fs.azure.account.auth.type.myaccount.dfs.core.windows.net" -> "OAuth",
+      "fs.azure.account.oauth.provider.type" -> "ClientCredentials"
+    ) {
       val partitions = api.genPartitions(emptyWsCtx, Seq(Seq.empty), Seq.empty)
       assert(partitions.size == 1)
       val fsConf = partitions.head.asInstanceOf[GlutenPartition].fsConf
       assert(
         fsConf.contains("fs.azure.account.auth.type.myaccount.dfs.core.windows.net"),
-        s"Expected fs.azure key not found; got: $fsConf")
-      assert(
-        fsConf("fs.azure.account.auth.type.myaccount.dfs.core.windows.net") == "OAuth")
+        s"Expected fs.azure key not found; got: ${fsConf.keys.mkString(", ")}")
+      assert(fsConf("fs.azure.account.auth.type.myaccount.dfs.core.windows.net") == "OAuth")
       assert(
         fsConf.contains("fs.azure.account.oauth.provider.type"),
-        s"Expected fs.azure key not found; got: $fsConf")
-    } finally {
-      hadoopConf.unset("fs.azure.account.auth.type.myaccount.dfs.core.windows.net")
-      hadoopConf.unset("fs.azure.account.oauth.provider.type")
+        s"Expected fs.azure key not found; got: ${fsConf.keys.mkString(", ")}")
+      assert(fsConf("fs.azure.account.oauth.provider.type") == "ClientCredentials")
     }
   }
 
   test("genPartitions embeds fs.s3a.* keys from Hadoop conf into GlutenPartition.fsConf") {
-    val hadoopConf = spark.sessionState.newHadoopConf()
-    hadoopConf.set("fs.s3a.access.key", "AKIAIOSFODNN7EXAMPLE")
-    hadoopConf.set("fs.s3a.secret.key", "wJalrXUtnFEMI")
-    try {
+    withHadoopConf(
+      "fs.s3a.access.key" -> "AKIAIOSFODNN7EXAMPLE",
+      "fs.s3a.secret.key" -> "wJalrXUtnFEMI"
+    ) {
       val partitions = api.genPartitions(emptyWsCtx, Seq(Seq.empty), Seq.empty)
       assert(partitions.size == 1)
       val fsConf = partitions.head.asInstanceOf[GlutenPartition].fsConf
-      assert(fsConf.contains("fs.s3a.access.key"), s"Expected fs.s3a key not found; got: $fsConf")
+      assert(
+        fsConf.contains("fs.s3a.access.key"),
+        s"Expected fs.s3a.access.key not found; got: ${fsConf.keys.mkString(", ")}")
       assert(fsConf("fs.s3a.access.key") == "AKIAIOSFODNN7EXAMPLE")
       assert(fsConf.contains("fs.s3a.secret.key"))
-    } finally {
-      hadoopConf.unset("fs.s3a.access.key")
-      hadoopConf.unset("fs.s3a.secret.key")
+      assert(fsConf("fs.s3a.secret.key") == "wJalrXUtnFEMI")
     }
   }
 
   test("genPartitions embeds fs.gs.* keys from Hadoop conf into GlutenPartition.fsConf") {
-    val hadoopConf = spark.sessionState.newHadoopConf()
-    hadoopConf.set("fs.gs.auth.service.account.json.keyfile", "/tmp/sa.json")
-    try {
+    withHadoopConf("fs.gs.auth.service.account.json.keyfile" -> "/tmp/sa.json") {
       val partitions = api.genPartitions(emptyWsCtx, Seq(Seq.empty), Seq.empty)
       assert(partitions.size == 1)
       val fsConf = partitions.head.asInstanceOf[GlutenPartition].fsConf
       assert(
         fsConf.contains("fs.gs.auth.service.account.json.keyfile"),
-        s"Expected fs.gs key not found; got: $fsConf")
+        s"Expected fs.gs key not found; got: ${fsConf.keys.mkString(", ")}")
       assert(fsConf("fs.gs.auth.service.account.json.keyfile") == "/tmp/sa.json")
-    } finally {
-      hadoopConf.unset("fs.gs.auth.service.account.json.keyfile")
     }
   }
 
   test("genPartitions does not include non-fs.* keys in GlutenPartition.fsConf") {
-    val hadoopConf = spark.sessionState.newHadoopConf()
-    hadoopConf.set("fs.s3a.access.key", "KEY")
-    hadoopConf.set("spark.some.conf", "value")
-    hadoopConf.set("mapreduce.input.fileinputformat.split.maxsize", "128000000")
-    try {
+    withHadoopConf(
+      "fs.s3a.access.key" -> "KEY",
+      "mapreduce.input.fileinputformat.split.maxsize" -> "128000000"
+    ) {
       val partitions = api.genPartitions(emptyWsCtx, Seq(Seq.empty), Seq.empty)
       val fsConf = partitions.head.asInstanceOf[GlutenPartition].fsConf
-      assert(!fsConf.contains("spark.some.conf"), "Non-fs key must not appear in fsConf")
       assert(
         !fsConf.contains("mapreduce.input.fileinputformat.split.maxsize"),
         "Non-fs key must not appear in fsConf")
-      assert(fsConf.contains("fs.s3a.access.key"))
-    } finally {
-      hadoopConf.unset("fs.s3a.access.key")
-      hadoopConf.unset("spark.some.conf")
-      hadoopConf.unset("mapreduce.input.fileinputformat.split.maxsize")
+      // fs.s3a.access.key must be captured
+      assert(
+        fsConf.contains("fs.s3a.access.key"),
+        s"Expected fs.s3a.access.key not found; got: ${fsConf.keys.mkString(", ")}")
     }
   }
 
-  test("genPartitions produces empty fsConf when no fs.* keys are set") {
-    // Use a key guaranteed not to exist in the Hadoop conf under any test profile.
-    val hadoopConf = spark.sessionState.newHadoopConf()
-    val uniqueKey = "fs.azure.__test_only_unique_key__"
-    hadoopConf.unset(uniqueKey)
-    // Count only keys matching our prefixes.
-    val partitions = api.genPartitions(emptyWsCtx, Seq(Seq.empty), Seq.empty)
-    val fsConf = partitions.head.asInstanceOf[GlutenPartition].fsConf
-    assert(!fsConf.contains(uniqueKey))
+  test("genPartitions produces one partition per input split group") {
+    withHadoopConf("fs.s3a.endpoint" -> "s3.amazonaws.com") {
+      // Two split groups => two GlutenPartitions
+      val partitions =
+        api.genPartitions(emptyWsCtx, Seq(Seq.empty, Seq.empty), Seq.empty)
+      assert(partitions.size == 2)
+      partitions.foreach {
+        p =>
+          val fsConf = p.asInstanceOf[GlutenPartition].fsConf
+          assert(
+            fsConf.contains("fs.s3a.endpoint"),
+            s"Expected fs.s3a.endpoint not found; got: ${fsConf.keys.mkString(", ")}")
+          assert(fsConf("fs.s3a.endpoint") == "s3.amazonaws.com")
+      }
+    }
   }
 }
