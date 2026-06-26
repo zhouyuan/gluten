@@ -388,6 +388,11 @@ VeloxBackend::createHiveConnectorWithSessionOverrides(
   auto mergedConfig = createHiveConnectorConfigWithSessionOverrides(
       hiveConnectorConfig_, sessionConf);
   LOG(INFO) << "Merged HiveConnector config: " << printConfig(mergedConfig->rawConfigs());
+#ifdef ENABLE_ABFS
+  // update abfs credential
+  velox::filesystems::registerAzureClientProvider(*mergedConfig);
+#endif
+
   if (isDeltaConnector) {
     return std::make_shared<delta::DeltaConnector>(connectorId, mergedConfig, ioExecutor);
   }
