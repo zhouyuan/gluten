@@ -313,7 +313,7 @@ void VeloxRuntime::registerConnectors() {
 
   connectorIds_.deltaRegistered = velox::connector::registerConnector(
       backend->createHiveConnectorWithSessionOverrides(
-          connectorIds_.delta, ioExecutor_.get(), veloxCfg_->rawConfigs()));
+          connectorIds_.delta, ioExecutor_.get(), veloxCfg_->rawConfigs(), true/* isDeltaConnector */));
   GLUTEN_CHECK(connectorIds_.deltaRegistered, "Failed to register scoped delta connector: " + connectorIds_.delta);
   GLUTEN_CHECK(
       velox::connector::hasConnector(connectorIds_.delta),

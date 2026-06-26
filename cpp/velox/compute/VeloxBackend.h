@@ -81,7 +81,8 @@ class VeloxBackend {
   std::shared_ptr<facebook::velox::connector::Connector> createHiveConnectorWithSessionOverrides(
       const std::string& connectorId,
       folly::Executor* ioExecutor,
-      const std::unordered_map<std::string, std::string>& sessionConf) const;
+      const std::unordered_map<std::string, std::string>& sessionConf,
+      bool isDeltaConnector = false) const;
 
   std::shared_ptr<facebook::velox::connector::Connector> createDeltaConnector(
       const std::string& connectorId,

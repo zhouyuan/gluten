@@ -378,7 +378,8 @@ std::shared_ptr<facebook::velox::connector::Connector>
 VeloxBackend::createHiveConnectorWithSessionOverrides(
     const std::string& connectorId,
     folly::Executor* ioExecutor,
-    const std::unordered_map<std::string, std::string>& sessionConf) const {
+    const std::unordered_map<std::string, std::string>& sessionConf,
+    bool isDeltaConnector) const {
   // Merge session-scoped fs.* keys onto the static hiveConnectorConfig_.
   // The resulting config is passed to a NEW HiveConnector instance which
   // constructs its own FileHandleGenerator with the merged credentials.
@@ -387,6 +388,9 @@ VeloxBackend::createHiveConnectorWithSessionOverrides(
   auto mergedConfig = createHiveConnectorConfigWithSessionOverrides(
       hiveConnectorConfig_, sessionConf);
   LOG(INFO) << "Merged HiveConnector config: " << printConfig(mergedConfig->rawConfigs());
+  if (isDeltaConnector) {
+    return std::make_shared<delta::DeltaConnector>(connectorId, mergedConfig, ioExecutor);
+  }
   return std::make_shared<velox::connector::hive::HiveConnector>(
       connectorId, mergedConfig, ioExecutor);
 }
