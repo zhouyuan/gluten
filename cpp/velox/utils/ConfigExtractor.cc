@@ -385,7 +385,7 @@ std::shared_ptr<facebook::velox::config::ConfigBase> createHiveConnectorConfigWi
       "fs.azure.account.oauth2.client.secret",
       "fs.azure.account.oauth2.client.endpoint",
   };
-  std::unordered_set<std::string> accountNames = {"sparkadlsiae"};
+
   for(const auto& prefix : kPerAccountCredentialPrefixes) {
     auto globalKey = std::string(prefix);
     auto globalIt = merged.find(globalKey);
