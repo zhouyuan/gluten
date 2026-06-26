@@ -50,7 +50,7 @@ class VeloxIteratorApiFsConfSuite extends SharedSparkSession {
   private def withHadoopConf(pairs: (String, String)*)(body: => Unit): Unit = {
     // scalastyle:off hadoopconfiguration
     val hadoopConf = spark.sparkContext.hadoopConfiguration
-    // scalastyle:off hadoopconfiguration
+    // scalastyle:on hadoopconfiguration
     val prev: Seq[(String, Option[String])] = pairs.map {
       case (k, _) => k -> Option(hadoopConf.get(k))
     }
