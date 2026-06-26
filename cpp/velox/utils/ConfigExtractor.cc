@@ -389,10 +389,12 @@ std::shared_ptr<facebook::velox::config::ConfigBase> createHiveConnectorConfigWi
     auto globalKey = std::string(prefix);
     auto globalIt = merged.find(globalKey);
     if (globalIt != merged.end()) {
+      LOG(INFO) << "Found global config key: " << globalKey << " = " << globalIt->second;
       merged.erase(globalIt); // remove the global key, since Velox only understands per-account keys
       // For each account name, set the per-account auth type key to the global value.
       for (const auto& accountName : accountNames) {
         auto perAccountKey = globalKey + "." + accountName + std::string(accountNameWithSuffix);
+        LOG(INFO) << "Setting per-account config key: " << perAccountKey << " = " << globalIt->second;
         merged[perAccountKey] = globalIt->second;
       }
     }
