@@ -24,6 +24,7 @@ import org.apache.gluten.util.ReflectUtils;
 
 import io.github.zhztheplayer.velox4j.connector.NexmarkConnectorSplit;
 import io.github.zhztheplayer.velox4j.connector.NexmarkGeneratorConfig;
+import io.github.zhztheplayer.velox4j.connector.NexmarkParallelSplit;
 import io.github.zhztheplayer.velox4j.connector.NexmarkTableHandle;
 import io.github.zhztheplayer.velox4j.plan.PlanNode;
 import io.github.zhztheplayer.velox4j.plan.StatefulPlanNode;
@@ -43,6 +44,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -81,22 +83,29 @@ public class NexmarkSourceFactory implements VeloxSourceSinkFactory {
                 "getSplits",
                 new Class<?>[] {int.class},
                 new Object[] {transformation.getParallelism()});
-    Object nexmarkSourceSplit = nexmarkSourceSplits.get(0);
-    Object generatorConfig =
-        ReflectUtils.getObjectField(
-            nexmarkSourceSplit.getClass(), nexmarkSourceSplit, "generatorConfig");
+
+    // Convert each subtask's NexmarkGeneratorConfig to velox4j
+    List<NexmarkConnectorSplit> subtaskSplits = new ArrayList<>();
+    for (Object nexmarkSourceSplit : nexmarkSourceSplits) {
+      Object generatorConfig =
+          ReflectUtils.getObjectField(
+              nexmarkSourceSplit.getClass(), nexmarkSourceSplit, "generatorConfig");
+      subtaskSplits.add(
+          new NexmarkConnectorSplit(
+              "connector-nexmark", toVeloxNexmarkGeneratorConfig(generatorConfig)));
+    }
+
     PlanNode tableScan =
         new TableScanNode(id, outputType, new NexmarkTableHandle("connector-nexmark"), List.of());
+    NexmarkParallelSplit split = new NexmarkParallelSplit("connector-nexmark", subtaskSplits);
     GlutenStreamSource sourceOp =
         new GlutenStreamSource(
             new GlutenSourceFunction(
                 new StatefulPlanNode(tableScan.getId(), tableScan),
                 Map.of(id, outputType),
                 id,
-                new NexmarkConnectorSplit(
-                    "connector-nexmark", toVeloxNexmarkGeneratorConfig(generatorConfig)),
+                split,
                 RowData.class));
-
     return new LegacySourceTransformation<RowData>(
         transformation.getName(),
         sourceOp,
@@ -112,6 +121,7 @@ public class NexmarkSourceFactory implements VeloxSourceSinkFactory {
     throw new UnsupportedOperationException("Unimplemented method 'buildSink'");
   }
 
+  /** Convert Flink nexmark NexmarkGeneratorConfig to velox4j NexmarkGeneratorConfig via Jackson. */
   private static NexmarkGeneratorConfig toVeloxNexmarkGeneratorConfig(Object javaConfig) {
     try {
       String json = MAPPER.writeValueAsString(javaConfig);
