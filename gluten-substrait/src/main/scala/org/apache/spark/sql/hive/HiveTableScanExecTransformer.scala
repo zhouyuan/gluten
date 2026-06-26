@@ -115,6 +115,9 @@ case class HiveTableScanExecTransformer(
   // TODO: get root paths from hive table.
   override def getRootPathsInternal: Seq[String] = Seq.empty
 
+  override def getHadoopConf: org.apache.hadoop.conf.Configuration =
+    session.sessionState.newHadoopConf()
+
   override def metricsUpdater(): MetricsUpdater =
     BackendsApiManager.getMetricsApiInstance.genHiveTableScanTransformerMetricsUpdater(
       ScanMetricsUtil.filterExecutorMetrics(metrics))
