@@ -60,7 +60,7 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: '${{ env.CCACHE_DIR }}'
-          key: ccache-flink-centos8-${{github.sha}}
+          key: ccache-flink-centos8
           restore-keys: |
             ccache-flink-centos8
       - name: Prepare
@@ -68,7 +68,7 @@ jobs:
           source /opt/rh/gcc-toolset-11/enable
           sudo dnf install -y patchelf ccache
           export CCACHE_DIR=${CCACHE_DIR}
-          export CCACHE_MAXSIZE=4G
+          export CCACHE_MAXSIZE=2G
           mkdir -p ${CCACHE_DIR}
           ccache -sz
           sudo yum install https://mirror.stream.centos.org/9-stream/BaseOS/x86_64/os/Packages/tzdata-2026a-1.el9.noarch.rpm -y
@@ -91,11 +91,11 @@ jobs:
           cd nexmark
           $GITHUB_WORKSPACE/build/mvn clean install -DskipTests
       - name: Save ccache
-        if: always()
+        if: success()
         uses: actions/cache/save@v4
         with:
           path: '${{ env.CCACHE_DIR }}'
-          key: ccache-flink-centos8-${{github.sha}}
+          key: ccache-flink-centos8
       - name: Build Gluten Flink
         run: |
           cd $GITHUB_WORKSPACE/gluten-flink
