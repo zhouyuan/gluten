@@ -51,6 +51,7 @@ std::shared_ptr<facebook::velox::config::ConfigBase> createHiveConnectorConfig(
 std::shared_ptr<facebook::velox::config::ConfigBase> createHiveConnectorConfigWithSessionOverrides(
     const std::shared_ptr<facebook::velox::config::ConfigBase>& backendConf,
     const std::unordered_map<std::string, std::string>& sessionConf,
+    const std::unordered_set<std::string>& accountNames = {},
     FileSystemType fsType = FileSystemType::kAll);
 
 void overwriteVeloxConf(

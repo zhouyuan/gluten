@@ -386,7 +386,7 @@ VeloxBackend::createHiveConnectorWithSessionOverrides(
   // Each VeloxRuntime (task) therefore gets an isolated HiveConnector —
   // concurrent tasks with different Azure/S3 credentials do not share state.
   auto mergedConfig = createHiveConnectorConfigWithSessionOverrides(
-      hiveConnectorConfig_, sessionConf);
+      hiveConnectorConfig_, sessionConf, {azureAccount}, FileSystemType::kAll);
   LOG(INFO) << "Merged HiveConnector config: " << printConfig(mergedConfig->rawConfigs());
 #ifdef ENABLE_ABFS
   // update abfs credential

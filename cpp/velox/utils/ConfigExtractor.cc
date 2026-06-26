@@ -330,6 +330,7 @@ void overwriteVeloxConf(
 std::shared_ptr<facebook::velox::config::ConfigBase> createHiveConnectorConfigWithSessionOverrides(
     const std::shared_ptr<facebook::velox::config::ConfigBase>& backendConf,
     const std::unordered_map<std::string, std::string>& sessionConf,
+    const std::unordered_set<std::string>& accountNames,
     FileSystemType fsType) {
   // Start from the static backend config (built at SparkContext init time).
   auto base = createHiveConnectorConfig(backendConf, fsType);
@@ -389,17 +390,17 @@ std::shared_ptr<facebook::velox::config::ConfigBase> createHiveConnectorConfigWi
     auto globalKey = std::string(prefix);
     auto globalIt = merged.find(globalKey);
     if (globalIt != merged.end()) {
-      LOG(INFO) << "Found global config key: " << globalKey << " = " << globalIt->second;
+      auto globalValue = globalIt->second; // save value before erasing the iterator
+      LOG(INFO) << "Found global config key: " << globalKey << " = " << globalValue;
       merged.erase(globalIt); // remove the global key, since Velox only understands per-account keys
       // For each account name, set the per-account auth type key to the global value.
       for (const auto& accountName : accountNames) {
         auto perAccountKey = globalKey + "." + accountName + std::string(accountNameWithSuffix);
-        LOG(INFO) << "Setting per-account config key: " << perAccountKey << " = " << globalIt->second;
-        merged[perAccountKey] = globalIt->second;
+        LOG(INFO) << "Setting per-account config key: " << perAccountKey << " = " << globalValue;
+        merged[perAccountKey] = globalValue;
       }
     }
   }
-
 
   return std::make_shared<facebook::velox::config::ConfigBase>(std::move(merged));
 }
