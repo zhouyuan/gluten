@@ -374,49 +374,30 @@ std::shared_ptr<facebook::velox::config::ConfigBase> createHiveConnectorConfigWi
   //   fs.azure.account.oauth2.client.id.<accountNameWithSuffix>
   //   etc.
   // The suffix after "fs.azure.account.<subkey>." is <accountNameWithSuffix>.
-  static constexpr std::string_view kAuthTypeKey{"fs.azure.account.auth.type"};
-  static constexpr std::string_view kAccountPrefix{"fs.azure.account."};
-  // Sub-keys that carry <accountNameWithSuffix> as suffix — used to infer accounts.
-  static const std::vector<std::string_view> kAccountSubKeys = {
-      "fs.azure.account.key.",
-      "fs.azure.account.oauth2.client.id.",
-      "fs.azure.account.oauth2.client.secret.",
-      "fs.azure.account.oauth2.client.endpoint.",
-      "fs.azure.sas.",
-      "fs.azure.account.auth.type.",  // per-account form already present
-  };
 
-  auto genericAuthIt = merged.find(std::string(kAuthTypeKey));
-  if (genericAuthIt != merged.end()) {
-    const std::string& genericAuthType = genericAuthIt->second;
-    // Collect all <accountNameWithSuffix> values we can infer from the config.
-    std::unordered_set<std::string> accounts;
-    for (const auto& [k, _] : merged) {
-      for (const auto& subKey : kAccountSubKeys) {
-        if (k.starts_with(subKey) && k.size() > subKey.size()) {
-          // Everything after the subkey prefix is <accountNameWithSuffix>.
-          accounts.insert(k.substr(subKey.size()));
-          break;
-        }
+  // check for below keys, and if present, amend the account name and suffix
+  static const std::string_view accountNameWithSuffix = ".dfs.core.windows.net";
+  static const std::vector<std::string_view> kPerAccountCredentialPrefixes = {
+      "fs.azure.account.auth.type",
+      "fs.azure.account.oauth.provider.type",
+      "fs.azure.account.oauth2.client.id",
+      "fs.azure.account.oauth2.client.secret",
+      "fs.azure.account.oauth2.client.endpoint",
+  };
+  std::unordered_set<std::string> accountNames = {"sparkadlsiae"};
+  for(const auto& prefix : kPerAccountCredentialPrefixes) {
+    auto globalKey = std::string(prefix);
+    auto globalIt = merged.find(globalKey);
+    if (globalIt != merged.end()) {
+      merged.erase(globalIt); // remove the global key, since Velox only understands per-account keys
+      // For each account name, set the per-account auth type key to the global value.
+      for (const auto& accountName : accountNames) {
+        auto perAccountKey = globalKey + "." + accountName + std::string(accountNameWithSuffix);
+        merged[perAccountKey] = globalIt->second;
       }
-    }
-    // Also scan sessionConf so newly-added session keys contribute account names.
-    for (const auto& [k, _] : sessionConf) {
-      for (const auto& subKey : kAccountSubKeys) {
-        if (k.starts_with(subKey) && k.size() > subKey.size()) {
-          accounts.insert(k.substr(subKey.size()));
-          break;
-        }
-      }
-    }
-    // Synthesise per-account auth-type keys for every discovered account,
-    // but only when there is no explicit per-account override already present.
-    for (const auto& account : accounts) {
-      auto perAccountKey =
-          fmt::format("{}.{}", kAuthTypeKey, account);
-      merged.emplace(perAccountKey, genericAuthType); // emplace = don't overwrite explicit values
     }
   }
+
 
   return std::make_shared<facebook::velox::config::ConfigBase>(std::move(merged));
 }
