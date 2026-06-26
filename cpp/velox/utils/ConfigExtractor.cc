@@ -20,8 +20,8 @@
 #include "ConfigExtractor.h"
 
 #include <fmt/format.h>
-#include <unordered_set>
 #include <stdexcept>
+#include <unordered_set>
 
 #include "config/VeloxConfig.h"
 #include "utils/Exception.h"
@@ -386,7 +386,7 @@ std::shared_ptr<facebook::velox::config::ConfigBase> createHiveConnectorConfigWi
       "fs.azure.account.oauth2.client.endpoint",
   };
 
-  for(const auto& prefix : kPerAccountCredentialPrefixes) {
+  for (const auto& prefix : kPerAccountCredentialPrefixes) {
     auto globalKey = std::string(prefix);
     auto globalIt = merged.find(globalKey);
     if (globalIt != merged.end()) {

@@ -142,7 +142,7 @@ WholeStageResultIterator::WholeStageResultIterator(
   auto fileSystem = velox::filesystems::getFileSystem(spillDir, nullptr);
   GLUTEN_CHECK(fileSystem != nullptr, "File System for spilling is null!");
   fileSystem->mkdir(spillDir);
-  
+
   {
     // Parse URI to extract azure account and set it before connector initialization
     if (scanInfos.size() > 0) {

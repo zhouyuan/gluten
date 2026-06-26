@@ -374,8 +374,7 @@ std::shared_ptr<facebook::velox::connector::Connector> VeloxBackend::createHiveC
   return std::make_shared<velox::connector::hive::HiveConnector>(connectorId, hiveConnectorConfig_, ioExecutor);
 }
 
-std::shared_ptr<facebook::velox::connector::Connector>
-VeloxBackend::createHiveConnectorWithSessionOverrides(
+std::shared_ptr<facebook::velox::connector::Connector> VeloxBackend::createHiveConnectorWithSessionOverrides(
     const std::string& connectorId,
     folly::Executor* ioExecutor,
     const std::unordered_map<std::string, std::string>& sessionConf,
@@ -396,8 +395,7 @@ VeloxBackend::createHiveConnectorWithSessionOverrides(
   if (isDeltaConnector) {
     return std::make_shared<delta::DeltaConnector>(connectorId, mergedConfig, ioExecutor);
   }
-  return std::make_shared<velox::connector::hive::HiveConnector>(
-      connectorId, mergedConfig, ioExecutor);
+  return std::make_shared<velox::connector::hive::HiveConnector>(connectorId, mergedConfig, ioExecutor);
 }
 
 std::shared_ptr<facebook::velox::connector::Connector> VeloxBackend::createDeltaConnector(
