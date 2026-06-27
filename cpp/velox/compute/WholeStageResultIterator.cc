@@ -120,8 +120,10 @@ WholeStageResultIterator::WholeStageResultIterator(
     VeloxConnectorIds connectorIds,
     const std::string spillDir,
     const std::shared_ptr<facebook::velox::config::ConfigBase>& veloxCfg,
-    const SparkTaskInfo& taskInfo)
+    const SparkTaskInfo& taskInfo,
+    VeloxRuntime* runtime)
     : memoryManager_(memoryManager),
+      runtime_(runtime),
       veloxCfg_(veloxCfg),
 #ifdef GLUTEN_ENABLE_GPU
       enableCudf_(veloxCfg_->get<bool>(kCudfEnabled, kCudfEnabledDefault)),
@@ -140,6 +142,30 @@ WholeStageResultIterator::WholeStageResultIterator(
   auto fileSystem = velox::filesystems::getFileSystem(spillDir, nullptr);
   GLUTEN_CHECK(fileSystem != nullptr, "File System for spilling is null!");
   fileSystem->mkdir(spillDir);
+
+  {
+    // Parse URI to extract azure account and set it before connector initialization
+    if (scanInfos.size() > 0) {
+      const auto& paths = scanInfos[0]->paths;
+      if (paths.size() > 0) {
+        const std::string uri = paths[0];
+        if (uri.starts_with("abfss://")) {
+          auto begin = uri.find_first_of("@");
+          assert(begin != std::string::npos);
+          auto end = uri.find(".dfs.core.windows.net");
+          assert(end != std::string::npos);
+          const std::string azureAccount = uri.substr(begin + 1, end - begin - 1);
+          if (!azureAccount.empty()) {
+            std::lock_guard<std::mutex> l(gluten::VeloxBackend::get()->registerMutex);
+            // Set the azure account before calling initConnector
+            gluten::VeloxBackend::get()->azureAccount = azureAccount;
+          }
+        }
+      }
+    }
+  }
+  // register the hive connectors
+  runtime_->registerConnectors();
 
   std::unordered_set<velox::core::PlanNodeId> emptySet;
   const bool serialExecution = true;
@@ -279,6 +305,32 @@ WholeStageResultIterator::WholeStageResultIterator(
     splits_.emplace_back(scanSplits);
   }
 }
+
+// std::unordered_map<std::string, std::string> buildSessionFsConfFromVeloxConfig(
+//   const std::shared_ptr<facebook::velox::config::ConfigBase>& veloxCfg, const std::vector<ScanInfo>& scanInfos) {
+//   std::unordered_map<std::string, std::string> sessionFsConf;
+//   if (scanInfos.size() > 0) {
+//     const auto& paths = scanInfos[0]->paths;
+//     if (paths.size() > 0) {
+//       const std::string uri = paths[0];
+//       if (uri.starts_with("abfss://")) {
+//         auto begin = uri.find_first_of("@");
+//         assert(begin != std::string::npos);
+//         auto end = uri.find(".dfs.core.windows.net");
+//         assert(end != std::string::npos);
+//         const std::string azureAccount = uri.substr(begin + 1, end - begin - 1);
+//         if (!azureAccount.empty()) {
+//           std::lock_guard<std::mutex> l(gluten::VeloxBackend::get()->registerMutex);
+//           // Set the azure account before calling initConnector
+//           gluten::VeloxBackend::get()->azureAccount = azureAccount;
+//         }
+//       }
+//     }
+//   }
+//   auto merged = veloxCfg->rawConfigs();
+
+//   return sessionFsConf;
+// }
 
 std::shared_ptr<velox::core::QueryCtx> WholeStageResultIterator::createNewVeloxQueryCtx() {
   std::unordered_map<std::string, std::shared_ptr<velox::config::ConfigBase>> connectorConfigs;

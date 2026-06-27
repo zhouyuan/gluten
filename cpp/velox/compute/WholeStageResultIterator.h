@@ -36,6 +36,8 @@
 
 namespace gluten {
 
+class VeloxRuntime;
+
 class WholeStageResultIterator : public SplitAwareColumnarBatchIterator {
  public:
   WholeStageResultIterator(
@@ -49,7 +51,8 @@ class WholeStageResultIterator : public SplitAwareColumnarBatchIterator {
       VeloxConnectorIds connectorIds,
       const std::string spillDir,
       const std::shared_ptr<facebook::velox::config::ConfigBase>& veloxCfg,
-      const SparkTaskInfo& taskInfo);
+      const SparkTaskInfo& taskInfo,
+      VeloxRuntime* runtime);
 
   virtual ~WholeStageResultIterator() {
     if (task_ != nullptr) {
@@ -131,6 +134,7 @@ class WholeStageResultIterator : public SplitAwareColumnarBatchIterator {
 
   /// Memory.
   VeloxMemoryManager* memoryManager_;
+  VeloxRuntime* runtime_;
 
   /// Config, task and plan.
   const std::shared_ptr<facebook::velox::config::ConfigBase> veloxCfg_;

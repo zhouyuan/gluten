@@ -125,12 +125,41 @@ class VeloxIteratorApi extends IteratorApi with Logging {
     // Only serialize plan once, save lots time when plan is complex.
     val planByteArray = wsCtx.root.toProtobuf.toByteArray
 
+    // Capture fs.azure.* / fs.s3a.* / fs.gs.* keys from the driver-side
+    // Hadoop configuration NOW, while we are still on the driver, and embed
+    // them in every GlutenPartition.  These keys are set by the user via
+    //   spark.conf.set("fs.azure.account.auth.type", ...)   or
+    //   sparkContext.hadoopConfiguration.set(...)
+    // Spark's withSQLConfPropagated only forwards keys starting with "spark"
+    // as task-local-properties, so "fs.*" keys never reach the executor's
+    // SQLConf.  Serialising them inside the partition is the only safe way
+    // to make them available to the native runtime on the executor.
+    // Capture fs.azure.* / fs.s3a.* / fs.gs.* keys while on the driver.
+    // SparkPlan.sqlContext is available on the driver -- using the first leaf
+    // gives us access to sessionState.newHadoopConf() which includes all keys
+    // set via spark.conf.set(), sparkContext.hadoopConfiguration, and
+    // DataFrameReader.option().  These are NOT propagated to executors by
+    // Spark's withSQLConfPropagated (it only forwards keys starting with
+    // "spark"), so embedding them in the serialised GlutenPartition is the
+    // only reliable transport mechanism.
+    val fsPrefixes = Seq("fs.azure.", "fs.s3a.", "fs.gs.")
+    val hadoopConf = leaves.headOption
+      .map(_ => org.apache.spark.sql.SparkSession.active.sessionState.newHadoopConf())
+      .getOrElse(org.apache.spark.SparkContext.getOrCreate().hadoopConfiguration)
+    val fsConf = {
+      hadoopConf.iterator().asScala
+        .filter(e => fsPrefixes.exists(e.getKey.startsWith))
+        .map(e => e.getKey -> e.getValue)
+        .toMap
+    }
+
     splitInfos.zipWithIndex.map {
       case (splitInfos, index) =>
         GlutenPartition(
           index,
           planByteArray,
-          splitInfos.toArray
+          splitInfos.toArray,
+          fsConf = fsConf
         )
     }
   }
@@ -199,7 +228,16 @@ class VeloxIteratorApi extends IteratorApi with Logging {
       iter => new ColumnarBatchInIterator(BackendsApiManager.getBackendName, iter.asJava)
     }
 
-    val extraConf = Map(GlutenConfig.COLUMNAR_CUDF_ENABLED.key -> enableCudf.toString).asJava
+    // Merge the fs.* keys captured on the driver (stored in GlutenPartition.fsConf)
+    // into the extraConf passed to NativePlanEvaluator / VeloxRuntime.
+    // Runtimes.contextInstance() will call GlutenConfig.getNativeSessionConf() which
+    // merges extraConf on top of SQLConf.get.getAllConfs.  Because the executor-side
+    // SQLConf never receives "fs.*" keys (Spark only propagates "spark.*" keys via
+    // task local properties), this is the only path these credentials can take to
+    // reach the native session config and ultimately the Velox ABFS connector.
+    val partitionFsConf = inputPartition.asInstanceOf[GlutenPartition].fsConf
+    val extraConf = (partitionFsConf +
+      (GlutenConfig.COLUMNAR_CUDF_ENABLED.key -> enableCudf.toString)).asJava
     val transKernel = NativePlanEvaluator.create(BackendsApiManager.getBackendName, extraConf)
 
     val splitInfoByteArray = inputPartition

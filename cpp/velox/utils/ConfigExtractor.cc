@@ -18,7 +18,10 @@
 // This File includes common helper functions with Arrow dependency.
 
 #include "ConfigExtractor.h"
+
+#include <fmt/format.h>
 #include <stdexcept>
+#include <unordered_set>
 
 #include "config/VeloxConfig.h"
 #include "utils/Exception.h"
@@ -322,6 +325,84 @@ void overwriteVeloxConf(
       to[k.substr(prefix.size())] = v;
     }
   }
+}
+
+std::shared_ptr<facebook::velox::config::ConfigBase> createHiveConnectorConfigWithSessionOverrides(
+    const std::shared_ptr<facebook::velox::config::ConfigBase>& backendConf,
+    const std::unordered_map<std::string, std::string>& sessionConf,
+    const std::unordered_set<std::string>& accountNames,
+    FileSystemType fsType) {
+  // Start from the static backend config (built at SparkContext init time).
+  auto base = createHiveConnectorConfig(backendConf, fsType);
+  auto merged = base->rawConfigs(); // copy — we must not mutate the shared base
+
+  // ── Step 1: forward all per-account and generic fs.azure.* / fs.s3a.* / fs.gs.*
+  // keys from the session config into the merged map.  Session value always wins.
+  static const std::vector<std::string_view> kForwardPrefixes = {
+      "fs.azure.",
+      "fs.s3a.",
+      "fs.gs.",
+  };
+  for (const auto& [k, v] : sessionConf) {
+    for (const auto& prefix : kForwardPrefixes) {
+      if (k.starts_with(prefix)) {
+        merged[k] = v;
+        break;
+      }
+    }
+  }
+
+  // ── Step 2: expand Hadoop-style account-agnostic auth keys to the
+  // per-account form that Velox's AbfsUtil::extractCacheKeyFromConfig()
+  // and AzureClientProviderFactories::getClientFactory() require.
+  //
+  // Hadoop users set:
+  //   fs.azure.account.auth.type = OAuth          (applies to all accounts)
+  //   fs.azure.account.auth.type.<acct>.<sfx> = OAuth  (per-account)
+  //
+  // Velox ONLY understands the per-account form:
+  //   fs.azure.account.auth.type.<accountNameWithSuffix>
+  // e.g. fs.azure.account.auth.type.sparkadlsiae.dfs.core.windows.net
+  //
+  // Strategy: if we see "fs.azure.account.auth.type" (no suffix) in the merged
+  // config, and per-account credential keys exist (which reveal the account names),
+  // synthesise the per-account auth-type key for every account we can infer.
+  // This covers the common case where a user sets the global auth type plus
+  // per-account credentials without repeating the auth type per account.
+  //
+  // Account names are inferred from per-account credential keys whose format is:
+  //   fs.azure.account.key.<accountNameWithSuffix>
+  //   fs.azure.account.oauth2.client.id.<accountNameWithSuffix>
+  //   etc.
+  // The suffix after "fs.azure.account.<subkey>." is <accountNameWithSuffix>.
+
+  // check for below keys, and if present, amend the account name and suffix
+  static const std::string_view accountNameWithSuffix = ".dfs.core.windows.net";
+  static const std::vector<std::string_view> kPerAccountCredentialPrefixes = {
+      "fs.azure.account.auth.type",
+      "fs.azure.account.oauth.provider.type",
+      "fs.azure.account.oauth2.client.id",
+      "fs.azure.account.oauth2.client.secret",
+      "fs.azure.account.oauth2.client.endpoint",
+  };
+
+  for (const auto& prefix : kPerAccountCredentialPrefixes) {
+    auto globalKey = std::string(prefix);
+    auto globalIt = merged.find(globalKey);
+    if (globalIt != merged.end()) {
+      auto globalValue = globalIt->second; // save value before erasing the iterator
+      LOG(INFO) << "Found global config key: " << globalKey << " = " << globalValue;
+      merged.erase(globalIt); // remove the global key, since Velox only understands per-account keys
+      // For each account name, set the per-account auth type key to the global value.
+      for (const auto& accountName : accountNames) {
+        auto perAccountKey = globalKey + "." + accountName + std::string(accountNameWithSuffix);
+        LOG(INFO) << "Setting per-account config key: " << perAccountKey << " = " << globalValue;
+        merged[perAccountKey] = globalValue;
+      }
+    }
+  }
+
+  return std::make_shared<facebook::velox::config::ConfigBase>(std::move(merged));
 }
 
 } // namespace gluten
