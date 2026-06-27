@@ -146,7 +146,7 @@ jobs:
           tags: ${{ env.DOCKERHUB_REPO }}:centos-9-jdk17-cuda12.9-cudf
 
   build-vcpkg-centos-8-gcc13:
-
+    if: ${{ startsWith(github.repository, 'apache/') }}
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
@@ -196,7 +196,7 @@ jobs:
           retention-days: 1
 
   build-vcpkg-centos-9:
-
+    if: ${{ startsWith(github.repository, 'apache/') }}
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
