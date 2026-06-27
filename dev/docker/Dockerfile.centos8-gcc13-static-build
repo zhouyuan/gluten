@@ -35,7 +35,7 @@ RUN set -ex; \
     rm -f cmake-3.31.12-linux-$(uname -m).sh; \
     rpm -qa | grep tzdata; \
     dnf clean all; \
-    git clone --depth=1 https://github.com/zhouyuan/gluten /opt/gluten; \
+    git clone --depth=1 https://github.com/apache/gluten /opt/gluten; \
     mkdir -p ${VCPKG_PATH}; \
     echo "Build arrow, then install the native libs to system paths and jar package to .m2/ directory."; \
     if [ "$(uname -m)" = "aarch64" ]; then \
