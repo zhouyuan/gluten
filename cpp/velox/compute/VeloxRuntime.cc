@@ -629,7 +629,9 @@ std::unique_ptr<ColumnarBatchSerializer> VeloxRuntime::createColumnarBatchSerial
     return std::make_unique<VeloxGpuColumnarBatchSerializer>(arrowPool, veloxPool, cSchema);
   }
 #endif
-  return std::make_unique<VeloxColumnarBatchSerializer>(arrowPool, veloxPool, cSchema);
+  auto compressionKind =
+      veloxCfg_->get<std::string>(kColumnarBatchSerializerCompression, kColumnarBatchSerializerCompressionDefault);
+  return std::make_unique<VeloxColumnarBatchSerializer>(arrowPool, veloxPool, cSchema, compressionKind);
 }
 
 void VeloxRuntime::enableDumping() {

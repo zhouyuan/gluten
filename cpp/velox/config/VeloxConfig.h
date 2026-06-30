@@ -50,6 +50,11 @@ const std::string kSparkShuffleSpillCompress = "spark.shuffle.spill.compress";
 const std::string kCompressionKind = "spark.io.compression.codec";
 /// The compression codec to use for spilling. Use kCompressionKind if not set.
 const std::string kSpillCompressionKind = "spark.gluten.sql.columnar.backend.velox.spillCompressionCodec";
+
+// Which compression kind to use for the columnar batch serializer (e.g. broadcast).
+const std::string kColumnarBatchSerializerCompression =
+    "spark.gluten.sql.columnar.backend.velox.columnarBatchSerializerCompression";
+const std::string kColumnarBatchSerializerCompressionDefault = "none";
 const std::string kMaxPartialAggregationMemoryRatio =
     "spark.gluten.sql.columnar.backend.velox.maxPartialAggregationMemoryRatio";
 const std::string kMaxPartialAggregationMemory = "spark.gluten.sql.columnar.backend.velox.maxPartialAggregationMemory";
