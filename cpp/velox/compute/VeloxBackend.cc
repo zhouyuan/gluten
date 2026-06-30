@@ -369,30 +369,40 @@ void VeloxBackend::initCache() {
   }
 }
 
+
+
 std::shared_ptr<facebook::velox::connector::Connector> VeloxBackend::createHiveConnector(
     const std::string& connectorId,
-    folly::Executor* ioExecutor) const {
-  return std::make_shared<velox::connector::hive::HiveConnector>(connectorId, staticConnectorConfig_, ioExecutor);
+    folly::Executor* ioExecutor,
+    const std::unordered_map<std::string, std::string>& sessionConf) const {
+  auto mergedConfig = gluten::mergeWithSessionOverrides(staticConnectorConfig_, sessionConf);
+  return std::make_shared<velox::connector::hive::HiveConnector>(connectorId, mergedConfig, ioExecutor);
 }
 
 std::shared_ptr<facebook::velox::connector::Connector> VeloxBackend::createDeltaConnector(
     const std::string& connectorId,
-    folly::Executor* ioExecutor) const {
-  return std::make_shared<delta::DeltaConnector>(connectorId, staticConnectorConfig_, ioExecutor);
+    folly::Executor* ioExecutor,
+    const std::unordered_map<std::string, std::string>& sessionConf) const {
+  auto mergedConfig = gluten::mergeWithSessionOverrides(staticConnectorConfig_, sessionConf);
+  return std::make_shared<delta::DeltaConnector>(connectorId, mergedConfig, ioExecutor);
 }
 
 std::shared_ptr<facebook::velox::connector::Connector> VeloxBackend::createValueStreamConnector(
     const std::string& connectorId,
-    bool dynamicFilterEnabled) const {
-  return std::make_shared<ValueStreamConnector>(connectorId, staticConnectorConfig_, dynamicFilterEnabled);
+    bool dynamicFilterEnabled,
+    const std::unordered_map<std::string, std::string>& sessionConf) const {
+  auto mergedConfig = gluten::mergeWithSessionOverrides(staticConnectorConfig_, sessionConf);
+  return std::make_shared<ValueStreamConnector>(connectorId, mergedConfig, dynamicFilterEnabled);
 }
 
 #ifdef GLUTEN_ENABLE_GPU
 std::shared_ptr<facebook::velox::connector::Connector> VeloxBackend::createCudfHiveConnector(
     const std::string& connectorId,
-    folly::Executor* ioExecutor) const {
+    folly::Executor* ioExecutor,
+    const std::unordered_map<std::string, std::string>& sessionConf) const {
   facebook::velox::cudf_velox::connector::hive::CudfHiveConnectorFactory factory;
-  return factory.newConnector(connectorId, staticConnectorConfig_, ioExecutor);
+  auto mergedConfig = gluten::mergeWithSessionOverrides(staticConnectorConfig_, sessionConf);
+  return factory.newConnector(connectorId, mergedConfig, ioExecutor);
 }
 #endif
 
