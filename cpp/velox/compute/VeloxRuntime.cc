@@ -258,7 +258,6 @@ VeloxRuntime::VeloxRuntime(
   connectorIds_ = makeScopedConnectorIds(runtimeId++);
 
   initializeExecutors();
-  registerConnectors();
 }
 
 VeloxRuntime::~VeloxRuntime() {

@@ -120,7 +120,8 @@ WholeStageResultIterator::WholeStageResultIterator(
     VeloxConnectorIds connectorIds,
     const std::string spillDir,
     const std::shared_ptr<facebook::velox::config::ConfigBase>& veloxCfg,
-    const SparkTaskInfo& taskInfo)
+    const SparkTaskInfo& taskInfo,
+    VeloxRuntime* veloxRuntime)
     : memoryManager_(memoryManager),
       veloxCfg_(veloxCfg),
 #ifdef GLUTEN_ENABLE_GPU
@@ -133,13 +134,19 @@ WholeStageResultIterator::WholeStageResultIterator(
       connectorIds_(std::move(connectorIds)),
       scanNodeIds_(scanNodeIds),
       scanInfos_(scanInfos),
-      streamIds_(streamIds) {
+      streamIds_(streamIds),
+      veloxRuntime_(veloxRuntime) {
   spillStrategy_ = veloxCfg_->get<std::string>(kSpillStrategy, kSpillStrategyDefaultValue);
   getOrderedNodeIds(veloxPlan_, orderedNodeIds_);
 
   auto fileSystem = velox::filesystems::getFileSystem(spillDir, nullptr);
   GLUTEN_CHECK(fileSystem != nullptr, "File System for spilling is null!");
   fileSystem->mkdir(spillDir);
+
+  // Prepare for the session level configurations and pass to connectors
+  
+  // register the hive connectors
+  veloxRuntime_->registerConnectors();
 
   std::unordered_set<velox::core::PlanNodeId> emptySet;
   const bool serialExecution = true;
