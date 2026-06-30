@@ -120,7 +120,7 @@ class VeloxBackend {
   std::unique_ptr<folly::Executor> ioExecutor_;
   std::unique_ptr<folly::Executor> ssdCacheExecutor_;
   std::shared_ptr<facebook::velox::memory::MmapAllocator> cacheAllocator_;
-  std::shared_ptr<facebook::velox::config::ConfigBase> hiveConnectorConfig_;
+  std::shared_ptr<facebook::velox::config::ConfigBase> staticConnectorConfig_;
 
   std::string cachePathPrefix_;
   std::string cacheFilePrefix_;
