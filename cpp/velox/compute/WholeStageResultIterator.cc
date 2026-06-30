@@ -144,7 +144,7 @@ WholeStageResultIterator::WholeStageResultIterator(
   fileSystem->mkdir(spillDir);
 
   // Prepare for the session level configurations and pass to connectors
-  
+
   // register the hive connectors
   veloxRuntime_->registerConnectors();
 

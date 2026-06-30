@@ -73,23 +73,23 @@ class VeloxBackend {
   std::shared_ptr<facebook::velox::connector::Connector> createHiveConnector(
       const std::string& connectorId,
       folly::Executor* ioExecutor,
-    const std::unordered_map<std::string, std::string>& sessionConf = {}) const;
+      const std::unordered_map<std::string, std::string>& sessionConf = {}) const;
 
   std::shared_ptr<facebook::velox::connector::Connector> createDeltaConnector(
       const std::string& connectorId,
       folly::Executor* ioExecutor,
-    const std::unordered_map<std::string, std::string>& sessionConf = {}) const;
+      const std::unordered_map<std::string, std::string>& sessionConf = {}) const;
 
   std::shared_ptr<facebook::velox::connector::Connector> createValueStreamConnector(
       const std::string& connectorId,
       bool dynamicFilterEnabled,
-    const std::unordered_map<std::string, std::string>& sessionConf = {}) const;
+      const std::unordered_map<std::string, std::string>& sessionConf = {}) const;
 
 #ifdef GLUTEN_ENABLE_GPU
   std::shared_ptr<facebook::velox::connector::Connector> createCudfHiveConnector(
       const std::string& connectorId,
       folly::Executor* ioExecutor,
-    const std::unordered_map<std::string, std::string>& sessionConf = {}) const;
+      const std::unordered_map<std::string, std::string>& sessionConf = {}) const;
 #endif
 
   void tearDown();

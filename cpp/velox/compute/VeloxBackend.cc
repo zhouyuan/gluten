@@ -369,8 +369,6 @@ void VeloxBackend::initCache() {
   }
 }
 
-
-
 std::shared_ptr<facebook::velox::connector::Connector> VeloxBackend::createHiveConnector(
     const std::string& connectorId,
     folly::Executor* ioExecutor,
