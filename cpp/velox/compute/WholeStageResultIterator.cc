@@ -123,6 +123,7 @@ WholeStageResultIterator::WholeStageResultIterator(
     const SparkTaskInfo& taskInfo,
     VeloxRuntime* veloxRuntime)
     : memoryManager_(memoryManager),
+      veloxRuntime_(veloxRuntime),
       veloxCfg_(veloxCfg),
 #ifdef GLUTEN_ENABLE_GPU
       enableCudf_(veloxCfg_->get<bool>(kCudfEnabled, kCudfEnabledDefault)),
@@ -134,8 +135,7 @@ WholeStageResultIterator::WholeStageResultIterator(
       connectorIds_(std::move(connectorIds)),
       scanNodeIds_(scanNodeIds),
       scanInfos_(scanInfos),
-      streamIds_(streamIds),
-      veloxRuntime_(veloxRuntime) {
+      streamIds_(streamIds) {
   spillStrategy_ = veloxCfg_->get<std::string>(kSpillStrategy, kSpillStrategyDefaultValue);
   getOrderedNodeIds(veloxPlan_, orderedNodeIds_);
 
