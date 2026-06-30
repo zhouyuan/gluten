@@ -162,6 +162,9 @@ add_dependencies(gluten jni_proto)
 if(NOT CMAKE_SYSTEM_NAME MATCHES "Darwin")
   target_link_options(
     gluten PRIVATE -Wl,--version-script=${CMAKE_CURRENT_SOURCE_DIR}/symbols.map)
+  # Strip the symbol table in Release builds to reduce binary size.
+  target_link_options(gluten PRIVATE
+    $<$<NOT:$<CONFIG:Debug>>:-Wl,-s>)
 endif()
 
 if(CMAKE_CXX_COMPILER_VERSION VERSION_LESS 9.0)

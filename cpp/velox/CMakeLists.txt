@@ -258,10 +258,13 @@ if(GLUTEN_VELOX_ENABLE_PARQUET)
   message(STATUS "Propagating VELOX_ENABLE_PARQUET to Gluten Velox backend")
 endif()
 
-if(ENABLE_GLUTEN_VCPKG AND NOT CMAKE_SYSTEM_NAME MATCHES "Darwin")
-  # Hide some symbols to avoid conflict.
+if(NOT CMAKE_SYSTEM_NAME MATCHES "Darwin")
+  # Hide symbols not needed by JNI callers.
   target_link_options(
     velox PRIVATE -Wl,--version-script=${CMAKE_CURRENT_SOURCE_DIR}/symbols.map)
+  # Strip the symbol table in Release builds to reduce binary size.
+  target_link_options(velox PRIVATE
+    $<$<NOT:$<CONFIG:Debug>>:-Wl,-s>)
 endif()
 
 find_protobuf()
