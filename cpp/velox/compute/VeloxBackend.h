@@ -74,6 +74,15 @@ class VeloxBackend {
       const std::string& connectorId,
       folly::Executor* ioExecutor) const;
 
+  /// Like createHiveConnector() but merges per-task session overrides
+  /// (fs.azure.* / fs.s3a.* / fs.gs.* from veloxCfg_->rawConfigs()) into the
+  /// connector config so each task's HiveConnector has its own
+  /// FileHandleGenerator with the correct credentials baked in.
+  std::shared_ptr<facebook::velox::connector::Connector> createHiveConnectorWithSessionOverrides(
+      const std::string& connectorId,
+      folly::Executor* ioExecutor,
+      const std::unordered_map<std::string, std::string>& sessionConf) const;
+
   std::shared_ptr<facebook::velox::connector::Connector> createIcebergConnector(
       const std::string& connectorId,
       folly::Executor* ioExecutor) const;
@@ -93,6 +102,9 @@ class VeloxBackend {
 #endif
 
   void tearDown();
+  std::once_flag regFlag;
+  std::mutex registerMutex;
+  std::string azureAccount;
 
  private:
   explicit VeloxBackend(
