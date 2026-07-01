@@ -319,7 +319,8 @@ void VeloxRuntime::registerConnectors() {
       "Scoped delta connector not found after registration: " + connectorIds_.delta);
   
   connectorIds_.icebergRegistered =
-      velox::connector::registerConnector(backend->createIcebergConnector(connectorIds_.iceberg, ioExecutor_.get()));
+      velox::connector::registerConnector(backend->createHiveConnectorWithSessionOverrides(
+        connectorIds_.iceberg, ioExecutor_.get(), veloxCfg_->rawConfigs()));
   GLUTEN_CHECK(
       connectorIds_.icebergRegistered, "Failed to register scoped Iceberg connector: " + connectorIds_.iceberg);
   GLUTEN_CHECK(

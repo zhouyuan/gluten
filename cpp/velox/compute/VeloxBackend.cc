@@ -394,6 +394,8 @@ std::shared_ptr<facebook::velox::connector::Connector> VeloxBackend::createHiveC
 
   if (connectorId == connectorIds_.delta) {
     return std::make_shared<delta::DeltaConnector>(connectorId, mergedConfig, ioExecutor);
+  } else if (connectorId == connectorIds_.iceberg) {
+    return std::make_shared<velox::connector::hive::iceberg::IcebergConnector>(connectorId, mergedConfig, ioExecutor);
   }
   return std::make_shared<velox::connector::hive::HiveConnector>(connectorId, mergedConfig, ioExecutor);
 }
