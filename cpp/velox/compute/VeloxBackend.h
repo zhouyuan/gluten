@@ -83,6 +83,10 @@ class VeloxBackend {
       folly::Executor* ioExecutor,
       const std::unordered_map<std::string, std::string>& sessionConf) const;
 
+  std::shared_ptr<facebook::velox::connector::Connector> createIcebergConnector(
+      const std::string& connectorId,
+      folly::Executor* ioExecutor) const;
+
   std::shared_ptr<facebook::velox::connector::Connector> createDeltaConnector(
       const std::string& connectorId,
       folly::Executor* ioExecutor) const;

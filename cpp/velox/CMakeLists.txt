@@ -230,10 +230,8 @@ if(ENABLE_GPU)
     memory/GpuBufferColumnarBatch.cc)
 endif()
 
-if(ENABLE_ENHANCED_FEATURES)
-  list(APPEND VELOX_SRCS compute/iceberg/IcebergFormat.cc
-       compute/iceberg/IcebergWriter.cc)
-endif()
+list(APPEND VELOX_SRCS compute/iceberg/IcebergFormat.cc
+     compute/iceberg/IcebergWriter.cc)
 
 if(BUILD_TESTS OR BUILD_BENCHMARKS)
   set(BUILD_TEST_UTILS ON)
@@ -294,11 +292,6 @@ target_include_directories(
 set_target_properties(velox PROPERTIES LIBRARY_OUTPUT_DIRECTORY
                                        ${root_directory}/releases)
 
-# If folly is not installed in system lib paths, please add
-# `-DCMAKE_PREFIX_PATH="${folly lib path}" to cmake arguments. It is also
-# applicable to other dependencies.
-find_package(Folly REQUIRED CONFIG)
-
 if(ENABLE_JEMALLOC_STATS)
   include(Findjemalloc)
   find_jemalloc()
@@ -345,7 +338,6 @@ endif()
 
 target_link_libraries(velox PUBLIC facebook::velox)
 
-target_link_libraries(velox PUBLIC Folly::folly)
 target_link_libraries(velox PUBLIC ${GLUTEN_ROARING_LINK_LIBRARY})
 
 find_re2()
@@ -387,6 +379,12 @@ else()
   )
 endif()
 target_link_libraries(velox PUBLIC external::veloxthrift)
+
+# If folly is not installed in system lib paths, please add
+# `-DCMAKE_PREFIX_PATH="${folly lib path}" to cmake arguments. It is also
+# applicable to other dependencies.
+find_package(Folly REQUIRED CONFIG)
+target_link_libraries(velox PUBLIC Folly::folly)
 
 # Link thrift libraries - check vcpkg first, then fall back to system libraries
 # Determine vcpkg triplet directory based on architecture

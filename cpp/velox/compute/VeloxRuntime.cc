@@ -227,6 +227,7 @@ std::string makeScopedConnectorId(const std::string& base, uint64_t runtimeId) {
 VeloxConnectorIds makeScopedConnectorIds(uint64_t runtimeId) {
   return VeloxConnectorIds{
       .hive = makeScopedConnectorId(kHiveConnectorId, runtimeId),
+      .iceberg = makeScopedConnectorId(kIcebergConnectorId, runtimeId),
       .delta = makeScopedConnectorId(delta::DeltaConnectorFactory::kDeltaConnectorName, runtimeId),
       .iterator = makeScopedConnectorId(kIteratorConnectorId, runtimeId),
       .cudfHive = makeScopedConnectorId(kCudfHiveConnectorId, runtimeId)};
@@ -316,6 +317,14 @@ void VeloxRuntime::registerConnectors() {
   GLUTEN_CHECK(
       velox::connector::hasConnector(connectorIds_.delta),
       "Scoped delta connector not found after registration: " + connectorIds_.delta);
+  
+  connectorIds_.icebergRegistered =
+      velox::connector::registerConnector(backend->createIcebergConnector(connectorIds_.iceberg, ioExecutor_.get()));
+  GLUTEN_CHECK(
+      connectorIds_.icebergRegistered, "Failed to register scoped Iceberg connector: " + connectorIds_.iceberg);
+  GLUTEN_CHECK(
+      velox::connector::hasConnector(connectorIds_.iceberg),
+      "Scoped Iceberg connector not found after registration: " + connectorIds_.iceberg);
 
   const auto valueStreamDynamicFilterEnabled =
       veloxCfg_->get<bool>(kValueStreamDynamicFilterEnabled, kValueStreamDynamicFilterEnabledDefault);
@@ -359,6 +368,10 @@ void VeloxRuntime::unregisterConnectors() {
   if (connectorIds_.hiveRegistered) {
     velox::connector::unregisterConnector(connectorIds_.hive);
     connectorIds_.hiveRegistered = false;
+  }
+  if (connectorIds_.icebergRegistered) {
+    velox::connector::unregisterConnector(connectorIds_.iceberg);
+    connectorIds_.icebergRegistered = false;
   }
 }
 
@@ -539,7 +552,6 @@ std::shared_ptr<RowToColumnarConverter> VeloxRuntime::createRow2ColumnarConverte
   return std::make_shared<VeloxRowToColumnarConverter>(cSchema, veloxPool);
 }
 
-#ifdef GLUTEN_ENABLE_ENHANCED_FEATURES
 std::shared_ptr<IcebergWriter> VeloxRuntime::createIcebergWriter(
     RowTypePtr rowType,
     int32_t format,
@@ -567,7 +579,6 @@ std::shared_ptr<IcebergWriter> VeloxRuntime::createIcebergWriter(
       veloxPool,
       connectorPool);
 }
-#endif
 
 std::shared_ptr<ShuffleWriter> VeloxRuntime::createShuffleWriter(
     int32_t numPartitions,
@@ -650,7 +661,9 @@ std::unique_ptr<ColumnarBatchSerializer> VeloxRuntime::createColumnarBatchSerial
     return std::make_unique<VeloxGpuColumnarBatchSerializer>(arrowPool, veloxPool, cSchema);
   }
 #endif
-  return std::make_unique<VeloxColumnarBatchSerializer>(arrowPool, veloxPool, cSchema);
+  auto compressionKind =
+      veloxCfg_->get<std::string>(kColumnarBatchSerializerCompression, kColumnarBatchSerializerCompressionDefault);
+  return std::make_unique<VeloxColumnarBatchSerializer>(arrowPool, veloxPool, cSchema, compressionKind);
 }
 
 void VeloxRuntime::enableDumping() {

@@ -129,6 +129,11 @@ function build_arrow_java() {
 }
 
 echo "Start to build Arrow"
+if [[ $(uname -m) == "ppc64le" && $SPARK_VERSION == "4.0" ]]; then
+    echo "Building Spark 4.0 on ppc64le";
+    source ${CURRENT_DIR}/build-arrow-18.sh;
+    exit 0;
+fi
 prepare_arrow_build
 build_arrow_cpp
 echo "Finished building arrow CPP"
