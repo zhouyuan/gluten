@@ -51,7 +51,59 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  cpp-format-check:
+    runs-on: ubuntu-latest
+    container: ubuntu:22.04
+    steps:
+      - name: Install tools
+        run: |
+          apt update -y
+          apt install git python3-pip -y
+          apt install --no-install-recommends -y clang-format-15
+          pip3 install cmake_format black pyyaml regex
+          update-alternatives --install /usr/bin/clang-format clang-format "$(command -v clang-format-15)" 15
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Check
+        run: |
+          git config --global --add safe.directory $GITHUB_WORKSPACE
+          cd $GITHUB_WORKSPACE/
+          python3 dev/check.py format main --fix
+          if ! git diff --quiet; then
+            diff=`git --no-pager diff`
+            echo "C++ format check failed in the following files:"
+            git --no-pager diff --name-only
+            echo "Check the Job summary for a copy-pasteable patch."
+
+            echo "> [!IMPORTANT]" >> $GITHUB_STEP_SUMMARY
+            echo "C++ format check failed. Please apply fix using:" >> $GITHUB_STEP_SUMMARY
+            echo "> Please apply fix using:"  >> $GITHUB_STEP_SUMMARY
+            echo "\`\`\`sh" >> $GITHUB_STEP_SUMMARY
+            echo "patch -p1 <<EOF" >> $GITHUB_STEP_SUMMARY
+            echo "$diff" >> $GITHUB_STEP_SUMMARY
+            echo "EOF" >> $GITHUB_STEP_SUMMARY
+            echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+            exit 1
+          fi
+
+  scala-format-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Check
+        run: |
+          ./dev/format-scala-code.sh check
+      - name: Fix
+        if: failure()
+        run: |
+          ./dev/format-scala-code.sh
+          git show
+
   build-native-lib-centos-8:
+    needs: [cpp-format-check, scala-format-check]
     runs-on: ubuntu-24.04-arm
     container: apache/gluten:vcpkg-centos-9
     steps:
@@ -125,6 +177,7 @@ jobs:
             --local --preset=velox --benchmark-type=ds --error-on-memleak --off-heap-size=10g -s=1.0 --threads=16 --iterations=1
 
   cpp-test-udf-test:
+    needs: [cpp-format-check, scala-format-check]
     runs-on: ubuntu-24.04-arm
     container: apache/gluten:centos-9-jdk8
     steps:
