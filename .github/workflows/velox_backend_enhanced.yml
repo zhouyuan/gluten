@@ -19,6 +19,8 @@ on:
   pull_request:
     paths:
       - '.github/workflows/velox_backend_enhanced.yml'
+      - '.github/workflows/**/*.py'
+      - 'tools/**/*.py'
       - 'pom.xml'
       - 'backends-velox/**'
       - 'gluten-uniffle/**'
