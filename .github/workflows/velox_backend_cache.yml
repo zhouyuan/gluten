@@ -35,12 +35,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Get Ccache
-        uses: actions/cache/restore@v3
+        uses: apache/infrastructure-actions/stash/restore@e88c4936fdeeb13c0910747af0bd07d992a81f9b
         with:
           path: '${{ env.CCACHE_DIR }}'
-          key: ccache-centos7-release-default-${{github.sha}}
-          restore-keys: |
-            ccache-centos7-release-default
+          key: ccache-centos7-release-default
       - name: Build Gluten native libraries
         run: |
           docker run -v $GITHUB_WORKSPACE:/work -w /work apache/gluten:vcpkg-centos-7-gcc13 bash -c "
@@ -50,11 +48,11 @@ jobs:
             bash dev/ci-velox-buildstatic-centos-7.sh
           "
       - name: Save Ccache
-        uses: actions/cache/save@v3
+        uses: apache/infrastructure-actions/stash/save@e88c4936fdeeb13c0910747af0bd07d992a81f9b
         id: ccache
         with:
           path: '${{ env.CCACHE_DIR }}'
-          key: ccache-centos7-release-default-${{github.sha}}
+          key: ccache-centos7-release-default
 
   cache-native-lib-centos-8:
     if: ${{ startsWith(github.repository, 'apache/') }}
@@ -66,22 +64,20 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Get Ccache
-        uses: actions/cache/restore@v3
+        uses: apache/infrastructure-actions/stash/restore@e88c4936fdeeb13c0910747af0bd07d992a81f9b
         with:
           path: '${{ env.CCACHE_DIR }}'
-          key: ccache-centos8-release-default-${{runner.arch}}-${{github.sha}}
-          restore-keys: |
-            ccache-centos8-release-default-${{runner.arch}}
+          key: ccache-centos8-release-default-${{runner.arch}}
       - name: Build Gluten native libraries
         run: |
           export CCACHE_MAXSIZE=1G
           bash dev/ci-velox-buildstatic-centos-9.sh
       - name: Save Ccache
-        uses: actions/cache/save@v3
+        uses: apache/infrastructure-actions/stash/save@e88c4936fdeeb13c0910747af0bd07d992a81f9b
         id: ccache
         with:
           path: '${{ env.CCACHE_DIR }}'
-          key: ccache-centos8-release-default-${{runner.arch}}-${{github.sha}}
+          key: ccache-centos8-release-default-${{runner.arch}}
 
   cache-shared-lib-centos-9:
     if: ${{ startsWith(github.repository, 'apache/') }}
@@ -93,12 +89,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Get Ccache
-        uses: actions/cache/restore@v3
+        uses: apache/infrastructure-actions/stash/restore@e88c4936fdeeb13c0910747af0bd07d992a81f9b
         with:
           path: '${{ env.CCACHE_DIR }}'
-          key: ccache-centos9-release-shared-${{runner.arch}}-${{github.sha}}
-          restore-keys: |
-            ccache-centos9-release-shared-${{runner.arch}}
+          key: ccache-centos9-release-shared-${{runner.arch}}
       - name: Build Gluten shared libraries
         run: |
           df -a
@@ -106,11 +100,11 @@ jobs:
           bash dev/ci-velox-buildshared-centos-9.sh
           ccache -s
       - name: Save Ccache
-        uses: actions/cache/save@v3
+        uses: apache/infrastructure-actions/stash/save@e88c4936fdeeb13c0910747af0bd07d992a81f9b
         id: ccache
         with:
           path: '${{ env.CCACHE_DIR }}'
-          key: ccache-centos9-release-shared-${{runner.arch}}-${{github.sha}}
+          key: ccache-centos9-release-shared-${{runner.arch}}
 
   cache-enhanced-native-lib-centos-7:
     if: ${{ startsWith(github.repository, 'apache/') }}
@@ -118,12 +112,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Get Ccache
-        uses: actions/cache/restore@v3
+        uses: apache/infrastructure-actions/stash/restore@e88c4936fdeeb13c0910747af0bd07d992a81f9b
         with:
           path: '${{ env.CCACHE_DIR }}'
-          key: ccache-enhanced-centos7-release-default-${{github.sha}}
-          restore-keys: |
-            ccache-enhanced-centos7-release-default
+          key: ccache-enhanced-centos7-release-default
       - name: Build Gluten native libraries
         run: |
           docker run -v $GITHUB_WORKSPACE:/work -w /work apache/gluten:vcpkg-centos-7-gcc13 bash -c "
@@ -133,11 +125,11 @@ jobs:
             bash dev/ci-velox-buildstatic-centos-7-enhanced-features.sh
           "
       - name: Save Ccache
-        uses: actions/cache/save@v3
+        uses: apache/infrastructure-actions/stash/save@e88c4936fdeeb13c0910747af0bd07d992a81f9b
         id: ccache
         with:
           path: '${{ env.CCACHE_DIR }}'
-          key: ccache-enhanced-centos7-release-default-${{github.sha}}
+          key: ccache-enhanced-centos7-release-default
 
   cache-shared-lib-centos-9-cudf:
     if: ${{ startsWith(github.repository, 'apache/') }}
@@ -153,12 +145,10 @@ jobs:
           sudo docker builder prune -a
       - uses: actions/checkout@v4
       - name: Get Ccache
-        uses: actions/cache/restore@v3
+        uses: apache/infrastructure-actions/stash/restore@e88c4936fdeeb13c0910747af0bd07d992a81f9b
         with:
           path: '${{ env.CCACHE_DIR }}'
-          key: ccache-centos9-cudf-release-shared-${{runner.arch}}-${{github.sha}}
-          restore-keys: |
-            ccache-centos9-cudf-release-shared-${{runner.arch}}
+          key: ccache-centos9-cudf-release-shared-${{runner.arch}}
       - name: Build Gluten shared libraries
         run: |
           docker run -v $GITHUB_WORKSPACE:/work -w /work apache/gluten:centos-9-jdk8-cudf bash -c "
@@ -183,8 +173,8 @@ jobs:
           "
       - name: Save Ccache
         if: always()
-        uses: actions/cache/save@v3
+        uses: apache/infrastructure-actions/stash/save@e88c4936fdeeb13c0910747af0bd07d992a81f9b
         id: ccache
         with:
           path: '${{ env.CCACHE_DIR }}'
-          key: ccache-centos9-cudf-release-shared-${{runner.arch}}-${{github.sha}}
+          key: ccache-centos9-cudf-release-shared-${{runner.arch}}
