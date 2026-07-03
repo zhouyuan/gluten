@@ -373,28 +373,28 @@ void VeloxBackend::initCache() {
 std::shared_ptr<facebook::velox::connector::Connector> VeloxBackend::createHiveConnector(
     const std::string& connectorId,
     folly::Executor* ioExecutor,
-    const std::unordered_map<std::string, std::string>& mergedConfig) const {
+    const std::shared_ptr<facebook::velox::config::ConfigBase>& mergedConfig) const {
   return std::make_shared<velox::connector::hive::HiveConnector>(connectorId, mergedConfig, ioExecutor);
 }
 
 std::shared_ptr<facebook::velox::connector::Connector> VeloxBackend::createDeltaConnector(
     const std::string& connectorId,
     folly::Executor* ioExecutor,
-    const std::unordered_map<std::string, std::string>& mergedConfig) const {
+    const std::shared_ptr<facebook::velox::config::ConfigBase>& mergedConfig) const {
   return std::make_shared<delta::DeltaConnector>(connectorId, mergedConfig, ioExecutor);
 }
 
 std::shared_ptr<facebook::velox::connector::Connector> VeloxBackend::createIcebergConnector(
     const std::string& connectorId,
     folly::Executor* ioExecutor,
-    const std::unordered_map<std::string, std::string>& mergedConfig) const {
+    const std::shared_ptr<facebook::velox::config::ConfigBase>& mergedConfig) const {
   return std::make_shared<velox::connector::hive::iceberg::IcebergConnector>(connectorId, mergedConfig, ioExecutor);
 }
 
 std::shared_ptr<facebook::velox::connector::Connector> VeloxBackend::createValueStreamConnector(
     const std::string& connectorId,
     bool dynamicFilterEnabled,
-    const std::unordered_map<std::string, std::string>& mergedConfig) const {
+    const std::shared_ptr<facebook::velox::config::ConfigBase>& mergedConfig) const {
   return std::make_shared<ValueStreamConnector>(connectorId, mergedConfig, dynamicFilterEnabled);
 }
 
@@ -402,7 +402,7 @@ std::shared_ptr<facebook::velox::connector::Connector> VeloxBackend::createValue
 std::shared_ptr<facebook::velox::connector::Connector> VeloxBackend::createCudfHiveConnector(
     const std::string& connectorId,
     folly::Executor* ioExecutor,
-    const std::unordered_map<std::string, std::string>& mergedConfig) const {
+    const std::shared_ptr<facebook::velox::config::ConfigBase>& mergedConfig) const {
   facebook::velox::cudf_velox::connector::hive::CudfHiveConnectorFactory factory;
   return factory.newConnector(connectorId, mergedConfig, ioExecutor);
 }

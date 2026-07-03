@@ -284,8 +284,7 @@ void VeloxRuntime::initializeExecutors() {
 void VeloxRuntime::registerConnectors() {
   auto* backend = VeloxBackend::get();
 
-  auto merged =
-      mergeWithSessionOverrides(backend->getBackendConf(), veloxCfg_->rawConfigs(), {accountName})->rawConfigs();
+  auto merged = mergeWithSessionOverrides(backend->getBackendConf(), veloxCfg_->rawConfigs(), {accountName});
 
   connectorIds_.hiveRegistered =
       velox::connector::registerConnector(backend->createHiveConnector(connectorIds_.hive, ioExecutor_.get(), merged));
