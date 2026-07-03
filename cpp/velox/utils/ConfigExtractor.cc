@@ -296,6 +296,34 @@ std::shared_ptr<facebook::velox::config::ConfigBase> mergeWithSessionOverrides(
     }
   }
 
+  // step-2 check for below keys, and if present, amend the account name and suffix
+  static const std::string_view accountNameWithSuffix = ".dfs.core.windows.net";
+  static const std::vector<std::string_view> kPerAccountCredentialPrefixes = {
+      "fs.azure.account.auth.type",
+      "fs.azure.account.oauth.provider.type",
+      "fs.azure.account.oauth2.client.id",
+      "fs.azure.account.oauth2.client.secret",
+      "fs.azure.account.oauth2.client.endpoint",
+  };
+
+  std::unordered_set<std::string> accountNames = {"sparkadlsiae"};
+
+  for (const auto& prefix : kPerAccountCredentialPrefixes) {
+    auto globalKey = std::string(prefix);
+    auto globalIt = merged.find(globalKey);
+    if (globalIt != merged.end()) {
+      auto globalValue = globalIt->second; // save value before erasing the iterator
+      LOG(INFO) << "Found global config key: " << globalKey << " = " << globalValue;
+      merged.erase(globalIt); // remove the global key, since Velox only understands per-account keys
+      // For each account name, set the per-account auth type key to the global value.
+      for (const auto& accountName : accountNames) {
+        auto perAccountKey = globalKey + "." + accountName + std::string(accountNameWithSuffix);
+        LOG(INFO) << "Setting per-account config key: " << perAccountKey << " = " << globalValue;
+        merged[perAccountKey] = globalValue;
+      }
+    }
+  }
+
   return std::make_shared<facebook::velox::config::ConfigBase>(std::move(merged));
 }
 
