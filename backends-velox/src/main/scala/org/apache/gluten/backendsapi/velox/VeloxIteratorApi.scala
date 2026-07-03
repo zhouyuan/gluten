@@ -142,13 +142,13 @@ class VeloxIteratorApi extends IteratorApi with Logging {
     // Spark's withSQLConfPropagated (it only forwards keys starting with
     // "spark"), so embedding them in the serialised GlutenPartition is the
     // only reliable transport mechanism.
-    val fsPrefixes = Seq("fs.azure.", "fs.s3a.", "fs.gs.")
-    // scalastyle:off hadoopconfiguration
-    val baseHadoopConf = org.apache.spark.SparkContext.getOrCreate().hadoopConfiguration
-    // scalastyle:on hadoopconfiguration
+    val fsPrefixes = Seq("fs.azure.")
+    val hadoopConf = leaves.headOption
+      .map(_ => org.apache.spark.sql.SparkSession.active.sessionState.newHadoopConf())
+      .getOrElse(org.apache.spark.SparkContext.getOrCreate().hadoopConfiguration)
     val fsConf: Map[String, String] = fsPrefixes.flatMap {
       prefix =>
-        baseHadoopConf.getPropsWithPrefix(prefix).asScala
+        hadoopConf.getPropsWithPrefix(prefix).asScala
           .map { case (suffix, v) => (prefix + suffix) -> v }
     }.toMap
 
