@@ -41,7 +41,8 @@ std::string getConfigValue(
 /// Merge session overrides into base Hive connector config.
 std::shared_ptr<facebook::velox::config::ConfigBase> mergeWithSessionOverrides(
     const std::shared_ptr<facebook::velox::config::ConfigBase>& baseConf,
-    const std::unordered_map<std::string, std::string>& sessionConf);
+    const std::unordered_map<std::string, std::string>& sessionConf,
+    const std::unordered_set<std::string>& accountNames = {});
 
 /// Create hive connector config.
 std::shared_ptr<facebook::velox::config::ConfigBase> createHiveConnectorConfig(

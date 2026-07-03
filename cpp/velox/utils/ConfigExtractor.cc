@@ -277,7 +277,8 @@ std::string getConfigValue(
 
 std::shared_ptr<facebook::velox::config::ConfigBase> mergeWithSessionOverrides(
     const std::shared_ptr<facebook::velox::config::ConfigBase>& baseConf,
-    const std::unordered_map<std::string, std::string>& sessionConf) {
+    const std::unordered_map<std::string, std::string>& sessionConf,
+    const std::unordered_set<std::string>& accountNames) {
   auto merged = baseConf->rawConfigs(); // copy — we must not mutate the shared base
 
   // ── Step 1: forward all per-account and generic fs.azure.* / fs.s3a.* / fs.gs.*
@@ -305,8 +306,6 @@ std::shared_ptr<facebook::velox::config::ConfigBase> mergeWithSessionOverrides(
       "fs.azure.account.oauth2.client.secret",
       "fs.azure.account.oauth2.client.endpoint",
   };
-
-  std::unordered_set<std::string> accountNames = {"sparkadlsiae"};
 
   for (const auto& prefix : kPerAccountCredentialPrefixes) {
     auto globalKey = std::string(prefix);

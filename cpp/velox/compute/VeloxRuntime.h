@@ -143,6 +143,7 @@ class VeloxRuntime final : public Runtime {
 
   // Need to make this public to be used in WholeStageResultIterator.cc
   void registerConnectors();
+  std::string accountName;
 
  private:
   void initializeExecutors();

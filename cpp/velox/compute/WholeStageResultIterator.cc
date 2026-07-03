@@ -144,7 +144,25 @@ WholeStageResultIterator::WholeStageResultIterator(
   fileSystem->mkdir(spillDir);
 
   // Prepare for the session level configurations and pass to connectors
-
+  {
+    // Parse URI to extract azure account and set it before connector initialization
+    if (scanInfos.size() > 0) {
+      const auto& paths = scanInfos[0]->paths;
+      if (paths.size() > 0) {
+        const std::string uri = paths[0];
+        if (uri.starts_with("abfss://")) {
+          auto begin = uri.find_first_of("@");
+          assert(begin != std::string::npos);
+          auto end = uri.find(".dfs.core.windows.net");
+          assert(end != std::string::npos);
+          const std::string azureAccount = uri.substr(begin + 1, end - begin - 1);
+          if (!azureAccount.empty()) {
+            veloxRuntime_->accountName = azureAccount;
+          }
+        }
+      }
+    }
+  }
   // register the hive connectors
   veloxRuntime_->registerConnectors();
 
