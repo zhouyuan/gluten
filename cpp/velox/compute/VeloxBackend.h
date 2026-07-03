@@ -70,6 +70,10 @@ class VeloxBackend {
     return ioExecutor_.get();
   }
 
+  const std::shared_ptr<facebook::velox::config::ConfigBase>& getStaticConnectorConfig() const {
+    return staticConnectorConfig_;
+  }
+
   std::shared_ptr<facebook::velox::connector::Connector> createHiveConnector(
       const std::string& connectorId,
       folly::Executor* ioExecutor,
