@@ -28,20 +28,17 @@ object Runtimes {
    *
    * Two problems with the old `s"$backendName:$name:$extraConf"` key:
    *
-   * 1. **Credential leakage** – `Map.toString` embeds secret values (e.g.
-   *    `fs.s3a.secret.key`, `fs.azure.account.oauth2.client.secret`) in a
-   *    plain heap string that can appear in logs, thread dumps, and heap
-   *    snapshots.
+   *   1. **Credential leakage** – `Map.toString` embeds secret values (e.g. `fs.s3a.secret.key`,
+   *      `fs.azure.account.oauth2.client.secret`) in a plain heap string that can appear in logs,
+   *      thread dumps, and heap snapshots.
+   *   2. **Nondeterminism** – Scala `Map.toString` does not guarantee insertion order, so two maps
+   *      with identical entries can produce different strings, causing spurious duplicate
+   *      `VeloxRuntime` registrations within a task.
    *
-   * 2. **Nondeterminism** – Scala `Map.toString` does not guarantee insertion
-   *    order, so two maps with identical entries can produce different strings,
-   *    causing spurious duplicate `VeloxRuntime` registrations within a task.
-   *
-   * Fix: sort keys, hash them with SHA-256, and use only the hex digest as the
-   * key. Values are intentionally excluded from the digest – distinct configs
-   * (different credentials for the same key set) that need separate runtimes
-   * are already separated at the task level through `GlutenPartition.fsConf`.
-   * Within a single task the key set is stable, so the digest is stable.
+   * Fix: sort keys, hash them with SHA-256, and use only the hex digest as the key. Values are
+   * intentionally excluded from the digest – distinct configs (different credentials for the same
+   * key set) that need separate runtimes are already separated at the task level through
+   * `GlutenPartition.fsConf`. Within a single task the key set is stable, so the digest is stable.
    */
   private def stableKey(
       backendName: String,
@@ -55,9 +52,10 @@ object Runtimes {
     // Sort keys for determinism; hash only keys, not values, to avoid leaking secrets.
     val sortedKeys = new java.util.ArrayList(extraConf.keySet)
     java.util.Collections.sort(sortedKeys)
-    sortedKeys.forEach { k =>
-      digest.update(k.getBytes("UTF-8"))
-      digest.update(0.toByte)
+    sortedKeys.forEach {
+      k =>
+        digest.update(k.getBytes("UTF-8"))
+        digest.update(0.toByte)
     }
     digest.digest().map("%02x".format(_)).mkString
   }

@@ -390,9 +390,10 @@ case class WholeStageTransformer(child: SparkPlan, materializeInput: Boolean = f
       // scalastyle:off hadoopconfiguration
       val baseHadoopConf = sparkContext.hadoopConfiguration
       // scalastyle:on hadoopconfiguration
-      val fromHadoop: Map[String, String] = fsPrefixes.flatMap { prefix =>
-        baseHadoopConf.getPropsWithPrefix(prefix).asScala
-          .map { case (suffix, v) => (prefix + suffix) -> v }
+      val fromHadoop: Map[String, String] = fsPrefixes.flatMap {
+        prefix =>
+          baseHadoopConf.getPropsWithPrefix(prefix).asScala
+            .map { case (suffix, v) => (prefix + suffix) -> v }
       }.toMap
 
       // Source 2: SQLConf (spark.conf.set("fs.*", ...) at session level).

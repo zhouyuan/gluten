@@ -34,20 +34,18 @@ trait BaseGlutenPartition extends Partition with InputPartition {
 }
 
 /**
- * Wraps Hadoop/Velox filesystem credential key-value pairs (fs.azure.*, fs.s3a.*,
- * fs.gs.*) so they cannot be accidentally exposed through logging, toString,
- * exception messages, or other debug paths that might print an arbitrary object.
+ * Wraps Hadoop/Velox filesystem credential key-value pairs (fs.azure.*, fs.s3a.*, fs.gs.*) so they
+ * cannot be accidentally exposed through logging, toString, exception messages, or other debug
+ * paths that might print an arbitrary object.
  *
- * `toString` is deliberately overridden to redact values — only key NAMES are
- * shown (these are not secret; only the bearer values like access keys, secret
- * keys, and OAuth client secrets are). This makes accidental leaks structurally
- * harder: a future `logDebug(s"... $fsConfHolder")` or similar call will print
- * "FsCredentialConf(3 keys: [fs.azure.account.auth.type, ...], values redacted)"
+ * `toString` is deliberately overridden to redact values — only key NAMES are shown (these are not
+ * secret; only the bearer values like access keys, secret keys, and OAuth client secrets are). This
+ * makes accidental leaks structurally harder: a future `logDebug(s"... $fsConfHolder")` or similar
+ * call will print "FsCredentialConf(3 keys: [fs.azure.account.auth.type, ...], values redacted)"
  * instead of the literal secret strings.
  *
- * The underlying map is also `private` so it cannot be reached by name from
- * outside this file without going through `.unsafeValue`, which is named to
- * discourage casual use.
+ * The underlying map is also `private` so it cannot be reached by name from outside this file
+ * without going through `.unsafeValue`, which is named to discourage casual use.
  */
 final case class FsCredentialConf private (private val raw: Map[String, String]) {
 
@@ -58,16 +56,16 @@ final case class FsCredentialConf private (private val raw: Map[String, String])
   def nonEmpty: Boolean = raw.nonEmpty
 
   /**
-   * Returns the underlying map with real values. Named `unsafeValue` to make
-   * call sites grep-able and to discourage passing the result to logging code.
-   * Only the native JNI boundary (extraConf for NativePlanEvaluator) should
-   * call this.
+   * Returns the underlying map with real values. Named `unsafeValue` to make call sites grep-able
+   * and to discourage passing the result to logging code. Only the native JNI boundary (extraConf
+   * for NativePlanEvaluator) should call this.
    */
   def unsafeValue: Map[String, String] = raw
 
   override def toString: String =
     if (raw.isEmpty) "FsCredentialConf(empty)"
-    else s"FsCredentialConf(${raw.size} keys: [${raw.keys.toSeq.sorted.mkString(", ")}], values redacted)"
+    else
+      s"FsCredentialConf(${raw.size} keys: [${raw.keys.toSeq.sorted.mkString(", ")}], values redacted)"
 }
 
 object FsCredentialConf {
