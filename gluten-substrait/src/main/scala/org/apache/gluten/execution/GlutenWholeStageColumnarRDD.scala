@@ -38,7 +38,7 @@ trait BaseGlutenPartition extends Partition with InputPartition {
  * cannot be accidentally exposed through logging, toString, exception messages, or other debug
  * paths that might print an arbitrary object.
  *
- * `toString` is deliberately overridden to redact values — only key NAMES are shown (these are not
+ * `toString` is deliberately overridden to redact values - only key NAMES are shown (these are not
  * secret; only the bearer values like access keys, secret keys, and OAuth client secrets are). This
  * makes accidental leaks structurally harder: a future `logDebug(s"... $fsConfHolder")` or similar
  * call will print "FsCredentialConf(3 keys: [fs.azure.account.auth.type, ...], values redacted)"
@@ -62,10 +62,14 @@ final case class FsCredentialConf private (private val raw: Map[String, String])
    */
   def unsafeValue: Map[String, String] = raw
 
-  override def toString: String =
-    if (raw.isEmpty) "FsCredentialConf(empty)"
-    else
-      s"FsCredentialConf(${raw.size} keys: [${raw.keys.toSeq.sorted.mkString(", ")}], values redacted)"
+  override def toString: String = {
+    if (raw.isEmpty) {
+      "FsCredentialConf(empty)"
+    } else {
+      s"FsCredentialConf(${raw.size} keys: [${raw.keys.toSeq.sorted.mkString(", ")}], " +
+        "values redacted)"
+    }
+  }
 }
 
 object FsCredentialConf {
@@ -103,14 +107,14 @@ class GlutenWholeStageColumnarRDD(
     // driver and needed by the native Velox backend on executors.
     //
     // Stored as a field on the RDD (not in GlutenPartition) so it is serialized
-    // ONCE as part of the task closure — once per executor, not once per partition.
+    // ONCE as part of the task closure - once per executor, not once per partition.
     // This avoids O(numPartitions) copies on the heap and across the network.
     // An explicit Broadcast variable is deliberately NOT used: sc.broadcast() adds
     // BlockManager registration, HTTP fetch, and master round-trip overhead on
     // every query, even when fsConf is empty (the common case for non-cloud storage).
     //
     // Wrapped in FsCredentialConf (not a plain Map) so secret values are never
-    // exposed by accidental toString/logging of this RDD or its fields — only
+    // exposed by accidental toString/logging of this RDD or its fields - only
     // key names are printable; the real values require the explicit, grep-able
     // `.unsafeValue` accessor.
     private val fsConf: FsCredentialConf = FsCredentialConf.empty)
@@ -118,7 +122,7 @@ class GlutenWholeStageColumnarRDD(
 
   // Override toString so that fsConf credential values are never exposed in
   // Spark logs, DAG visualization, toDebugString, or the UI. Delegates to
-  // FsCredentialConf.toString, which shows only key NAMES (redacted values) —
+  // FsCredentialConf.toString, which shows only key NAMES (redacted values) -
   // see FsCredentialConf's doc comment for the full rationale.
   override def toString: String =
     s"GlutenWholeStageColumnarRDD[$id] fsConf=$fsConf"
