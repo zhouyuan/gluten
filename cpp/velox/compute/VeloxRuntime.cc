@@ -286,6 +286,9 @@ void VeloxRuntime::registerConnectors() {
 
   auto merged = mergeWithSessionOverrides(backend->getStaticConnectorConfig(), veloxCfg_->rawConfigs());
 
+#ifdef ENABLE_ABFS
+  facebook::velox::filesystems::registerAzureClientProvider(*merged);
+#endif
   connectorIds_.hiveRegistered =
       velox::connector::registerConnector(backend->createHiveConnector(connectorIds_.hive, ioExecutor_.get(), merged));
   GLUTEN_CHECK(connectorIds_.hiveRegistered, "Failed to register scoped hive connector: " + connectorIds_.hive);
