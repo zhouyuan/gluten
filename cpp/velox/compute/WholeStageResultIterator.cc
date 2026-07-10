@@ -143,11 +143,8 @@ WholeStageResultIterator::WholeStageResultIterator(
   GLUTEN_CHECK(fileSystem != nullptr, "File System for spilling is null!");
   fileSystem->mkdir(spillDir);
 
-  // Prepare for the session level configurations and pass to connectors
-
-  // register the hive connectors
+  GLUTEN_CHECK(veloxRuntime_ != nullptr, "VeloxRuntime is null!");
   veloxRuntime_->registerConnectors();
-
   std::unordered_set<velox::core::PlanNodeId> emptySet;
   const bool serialExecution = true;
 

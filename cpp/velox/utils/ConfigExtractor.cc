@@ -301,7 +301,7 @@ std::shared_ptr<facebook::velox::config::ConfigBase> mergeWithSessionOverrides(
 
   // ── Step 1: forward all per-account and generic fs.azure.* / fs.s3a.* / fs.gs.*
   // keys from the session config into the merged map.  Session value always wins.
-  static const std::vector<std::string_view> kForwardPrefixes = {
+  static constexpr std::string_view kForwardPrefixes[] = {
       "fs.azure.",
       "fs.s3a.",
       "fs.gs.",
