@@ -133,7 +133,6 @@ class WholeStageResultIterator : public SplitAwareColumnarBatchIterator {
 
   /// Memory.
   VeloxMemoryManager* memoryManager_;
-  VeloxRuntime* veloxRuntime_;
 
   /// Config, task and plan.
   const std::shared_ptr<facebook::velox::config::ConfigBase> veloxCfg_;

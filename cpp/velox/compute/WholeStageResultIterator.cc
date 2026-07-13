@@ -123,7 +123,6 @@ WholeStageResultIterator::WholeStageResultIterator(
     const SparkTaskInfo& taskInfo,
     VeloxRuntime* veloxRuntime)
     : memoryManager_(memoryManager),
-      veloxRuntime_(veloxRuntime),
       veloxCfg_(veloxCfg),
 #ifdef GLUTEN_ENABLE_GPU
       enableCudf_(veloxCfg_->get<bool>(kCudfEnabled, kCudfEnabledDefault)),
@@ -143,8 +142,8 @@ WholeStageResultIterator::WholeStageResultIterator(
   GLUTEN_CHECK(fileSystem != nullptr, "File System for spilling is null!");
   fileSystem->mkdir(spillDir);
 
-  GLUTEN_CHECK(veloxRuntime_ != nullptr, "VeloxRuntime is null!");
-  veloxRuntime_->registerConnectors();
+  GLUTEN_CHECK(veloxRuntime != nullptr, "VeloxRuntime is null!");
+  veloxRuntime->registerConnectors();
   std::unordered_set<velox::core::PlanNodeId> emptySet;
   const bool serialExecution = true;
 
