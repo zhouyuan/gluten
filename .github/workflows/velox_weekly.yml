@@ -25,9 +25,10 @@ on:
 
 env:
   ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION: true
-  TPCH_TEST: "env GLUTEN_IT_JVM_ARGS=-Xmx5G sbin/gluten-it.sh queries-compare 
+  TPCH_TEST: "env GLUTEN_IT_JVM_ARGS=-Xmx5G sbin/gluten-it.sh queries-compare
             --local --preset=velox --benchmark-type=h --error-on-memleak --off-heap-size=10g -s=1.0 --threads=16 --iterations=1"
   INSTALL_PREFIX: /usr/local
+  CCACHE_DIR: "${{ github.workspace }}/.ccache"
 
 
 concurrency:
@@ -47,6 +48,22 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+      - name: Install Stash restore dependencies # the stash action needs gh and jq, absent from this container
+        run: |
+          case "$(uname -m)" in
+            x86_64) ARCH=amd64 ;;
+            aarch64) ARCH=arm64 ;;
+          esac
+          curl -fsSL "https://github.com/cli/cli/releases/download/v2.63.2/gh_2.63.2_linux_${ARCH}.tar.gz" \
+            | tar -xz -C /usr/local --strip-components=1 "gh_2.63.2_linux_${ARCH}/bin/gh"
+          curl -fsSL -o /usr/local/bin/jq "https://github.com/jqlang/jq/releases/download/jq-1.7.1/jq-linux-${ARCH}"
+          chmod +x /usr/local/bin/jq
+          gh --version && jq --version
+      - name: Get Ccache from Apache Stash
+        uses: apache/infrastructure-actions/stash/restore@0ba14156c9f4c3cfbe4b0c9f36339ab0f8d81e53
+        with:
+          path: '${{ env.CCACHE_DIR }}'
+          key: ccache-weekly-centos-${{ matrix.os }}-${{ hashFiles('ep/build-velox/src/**') }}
       - name: build
         run: |
           if [ "${{ matrix.os }}" = "centos:8" ]; then
@@ -63,13 +80,22 @@ jobs:
           dnf install -y epel-release sudo dnf
           dnf install -y --setopt=install_weak_deps=False gcc-toolset-12
           source /opt/rh/gcc-toolset-12/enable || exit 1
-          yum install -y java-1.8.0-openjdk-devel patch wget git perl
+          yum install -y java-1.8.0-openjdk-devel patch wget git perl ccache
           export JAVA_HOME=/usr/lib/jvm/java-1.8.0-openjdk && \
           export PATH=$JAVA_HOME/bin:$PATH
+          export CCACHE_MAXSIZE=1G
+          mkdir -p $CCACHE_DIR
           export VELOX_BUILD_SHARED=ON
           cd $GITHUB_WORKSPACE/ && ./dev/package.sh --spark_version=3.5
           cd $GITHUB_WORKSPACE/tools/gluten-it
           $GITHUB_WORKSPACE/build/mvn -ntp clean install -Pspark-3.5
+      - name: Save Ccache to Apache Stash
+        if: always()
+        uses: apache/infrastructure-actions/stash/save@0ba14156c9f4c3cfbe4b0c9f36339ab0f8d81e53
+        with:
+          path: '${{ env.CCACHE_DIR }}'
+          key: ccache-weekly-centos-${{ matrix.os }}-${{ hashFiles('ep/build-velox/src/**') }}
+          include-hidden-files: true
       - name: Run TPC-H
         run: |
           export JAVA_HOME=/usr/lib/jvm/java-8-openjdk-amd64
@@ -87,13 +113,30 @@ jobs:
     container: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
+      - name: Install Stash restore dependencies # the stash action needs gh and jq, absent from this container
+        run: |
+          case "$(uname -m)" in
+            x86_64) ARCH=amd64 ;;
+            aarch64) ARCH=arm64 ;;
+          esac
+          apt-get update -y && apt-get install -y curl
+          curl -fsSL "https://github.com/cli/cli/releases/download/v2.63.2/gh_2.63.2_linux_${ARCH}.tar.gz" \
+            | tar -xz -C /usr/local --strip-components=1 "gh_2.63.2_linux_${ARCH}/bin/gh"
+          curl -fsSL -o /usr/local/bin/jq "https://github.com/jqlang/jq/releases/download/jq-1.7.1/jq-linux-${ARCH}"
+          chmod +x /usr/local/bin/jq
+          gh --version && jq --version
+      - name: Get Ccache from Apache Stash
+        uses: apache/infrastructure-actions/stash/restore@0ba14156c9f4c3cfbe4b0c9f36339ab0f8d81e53
+        with:
+          path: '${{ env.CCACHE_DIR }}'
+          key: ccache-weekly-ubuntu-${{ matrix.os }}-${{ hashFiles('ep/build-velox/src/**') }}
       - name: build
         run: |
           # sed -i 's|http://archive|http://us.archive|g' /etc/apt/sources.list
           # To avoid the prompt for region selection during installing tzdata.
           export DEBIAN_FRONTEND=noninteractive
           export INSTALL_PREFIX=/usr/
-          apt-get update && apt-get install -y sudo maven wget git curl gcc-11 g++-11 build-essential openjdk-8-jdk python3-pip
+          apt-get update && apt-get install -y sudo maven wget git curl gcc-11 g++-11 build-essential openjdk-8-jdk python3-pip ccache
           cd /tmp
           wget https://github.com/Kitware/CMake/releases/download/v3.31.12/cmake-3.31.12-linux-$(uname -m).sh; \
           chmod +x cmake-3.31.12-linux-$(uname -m).sh; \
@@ -120,10 +163,19 @@ jobs:
           cmake . && make install -j
           apt autoremove -y
           export JAVA_HOME=/usr/lib/jvm/java-8-openjdk-amd64
+          export CCACHE_MAXSIZE=1G
+          mkdir -p $CCACHE_DIR
           export VELOX_BUILD_SHARED=ON
           cd $GITHUB_WORKSPACE/ && ./dev/package.sh --spark_version=3.5
           cd $GITHUB_WORKSPACE/tools/gluten-it
           $GITHUB_WORKSPACE/build/mvn -ntp clean install -Pspark-3.5
+      - name: Save Ccache to Apache Stash
+        if: always()
+        uses: apache/infrastructure-actions/stash/save@0ba14156c9f4c3cfbe4b0c9f36339ab0f8d81e53
+        with:
+          path: '${{ env.CCACHE_DIR }}'
+          key: ccache-weekly-ubuntu-${{ matrix.os }}-${{ hashFiles('ep/build-velox/src/**') }}
+          include-hidden-files: true
       - name: Run TPC-H
         run: |
           export JAVA_HOME=/usr/lib/jvm/java-8-openjdk-amd64
@@ -144,16 +196,41 @@ jobs:
       - uses: actions/checkout@v4
       - name: Install dependencies
         run: |
-          dnf update -y && dnf install -y java-1.8.0-openjdk-devel sudo patch git perl
+          dnf update -y && dnf install -y java-1.8.0-openjdk-devel sudo patch git perl ccache curl
           echo "JAVA_HOME=/usr/lib/jvm/java-1.8.0-openjdk" >> $GITHUB_ENV
+      - name: Install Stash restore dependencies # the stash action needs gh and jq, absent from this container
+        run: |
+          case "$(uname -m)" in
+            x86_64) ARCH=amd64 ;;
+            aarch64) ARCH=arm64 ;;
+          esac
+          curl -fsSL "https://github.com/cli/cli/releases/download/v2.63.2/gh_2.63.2_linux_${ARCH}.tar.gz" \
+            | tar -xz -C /usr/local --strip-components=1 "gh_2.63.2_linux_${ARCH}/bin/gh"
+          curl -fsSL -o /usr/local/bin/jq "https://github.com/jqlang/jq/releases/download/jq-1.7.1/jq-linux-${ARCH}"
+          chmod +x /usr/local/bin/jq
+          gh --version && jq --version
+      - name: Get Ccache from Apache Stash
+        uses: apache/infrastructure-actions/stash/restore@0ba14156c9f4c3cfbe4b0c9f36339ab0f8d81e53
+        with:
+          path: '${{ env.CCACHE_DIR }}'
+          key: ccache-weekly-openeuler-${{runner.arch}}-${{ hashFiles('ep/build-velox/src/**') }}
       - name: Build
         run: |
           echo "JAVA_HOME: $JAVA_HOME"
+          export CCACHE_MAXSIZE=1G
+          mkdir -p $CCACHE_DIR
           cd $GITHUB_WORKSPACE/
           ./dev/package.sh --spark_version=3.5
           cd $GITHUB_WORKSPACE/tools/gluten-it
           $GITHUB_WORKSPACE/build/mvn -ntp clean install -Pspark-3.5
           cp $GITHUB_WORKSPACE/package/target/thirdparty-lib/gluten-thirdparty-lib-*.jar package/target/lib/
+      - name: Save Ccache to Apache Stash
+        if: always()
+        uses: apache/infrastructure-actions/stash/save@0ba14156c9f4c3cfbe4b0c9f36339ab0f8d81e53
+        with:
+          path: '${{ env.CCACHE_DIR }}'
+          key: ccache-weekly-openeuler-${{runner.arch}}-${{ hashFiles('ep/build-velox/src/**') }}
+          include-hidden-files: true
       - name: Run TPC-H
         run: |
           echo "JAVA_HOME: $JAVA_HOME"
@@ -173,16 +250,41 @@ jobs:
       - uses: actions/checkout@v4
       - name: Install dependencies
         run: |
-          dnf update -y && dnf install -y java-1.8.0-openjdk-devel sudo patch git perl
+          dnf update -y && dnf install -y java-1.8.0-openjdk-devel sudo patch git perl curl
           echo "JAVA_HOME=/usr/lib/jvm/java-1.8.0-openjdk" >> $GITHUB_ENV
+      - name: Install Stash restore dependencies # the stash action needs gh and jq, absent from this container
+        run: |
+          case "$(uname -m)" in
+            x86_64) ARCH=amd64 ;;
+            aarch64) ARCH=arm64 ;;
+          esac
+          curl -fsSL "https://github.com/cli/cli/releases/download/v2.63.2/gh_2.63.2_linux_${ARCH}.tar.gz" \
+            | tar -xz -C /usr/local --strip-components=1 "gh_2.63.2_linux_${ARCH}/bin/gh"
+          curl -fsSL -o /usr/local/bin/jq "https://github.com/jqlang/jq/releases/download/jq-1.7.1/jq-linux-${ARCH}"
+          chmod +x /usr/local/bin/jq
+          gh --version && jq --version
+      - name: Get Ccache from Apache Stash
+        uses: apache/infrastructure-actions/stash/restore@0ba14156c9f4c3cfbe4b0c9f36339ab0f8d81e53
+        with:
+          path: '${{ env.CCACHE_DIR }}'
+          key: ccache-weekly-openeuler-vcpkg-${{runner.arch}}-${{ hashFiles('ep/build-velox/src/**') }}
       - name: Build
         run: |
           echo "JAVA_HOME: $JAVA_HOME"
+          export CCACHE_MAXSIZE=1G
+          mkdir -p $CCACHE_DIR
           cd $GITHUB_WORKSPACE/
           ./dev/vcpkg/setup-build-depends.sh
           ./dev/package-vcpkg.sh --build_arrow=ON --spark_version=3.5
           cd $GITHUB_WORKSPACE/tools/gluten-it
           $GITHUB_WORKSPACE/build/mvn -ntp clean install -Pspark-3.5
+      - name: Save Ccache to Apache Stash
+        if: always()
+        uses: apache/infrastructure-actions/stash/save@0ba14156c9f4c3cfbe4b0c9f36339ab0f8d81e53
+        with:
+          path: '${{ env.CCACHE_DIR }}'
+          key: ccache-weekly-openeuler-vcpkg-${{runner.arch}}-${{ hashFiles('ep/build-velox/src/**') }}
+          include-hidden-files: true
       - name: Run TPC-H
         run: |
           echo "JAVA_HOME: $JAVA_HOME"
@@ -205,5 +307,20 @@ jobs:
           java-version: 17
       - name: Install Dependencies
         run: brew install wget pkgconfig abseil ccache
+      - name: Get Ccache from Apache Stash
+        uses: apache/infrastructure-actions/stash/restore@0ba14156c9f4c3cfbe4b0c9f36339ab0f8d81e53
+        with:
+          path: '${{ env.CCACHE_DIR }}'
+          key: ccache-weekly-macos-${{runner.arch}}-${{ hashFiles('ep/build-velox/src/**') }}
       - name: Build
-        run: ./dev/buildbundle-veloxbe.sh --run_setup_script=ON --build_arrow=ON --build_tests=ON --build_benchmarks=ON --spark_version=3.5
+        run: |
+          export CCACHE_MAXSIZE=1G
+          mkdir -p $CCACHE_DIR
+          ./dev/buildbundle-veloxbe.sh --run_setup_script=ON --build_arrow=ON --build_tests=ON --build_benchmarks=ON --spark_version=3.5
+      - name: Save Ccache to Apache Stash
+        if: always()
+        uses: apache/infrastructure-actions/stash/save@0ba14156c9f4c3cfbe4b0c9f36339ab0f8d81e53
+        with:
+          path: '${{ env.CCACHE_DIR }}'
+          key: ccache-weekly-macos-${{runner.arch}}-${{ hashFiles('ep/build-velox/src/**') }}
+          include-hidden-files: true
