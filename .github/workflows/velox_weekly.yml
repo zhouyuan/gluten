@@ -111,6 +111,14 @@ jobs:
           export JAVA_HOME=/usr/lib/jvm/java-8-openjdk-amd64
           export VELOX_BUILD_SHARED=ON
           cd $GITHUB_WORKSPACE/ && ./dev/package.sh --spark_version=3.5
+          cd $GITHUB_WORKSPACE/tools/gluten-it
+          $GITHUB_WORKSPACE/build/mvn -ntp clean install -Pspark-3.5
+      - name: Run TPC-H
+        run: |
+          echo "JAVA_HOME: $JAVA_HOME"
+          cd $GITHUB_WORKSPACE/tools/gluten-it
+          $TPCH_TEST
+
 
   weekly-build-on-openeuler:
     strategy:
