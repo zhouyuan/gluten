@@ -68,12 +68,19 @@ jobs:
           export PATH=$JAVA_HOME/bin:$PATH
           export VELOX_BUILD_SHARED=ON
           cd $GITHUB_WORKSPACE/ && ./dev/package.sh --spark_version=3.5
+          cd $GITHUB_WORKSPACE/tools/gluten-it
+          $GITHUB_WORKSPACE/build/mvn -ntp clean install -Pspark-3.5
+      - name: Run TPC-H
+        run: |
+          echo "JAVA_HOME: $JAVA_HOME"
+          cd $GITHUB_WORKSPACE/tools/gluten-it
+          $TPCH_TEST
 
   weekly-build-on-ubuntu:
     strategy:
       fail-fast: false
       matrix:
-        os: [ "ubuntu:22.04", "ubuntu:22.04" ]
+        os: [ "ubuntu:22.04", "ubuntu:24.04" ]
     if: ${{ startsWith(github.repository, 'apache/') }}
     runs-on: ubuntu-22.04
     container: ${{ matrix.os }}
