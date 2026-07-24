@@ -72,6 +72,7 @@ jobs:
           $GITHUB_WORKSPACE/build/mvn -ntp clean install -Pspark-3.5
       - name: Run TPC-H
         run: |
+          export JAVA_HOME=/usr/lib/jvm/java-8-openjdk-amd64
           echo "JAVA_HOME: $JAVA_HOME"
           cd $GITHUB_WORKSPACE/tools/gluten-it
           $TPCH_TEST
@@ -125,6 +126,7 @@ jobs:
           $GITHUB_WORKSPACE/build/mvn -ntp clean install -Pspark-3.5
       - name: Run TPC-H
         run: |
+          export JAVA_HOME=/usr/lib/jvm/java-8-openjdk-amd64
           echo "JAVA_HOME: $JAVA_HOME"
           cd $GITHUB_WORKSPACE/tools/gluten-it
           $TPCH_TEST
