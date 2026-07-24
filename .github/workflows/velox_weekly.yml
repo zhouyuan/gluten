@@ -98,7 +98,7 @@ jobs:
           include-hidden-files: true
       - name: Run TPC-H
         run: |
-          export JAVA_HOME=/usr/lib/jvm/java-8-openjdk-amd64
+          export JAVA_HOME=/usr/lib/jvm/java-1.8.0-openjdk
           echo "JAVA_HOME: $JAVA_HOME"
           cd $GITHUB_WORKSPACE/tools/gluten-it
           $TPCH_TEST
