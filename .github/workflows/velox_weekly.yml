@@ -92,9 +92,12 @@ jobs:
           # To avoid the prompt for region selection during installing tzdata.
           export DEBIAN_FRONTEND=noninteractive
           export INSTALL_PREFIX=/usr/
-          apt-get update && apt-get install -y sudo maven wget git curl gcc-11 g++-11 build-essential cmake openjdk-8-jdk python3-pip
-          pip3 install cmake==3.31.4
+          apt-get update && apt-get install -y sudo maven wget git curl gcc-11 g++-11 build-essential openjdk-8-jdk python3-pip
           cd /tmp
+          wget https://github.com/Kitware/CMake/releases/download/v3.31.12/cmake-3.31.12-linux-$(uname -m).sh; \
+          chmod +x cmake-3.31.12-linux-$(uname -m).sh; \
+          ./cmake-3.31.12-linux-$(uname -m).sh --skip-license --prefix=/usr/local; \
+          rm -f cmake-3.31.12-linux-$(uname -m).sh;
           wget https://github.com/gflags/gflags/archive/v2.2.2.tar.gz -O gflags.tar.gz
           tar -xzf gflags.tar.gz && cd gflags-2.2.2
           cmake -B build \
