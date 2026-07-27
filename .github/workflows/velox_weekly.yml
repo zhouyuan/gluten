@@ -154,8 +154,8 @@ jobs:
           chmod +x cmake-3.31.12-linux-$(uname -m).sh; \
           ./cmake-3.31.12-linux-$(uname -m).sh --skip-license --prefix=/usr/local; \
           rm -f cmake-3.31.12-linux-$(uname -m).sh;
-          wget https://github.com/gflags/gflags/archive/v2.2.2.tar.gz -O gflags.tar.gz
-          tar -xzf gflags.tar.gz && cd gflags-2.2.2
+          wget https://github.com/gflags/gflags/archive/v2.3.0.tar.gz -O gflags.tar.gz
+          tar -xzf gflags.tar.gz && cd gflags-2.3.0
           cmake -B build \
             -DCMAKE_POSITION_INDEPENDENT_CODE=ON \
             -DBUILD_SHARED_LIBS=ON \
