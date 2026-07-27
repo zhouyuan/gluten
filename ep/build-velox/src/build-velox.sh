@@ -120,7 +120,7 @@ function compile {
       # dependency headers (abseil's __is_trivially_relocatable, arrow's vendored
       # date.h literal operators) to non-fatal system-header warnings under
       # -Werror on recent clang.
-      CXX_FLAGS="$CXX_FLAGS -isystem ${INSTALL_PREFIX}/include"
+      CXX_FLAGS="$CXX_FLAGS ${INSTALL_PREFIX}/include -isystem "
     fi
   fi
 
