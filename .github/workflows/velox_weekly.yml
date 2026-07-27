@@ -97,6 +97,9 @@ jobs:
           cd $GITHUB_WORKSPACE/ && ./dev/package.sh --spark_version=3.5
           cd $GITHUB_WORKSPACE/tools/gluten-it
           $GITHUB_WORKSPACE/build/mvn -ntp clean install -Pspark-3.5
+      - name: Clean Ccache tmp before save
+        if: always()
+        run: rm -rf '${{ env.CCACHE_DIR }}/tmp'
       - name: Save Ccache to Apache Stash
         if: always()
         uses: apache/infrastructure-actions/stash/save@0ba14156c9f4c3cfbe4b0c9f36339ab0f8d81e53
@@ -104,6 +107,7 @@ jobs:
           path: '${{ env.CCACHE_DIR }}'
           key: ccache-weekly-centos-${{ matrix.os }}-${{ hashFiles('ep/build-velox/src/**') }}
           include-hidden-files: true
+          retention-days: '7'
       - name: Run TPC-H
         run: |
           export JAVA_HOME=/usr/lib/jvm/java-1.8.0-openjdk
@@ -177,6 +181,9 @@ jobs:
           cd $GITHUB_WORKSPACE/ && ./dev/package.sh --spark_version=3.5
           cd $GITHUB_WORKSPACE/tools/gluten-it
           $GITHUB_WORKSPACE/build/mvn -ntp clean install -Pspark-3.5
+      - name: Clean Ccache tmp before save
+        if: always()
+        run: rm -rf '${{ env.CCACHE_DIR }}/tmp'
       - name: Save Ccache to Apache Stash
         if: always()
         uses: apache/infrastructure-actions/stash/save@0ba14156c9f4c3cfbe4b0c9f36339ab0f8d81e53
@@ -184,6 +191,7 @@ jobs:
           path: '${{ env.CCACHE_DIR }}'
           key: ccache-weekly-ubuntu-${{ matrix.os }}-${{ hashFiles('ep/build-velox/src/**') }}
           include-hidden-files: true
+          retention-days: '7'
       - name: Run TPC-H
         run: |
           export JAVA_HOME=/usr/lib/jvm/java-8-openjdk-amd64
@@ -232,6 +240,9 @@ jobs:
           cd $GITHUB_WORKSPACE/tools/gluten-it
           $GITHUB_WORKSPACE/build/mvn -ntp clean install -Pspark-3.5
           cp $GITHUB_WORKSPACE/package/target/thirdparty-lib/gluten-thirdparty-lib-*.jar package/target/lib/
+      - name: Clean Ccache tmp before save
+        if: always()
+        run: rm -rf '${{ env.CCACHE_DIR }}/tmp'
       - name: Save Ccache to Apache Stash
         if: always()
         uses: apache/infrastructure-actions/stash/save@0ba14156c9f4c3cfbe4b0c9f36339ab0f8d81e53
@@ -239,6 +250,7 @@ jobs:
           path: '${{ env.CCACHE_DIR }}'
           key: ccache-weekly-openeuler-${{runner.arch}}-${{ hashFiles('ep/build-velox/src/**') }}
           include-hidden-files: true
+          retention-days: '7'
       - name: Run TPC-H
         run: |
           echo "JAVA_HOME: $JAVA_HOME"
@@ -286,6 +298,9 @@ jobs:
           ./dev/package-vcpkg.sh --build_arrow=ON --spark_version=3.5
           cd $GITHUB_WORKSPACE/tools/gluten-it
           $GITHUB_WORKSPACE/build/mvn -ntp clean install -Pspark-3.5
+      - name: Clean Ccache tmp before save
+        if: always()
+        run: rm -rf '${{ env.CCACHE_DIR }}/tmp'
       - name: Save Ccache to Apache Stash
         if: always()
         uses: apache/infrastructure-actions/stash/save@0ba14156c9f4c3cfbe4b0c9f36339ab0f8d81e53
@@ -293,6 +308,7 @@ jobs:
           path: '${{ env.CCACHE_DIR }}'
           key: ccache-weekly-openeuler-vcpkg-${{runner.arch}}-${{ hashFiles('ep/build-velox/src/**') }}
           include-hidden-files: true
+          retention-days: '7'
       - name: Run TPC-H
         run: |
           echo "JAVA_HOME: $JAVA_HOME"
@@ -325,6 +341,9 @@ jobs:
           export CCACHE_MAXSIZE=1G
           mkdir -p $CCACHE_DIR
           ./dev/buildbundle-veloxbe.sh --run_setup_script=ON --build_arrow=ON --build_tests=ON --build_benchmarks=ON --spark_version=3.5
+      - name: Clean Ccache tmp before save
+        if: always()
+        run: rm -rf '${{ env.CCACHE_DIR }}/tmp'
       - name: Save Ccache to Apache Stash
         if: always()
         uses: apache/infrastructure-actions/stash/save@0ba14156c9f4c3cfbe4b0c9f36339ab0f8d81e53
@@ -332,3 +351,4 @@ jobs:
           path: '${{ env.CCACHE_DIR }}'
           key: ccache-weekly-macos-${{runner.arch}}-${{ hashFiles('ep/build-velox/src/**') }}
           include-hidden-files: true
+          retention-days: '7'
