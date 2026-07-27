@@ -33,7 +33,7 @@ class DynamicOffHeapSizingSuite extends VeloxWholeStageTransformerSuite {
   override protected def sparkConf: SparkConf = {
     super.sparkConf
       .set("spark.shuffle.manager", "org.apache.spark.shuffle.sort.ColumnarShuffleManager")
-      .set("spark.executor.memory", "3GB")
+      .set("spark.executor.memory", "2GB")
       .set("spark.memory.offHeap.enabled", "false")
       .set("spark.gluten.sql.columnar.backend.velox.driverSideBroadcastHashTableBuild", "false")
       .set(
