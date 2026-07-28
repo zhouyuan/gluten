@@ -145,7 +145,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Download All Native Artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: velox-native-lib-centos-7-${{github.sha}}
           path: ./cpp/build/
@@ -262,7 +262,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Download All Native Artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: velox-native-lib-centos-7-${{github.sha}}
           path: ./cpp/build/
@@ -324,7 +324,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Download All Native Artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: velox-native-lib-centos-7-${{github.sha}}
           path: ./cpp/build/
@@ -378,7 +378,7 @@ jobs:
           df -h
       - uses: actions/checkout@v4
       - name: Download All Native Artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: velox-native-lib-centos-7-${{github.sha}}
           path: ./cpp/build/
@@ -489,7 +489,7 @@ jobs:
           df -h
       - uses: actions/checkout@v4
       - name: Download All Native Artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: velox-native-lib-centos-7-${{github.sha}}
           path: ./cpp/build/
@@ -527,7 +527,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Download All Native Artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: velox-native-lib-centos-7-${{github.sha}}
           path: ./cpp/build/
@@ -573,7 +573,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Download All Native Artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: velox-native-lib-centos-7-${{github.sha}}
           path: ./cpp/build/
@@ -642,7 +642,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Download All Artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: velox-native-lib-centos-7-${{github.sha}}
           path: ./cpp/build/
@@ -697,7 +697,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Download All Artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: velox-native-lib-centos-7-${{github.sha}}
           path: ./cpp/build/
@@ -746,7 +746,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Download All Artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: velox-native-lib-centos-7-${{github.sha}}
           path: ./cpp/build/
@@ -816,7 +816,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Download All Artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: velox-native-lib-centos-7-${{github.sha}}
           path: ./cpp/build/
@@ -870,7 +870,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Download All Artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: velox-native-lib-centos-7-${{github.sha}}
           path: ./cpp/build/
@@ -938,7 +938,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Download All Artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: velox-native-lib-centos-7-${{github.sha}}
           path: ./cpp/build/
@@ -1002,7 +1002,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Download All Artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: velox-native-lib-centos-7-${{github.sha}}
           path: ./cpp/build/
@@ -1198,7 +1198,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Download All Artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: velox-native-lib-centos-7-${{github.sha}}
           path: ./cpp/build/
@@ -1266,7 +1266,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Download All Artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: velox-native-lib-centos-7-${{github.sha}}
           path: ./cpp/build/
@@ -1323,7 +1323,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Download All Artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: velox-native-lib-centos-7-${{github.sha}}
           path: ./cpp/build/
@@ -1397,7 +1397,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Download All Artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: velox-native-lib-centos-7-${{github.sha}}
           path: ./cpp/build/
