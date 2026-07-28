@@ -330,7 +330,7 @@ jobs:
           distribution: temurin
           java-version: 17
       - name: Install Dependencies
-        run: brew install wget pkgconfig abseil ccache
+        run: brew install wget pkgconfig ccache
       - name: Get Ccache from Apache Stash
         uses: apache/infrastructure-actions/stash/restore@0ba14156c9f4c3cfbe4b0c9f36339ab0f8d81e53
         with:
