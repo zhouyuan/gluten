@@ -336,8 +336,11 @@ jobs:
         with:
           path: '${{ env.CCACHE_DIR }}'
           key: ccache-weekly-macos-${{runner.arch}}-${{ hashFiles('ep/build-velox/src/**') }}
+      - name: Fix JAVA_HOME on macOS
+        run: echo "JAVA_HOME=$(/usr/libexec/java_home -v 17)" >> $GITHUB_ENV
       - name: Build
         run: |
+          echo "JAVA_HOME: $JAVA_HOME"
           export CCACHE_MAXSIZE=1G
           mkdir -p $CCACHE_DIR
           ./dev/buildbundle-veloxbe.sh --run_setup_script=ON --build_arrow=ON --build_tests=ON --build_benchmarks=ON --spark_version=3.5
@@ -352,3 +355,8 @@ jobs:
           key: ccache-weekly-macos-${{runner.arch}}-${{ hashFiles('ep/build-velox/src/**') }}
           include-hidden-files: true
           retention-days: '7'
+      - name: Run TPC-H
+        run: |
+          echo "JAVA_HOME: $JAVA_HOME"
+          cd $GITHUB_WORKSPACE/tools/gluten-it
+          $TPCH_TEST
