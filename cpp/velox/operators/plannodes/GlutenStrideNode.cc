@@ -25,12 +25,7 @@ GlutenStrideOperator::GlutenStrideOperator(
     int32_t operatorId,
     facebook::velox::exec::DriverCtx* driverCtx,
     std::shared_ptr<const GlutenStrideNode> node)
-    : facebook::velox::exec::Operator(
-          driverCtx,
-          node->outputType(),
-          operatorId,
-          node->id(),
-          "GlutenStride"),
+    : facebook::velox::exec::Operator(driverCtx, node->outputType(), operatorId, node->id(), "GlutenStride"),
       stride_(node->stride()) {}
 
 facebook::velox::RowVectorPtr GlutenStrideOperator::getOutput() {

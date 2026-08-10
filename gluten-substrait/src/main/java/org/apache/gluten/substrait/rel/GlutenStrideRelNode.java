@@ -32,16 +32,15 @@ import java.util.List;
  * Substrait representation of Gluten's native GlutenStride operator.
  *
  * <p>The operator outputs every {@code stride}-th row from each input batch (rows at indices 0,
- * stride, 2*stride, …). It is deterministic, stateless, and has no equivalent in standard Spark
- * or Velox, making it a clean demonstration of the Gluten custom-operator mechanism.
+ * stride, 2*stride, …). It is deterministic, stateless, and has no equivalent in standard Spark or
+ * Velox, making it a clean demonstration of the Gluten custom-operator mechanism.
  *
  * <h3>Wire encoding</h3>
  *
  * <p>We reuse {@link FetchRel} to avoid introducing a new proto type:
  *
  * <ul>
- *   <li>{@code FetchRel.offset} = {@code stride} (the step size, e.g. 2 means keep every other
- *       row)
+ *   <li>{@code FetchRel.offset} = {@code stride} (the step size, e.g. 2 means keep every other row)
  *   <li>{@code FetchRel.count} = 0 (unused)
  *   <li>{@code AdvancedExtension.optimization[0]} = {@code "isGlutenStride=1"} — the marker that
  *       tells the C++ dispatcher to build a {@code GlutenStrideNode} instead of a {@code LimitNode}

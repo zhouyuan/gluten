@@ -28,33 +28,31 @@ import scala.collection.JavaConverters._
 /**
  * Gluten-native "stride" operator: outputs every N-th row from each input batch.
  *
- * Row indices within each batch are 0-based; index 0 is always included.
- * The counter resets per batch, so the operator is completely stateless and
- * parallelism-friendly.
+ * Row indices within each batch are 0-based; index 0 is always included. The counter resets per
+ * batch, so the operator is completely stateless and parallelism-friendly.
  *
- * This is a self-contained example of the Gluten custom-operator mechanism.
- * It does NOT correspond to any existing Spark operator — it exists purely
- * to demonstrate how to add a backend-specific native operator without
- * requiring a Velox upstream contribution.
+ * This is a self-contained example of the Gluten custom-operator mechanism. It does NOT correspond
+ * to any existing Spark operator -- it exists purely to demonstrate how to add a backend-specific
+ * native operator without requiring a Velox upstream contribution.
  *
- * == End-to-end flow ==
+ * ==End-to-end flow==
  * {{{
  *   GlutenStrideExecTransformer(stride=3, child=scanPlan)
- *     ──doTransform──►  GlutenStrideRelNode(stride=3)
- *       ──toProtobuf──► FetchRel { offset=3, advanced_extension.optimization="isGlutenStride=1" }
- *         ──JNI──►      SubstraitToVeloxPlanConverter::toVeloxPlan(FetchRel&)
- *           ──builds──► GlutenStrideNode(stride=3, child)
- *             ──exec──► GlutenStrideOperator: keeps rows 0, 3, 6, 9, …
+ *     --doTransform-->  GlutenStrideRelNode(stride=3)
+ *       --toProtobuf--> FetchRel { offset=3, advanced_extension.optimization="isGlutenStride=1" }
+ *         --JNI-->      SubstraitToVeloxPlanConverter::toVeloxPlan(FetchRel&)
+ *           --builds--> GlutenStrideNode(stride=3, child)
+ *             --exec--> GlutenStrideOperator: keeps rows 0, 3, 6, 9, ...
  * }}}
  *
- * == Usage ==
+ * ==Usage==
  * Instantiate directly in a unit test or wire it into a custom offload rule:
  * {{{
  *   val strider = GlutenStrideExecTransformer(stride = 3L, child = childPlan)
  * }}}
  */
 case class GlutenStrideExecTransformer(stride: Long, child: SparkPlan)
-    extends UnaryTransformSupport {
+  extends UnaryTransformSupport {
 
   require(stride >= 1L, s"stride must be >= 1, got $stride")
 

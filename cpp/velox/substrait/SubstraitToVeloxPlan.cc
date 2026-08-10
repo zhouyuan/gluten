@@ -17,7 +17,6 @@
 
 #include "SubstraitToVeloxPlan.h"
 
-#include "operators/plannodes/GlutenStrideNode.h"
 #include "TypeUtils.h"
 #include "VariantToVectorConverter.h"
 #include "compute/delta/DeltaConnector.h"
@@ -25,6 +24,7 @@
 #include "compute/iceberg/IcebergPlanConverter.h"
 #include "jni/JniHashTable.h"
 #include "operators/hashjoin/HashTableBuilder.h"
+#include "operators/plannodes/GlutenStrideNode.h"
 #include "operators/plannodes/RowVectorStream.h"
 #include "velox/connectors/hive/HiveDataSink.h"
 #include "velox/exec/TableWriter.h"
