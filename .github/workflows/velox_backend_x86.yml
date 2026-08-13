@@ -56,9 +56,9 @@ concurrency:
 
 jobs:
   # Detect which parts of the codebase were modified so downstream jobs can
-  # skip work that is irrelevant to the change (e.g. a pure C++ fix does not
-  # need to run any spark-test-* job, and a Spark-3.3-shim-only change does
-  # not need to run spark-test-spark34/35/40/41).
+  # skip work that is irrelevant to the change (e.g. a Spark-3.3-shim-only change does
+  # not need to run spark-test-spark34/35/40/41; C++ changes still run spark-test-*
+  # jobs to validate JNI/native integration).
   #
   # Output flags:
   #   cpp      – C++ sources, Velox build scripts, or dev tooling changed
@@ -96,7 +96,7 @@ jobs:
           match() { echo "$changed" | grep -qE "$1" && echo true || echo false; }
 
           echo "cpp=$(match      '^(cpp/|ep/build-velox/|dev/)')"                                            >> $GITHUB_OUTPUT
-          echo "java=$(match     '^(pom\.xml|backends-velox/|gluten-(uniffle|celeborn|ras|core|substrait|arrow|delta|iceberg|hudi|paimon|ut)/|package/|build/mvn)')" >> $GITHUB_OUTPUT
+          echo "java=$(match     '^(\.github/workflows/|pom\.xml|backends-velox/|gluten-(uniffle|celeborn|ras|core|substrait|arrow|delta|iceberg|hudi|paimon)/|gluten-ut/(common/|test/|pom\.xml)|package/|build/mvn)')" >> $GITHUB_OUTPUT
           echo "shims33=$(match  '^(shims/(spark33|common)/|gluten-ut/spark33/)')"                           >> $GITHUB_OUTPUT
           echo "shims34=$(match  '^(shims/(spark34|common)/|gluten-ut/spark34/)')"                           >> $GITHUB_OUTPUT
           echo "shims35=$(match  '^(shims/(spark35|common)/|gluten-ut/spark35/)')"                           >> $GITHUB_OUTPUT

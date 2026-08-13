@@ -76,7 +76,7 @@ jobs:
           match() { echo "$changed" | grep -qE "$1" && echo true || echo false; }
 
           echo "cpp=$(match     '^(cpp/|ep/build-velox/|dev/)')"                                             >> $GITHUB_OUTPUT
-          echo "java=$(match    '^(pom\.xml|backends-velox/|gluten-(uniffle|celeborn|ras|core|substrait|arrow|delta|iceberg|hudi|ut)/|package/|build/mvn)')" >> $GITHUB_OUTPUT
+          echo "java=$(match    '^(\.github/workflows/|pom\.xml|backends-velox/|gluten-(uniffle|celeborn|ras|core|substrait|arrow|delta|iceberg|hudi)/|gluten-ut/(common/|test/|pom\.xml)|package/|build/mvn)')" >> $GITHUB_OUTPUT
           echo "shims35=$(match '^(shims/(spark35|common)/|gluten-ut/spark35/)')"                            >> $GITHUB_OUTPUT
           echo "shims40=$(match '^(shims/(spark40|common)/|gluten-ut/spark40/)')"                            >> $GITHUB_OUTPUT
 
