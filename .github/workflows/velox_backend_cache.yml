@@ -220,3 +220,21 @@ jobs:
           path: '${{ env.CCACHE_DIR }}'
           key: ccache-centos9-cudf-release-shared-${{runner.arch}}-${{ hashFiles('ep/build-velox/src/**') }}
           include-hidden-files: true
+
+  cache-m2-from-docker:
+    if: ${{ startsWith(github.repository, 'apache/') }}
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v7
+      - name: Extract m2 cache from Docker image
+        run: |
+          docker pull apache/gluten:ubuntu22-m2-cache
+          id=$(docker create apache/gluten:ubuntu22-m2-cache)
+          docker cp "$id":/root/.m2 "$GITHUB_WORKSPACE/.m2"
+          docker rm "$id"
+      - name: Save m2 cache to Apache Stash
+        uses: apache/infrastructure-actions/stash/save@0ba14156c9f4c3cfbe4b0c9f36339ab0f8d81e53
+        with:
+          path: '${{ github.workspace }}/.m2'
+          key: m2-ubuntu22-${{ hashFiles('**/pom.xml') }}
+          include-hidden-files: true

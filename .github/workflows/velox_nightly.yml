@@ -73,9 +73,26 @@ jobs:
     if: ${{ startsWith(github.repository, 'apache/') }}
     needs: build-native-lib-x86
     runs-on: ubuntu-22.04
-    container: centos:8
+    container:
+      image: centos:8
+      options: --volume ${{ github.workspace }}/.m2:/root/.m2
     steps:
       - uses: actions/checkout@v7
+      - name: Install Stash deps
+        run: |
+          case "$(uname -m)" in
+            x86_64) ARCH=amd64 ;;
+            aarch64) ARCH=arm64 ;;
+          esac
+          command -v gh &>/dev/null || { curl -fsSL "https://github.com/cli/cli/releases/download/v2.63.2/gh_2.63.2_linux_${ARCH}.tar.gz" \
+            | tar -xz -C /usr/local --strip-components=1 "gh_2.63.2_linux_${ARCH}/bin/gh"; }
+          command -v jq &>/dev/null || { curl -fsSL -o /usr/local/bin/jq "https://github.com/jqlang/jq/releases/download/jq-1.7.1/jq-linux-${ARCH}" \
+            && chmod +x /usr/local/bin/jq; }
+      - name: Restore m2 cache from Apache Stash
+        uses: apache/infrastructure-actions/stash/restore@0ba14156c9f4c3cfbe4b0c9f36339ab0f8d81e53
+        with:
+          path: '${{ github.workspace }}/.m2'
+          key: m2-ubuntu22-${{ hashFiles('**/pom.xml') }}
       - name: Download All Artifacts
         uses: actions/download-artifact@v8
         with:
@@ -111,9 +128,26 @@ jobs:
     if: ${{ startsWith(github.repository, 'apache/') }}
     needs: build-native-lib-x86
     runs-on: ubuntu-22.04
-    container: centos:8
+    container:
+      image: centos:8
+      options: --volume ${{ github.workspace }}/.m2:/root/.m2
     steps:
       - uses: actions/checkout@v7
+      - name: Install Stash deps
+        run: |
+          case "$(uname -m)" in
+            x86_64) ARCH=amd64 ;;
+            aarch64) ARCH=arm64 ;;
+          esac
+          command -v gh &>/dev/null || { curl -fsSL "https://github.com/cli/cli/releases/download/v2.63.2/gh_2.63.2_linux_${ARCH}.tar.gz" \
+            | tar -xz -C /usr/local --strip-components=1 "gh_2.63.2_linux_${ARCH}/bin/gh"; }
+          command -v jq &>/dev/null || { curl -fsSL -o /usr/local/bin/jq "https://github.com/jqlang/jq/releases/download/jq-1.7.1/jq-linux-${ARCH}" \
+            && chmod +x /usr/local/bin/jq; }
+      - name: Restore m2 cache from Apache Stash
+        uses: apache/infrastructure-actions/stash/restore@0ba14156c9f4c3cfbe4b0c9f36339ab0f8d81e53
+        with:
+          path: '${{ github.workspace }}/.m2'
+          key: m2-ubuntu22-${{ hashFiles('**/pom.xml') }}
       - name: Download All Artifacts
         uses: actions/download-artifact@v8
         with:
@@ -149,9 +183,26 @@ jobs:
     if: ${{ startsWith(github.repository, 'apache/') }}
     needs: build-native-lib-x86
     runs-on: ubuntu-22.04
-    container: quay.io/centos/centos:stream9
+    container:
+      image: quay.io/centos/centos:stream9
+      options: --volume ${{ github.workspace }}/.m2:/root/.m2
     steps:
       - uses: actions/checkout@v7
+      - name: Install Stash deps
+        run: |
+          case "$(uname -m)" in
+            x86_64) ARCH=amd64 ;;
+            aarch64) ARCH=arm64 ;;
+          esac
+          command -v gh &>/dev/null || { curl -fsSL "https://github.com/cli/cli/releases/download/v2.63.2/gh_2.63.2_linux_${ARCH}.tar.gz" \
+            | tar -xz -C /usr/local --strip-components=1 "gh_2.63.2_linux_${ARCH}/bin/gh"; }
+          command -v jq &>/dev/null || { curl -fsSL -o /usr/local/bin/jq "https://github.com/jqlang/jq/releases/download/jq-1.7.1/jq-linux-${ARCH}" \
+            && chmod +x /usr/local/bin/jq; }
+      - name: Restore m2 cache from Apache Stash
+        uses: apache/infrastructure-actions/stash/restore@0ba14156c9f4c3cfbe4b0c9f36339ab0f8d81e53
+        with:
+          path: '${{ github.workspace }}/.m2'
+          key: m2-ubuntu22-${{ hashFiles('**/pom.xml') }}
       - name: Download All Artifacts
         uses: actions/download-artifact@v8
         with:
@@ -224,9 +275,26 @@ jobs:
     if: ${{ startsWith(github.repository, 'apache/') }}
     needs: build-native-lib-centos-8-arm64
     runs-on: ubuntu-22.04-arm
-    container: centos:8
+    container:
+      image: centos:8
+      options: --volume ${{ github.workspace }}/.m2:/root/.m2
     steps:
       - uses: actions/checkout@v7
+      - name: Install Stash deps
+        run: |
+          case "$(uname -m)" in
+            x86_64) ARCH=amd64 ;;
+            aarch64) ARCH=arm64 ;;
+          esac
+          command -v gh &>/dev/null || { curl -fsSL "https://github.com/cli/cli/releases/download/v2.63.2/gh_2.63.2_linux_${ARCH}.tar.gz" \
+            | tar -xz -C /usr/local --strip-components=1 "gh_2.63.2_linux_${ARCH}/bin/gh"; }
+          command -v jq &>/dev/null || { curl -fsSL -o /usr/local/bin/jq "https://github.com/jqlang/jq/releases/download/jq-1.7.1/jq-linux-${ARCH}" \
+            && chmod +x /usr/local/bin/jq; }
+      - name: Restore m2 cache from Apache Stash
+        uses: apache/infrastructure-actions/stash/restore@0ba14156c9f4c3cfbe4b0c9f36339ab0f8d81e53
+        with:
+          path: '${{ github.workspace }}/.m2'
+          key: m2-ubuntu22-${{ hashFiles('**/pom.xml') }}
       - name: Download All Artifacts
         uses: actions/download-artifact@v8
         with:
@@ -262,9 +330,26 @@ jobs:
     if: ${{ startsWith(github.repository, 'apache/') }}
     needs: build-native-lib-centos-8-arm64
     runs-on: ubuntu-22.04-arm
-    container: centos:8
+    container:
+      image: centos:8
+      options: --volume ${{ github.workspace }}/.m2:/root/.m2
     steps:
       - uses: actions/checkout@v7
+      - name: Install Stash deps
+        run: |
+          case "$(uname -m)" in
+            x86_64) ARCH=amd64 ;;
+            aarch64) ARCH=arm64 ;;
+          esac
+          command -v gh &>/dev/null || { curl -fsSL "https://github.com/cli/cli/releases/download/v2.63.2/gh_2.63.2_linux_${ARCH}.tar.gz" \
+            | tar -xz -C /usr/local --strip-components=1 "gh_2.63.2_linux_${ARCH}/bin/gh"; }
+          command -v jq &>/dev/null || { curl -fsSL -o /usr/local/bin/jq "https://github.com/jqlang/jq/releases/download/jq-1.7.1/jq-linux-${ARCH}" \
+            && chmod +x /usr/local/bin/jq; }
+      - name: Restore m2 cache from Apache Stash
+        uses: apache/infrastructure-actions/stash/restore@0ba14156c9f4c3cfbe4b0c9f36339ab0f8d81e53
+        with:
+          path: '${{ github.workspace }}/.m2'
+          key: m2-ubuntu22-${{ hashFiles('**/pom.xml') }}
       - name: Download All Artifacts
         uses: actions/download-artifact@v8
         with:
@@ -301,9 +386,26 @@ jobs:
     if: ${{ startsWith(github.repository, 'apache/') }}
     needs: build-native-lib-centos-8-arm64
     runs-on: ubuntu-22.04-arm
-    container: quay.io/centos/centos:stream9
+    container:
+      image: quay.io/centos/centos:stream9
+      options: --volume ${{ github.workspace }}/.m2:/root/.m2
     steps:
       - uses: actions/checkout@v7
+      - name: Install Stash deps
+        run: |
+          case "$(uname -m)" in
+            x86_64) ARCH=amd64 ;;
+            aarch64) ARCH=arm64 ;;
+          esac
+          command -v gh &>/dev/null || { curl -fsSL "https://github.com/cli/cli/releases/download/v2.63.2/gh_2.63.2_linux_${ARCH}.tar.gz" \
+            | tar -xz -C /usr/local --strip-components=1 "gh_2.63.2_linux_${ARCH}/bin/gh"; }
+          command -v jq &>/dev/null || { curl -fsSL -o /usr/local/bin/jq "https://github.com/jqlang/jq/releases/download/jq-1.7.1/jq-linux-${ARCH}" \
+            && chmod +x /usr/local/bin/jq; }
+      - name: Restore m2 cache from Apache Stash
+        uses: apache/infrastructure-actions/stash/restore@0ba14156c9f4c3cfbe4b0c9f36339ab0f8d81e53
+        with:
+          path: '${{ github.workspace }}/.m2'
+          key: m2-ubuntu22-${{ hashFiles('**/pom.xml') }}
       - name: Download All Artifacts
         uses: actions/download-artifact@v8
         with:
@@ -461,9 +563,26 @@ jobs:
     if: ${{ startsWith(github.repository, 'apache/') }}
     needs: build-native-lib-enhanced
     runs-on: ubuntu-22.04
-    container: centos:8
+    container:
+      image: centos:8
+      options: --volume ${{ github.workspace }}/.m2:/root/.m2
     steps:
       - uses: actions/checkout@v7
+      - name: Install Stash deps
+        run: |
+          case "$(uname -m)" in
+            x86_64) ARCH=amd64 ;;
+            aarch64) ARCH=arm64 ;;
+          esac
+          command -v gh &>/dev/null || { curl -fsSL "https://github.com/cli/cli/releases/download/v2.63.2/gh_2.63.2_linux_${ARCH}.tar.gz" \
+            | tar -xz -C /usr/local --strip-components=1 "gh_2.63.2_linux_${ARCH}/bin/gh"; }
+          command -v jq &>/dev/null || { curl -fsSL -o /usr/local/bin/jq "https://github.com/jqlang/jq/releases/download/jq-1.7.1/jq-linux-${ARCH}" \
+            && chmod +x /usr/local/bin/jq; }
+      - name: Restore m2 cache from Apache Stash
+        uses: apache/infrastructure-actions/stash/restore@0ba14156c9f4c3cfbe4b0c9f36339ab0f8d81e53
+        with:
+          path: '${{ github.workspace }}/.m2'
+          key: m2-ubuntu22-${{ hashFiles('**/pom.xml') }}
       - name: Download All Artifacts
         uses: actions/download-artifact@v8
         with:
