@@ -248,6 +248,12 @@ const std::string kGpuAsyncShuffleReaderThreads =
     "spark.gluten.sql.columnar.backend.velox.gpuAsyncShuffleReader.threadPoolSize";
 const int32_t kGpuAsyncShuffleReaderThreadsDefault = 1;
 
+/// Whether to fail rather than warn when Gluten sets a Velox query config key
+/// that the linked Velox does not recognize. Off by default so a Velox update
+/// cannot break running jobs; turn it on in CI to surface API drift.
+const std::string kVeloxStrictConfigKeyCheck = "spark.gluten.sql.columnar.backend.velox.strictConfigKeyCheck";
+const bool kVeloxStrictConfigKeyCheckDefault = false;
+
 const std::string kStaticBackendConfPrefix = "spark.gluten.velox.";
 const std::string kDynamicBackendConfPrefix = "spark.gluten.sql.columnar.backend.velox.";
 

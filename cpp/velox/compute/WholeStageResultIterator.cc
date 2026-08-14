@@ -27,6 +27,7 @@
 #include "compute/delta/DeltaSplit.h"
 #include "compute/delta/DeltaSplitInfo.h"
 #include "config/VeloxConfig.h"
+#include "config/VeloxConfigContract.h"
 #include "utils/ConfigExtractor.h"
 #include "velox/connectors/hive/HiveConfig.h"
 #include "velox/connectors/hive/HiveConnectorSplit.h"
@@ -681,6 +682,10 @@ std::unordered_map<std::string, std::string> WholeStageResultIterator::getQueryC
     std::string errDetails = err.what();
     throw std::runtime_error("Invalid conf arg: " + errDetails);
   }
+  // Catch keys the linked Velox no longer recognizes, including any passed
+  // through kDynamicBackendConfPrefix above, before they are silently dropped.
+  checkVeloxQueryConfigKeys(
+      configs, veloxCfg_->get<bool>(kVeloxStrictConfigKeyCheck, kVeloxStrictConfigKeyCheckDefault));
   return configs;
 }
 
