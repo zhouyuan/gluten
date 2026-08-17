@@ -1281,6 +1281,73 @@ class VeloxAggregateFunctionsFlushSuite extends VeloxAggregateFunctionsSuite {
     }
   }
 
+  test("flushable aggregate rule - pushed-through-join partial aggregate stays flushable") {
+    withSQLConf(
+      SQLConf.ADAPTIVE_EXECUTION_ENABLED.key -> "false",
+      // A broadcast join keeps the pushed Partial aggregate in the same exchange-free region as
+      // the pre-shuffle PartialMerge stage above the join, which is the shape the rule must walk
+      // through.
+      SQLConf.AUTO_BROADCASTJOIN_THRESHOLD.key -> "30MB",
+      GlutenConfig.PUSH_AGGREGATE_THROUGH_JOIN_ENABLED.key -> "true"
+    ) {
+      runQueryAndCompare(
+        "select p_brand, sum(l_quantity) from lineitem " +
+          "join part on l_partkey = p_partkey group by p_brand") {
+        df =>
+          val executedPlan = getExecutedPlan(df)
+          val flushableAggCount = executedPlan.count {
+            plan => plan.isInstanceOf[FlushableHashAggregateExecTransformer]
+          }
+          val regularAggCount = executedPlan.count {
+            plan => plan.isInstanceOf[RegularHashAggregateExecTransformer]
+          }
+          assert(
+            flushableAggCount == 2,
+            s"expected the pushed Partial aggregate below the join and the pre-shuffle " +
+              s"PartialMerge stage to both be flushable, got $flushableAggCount in:\n" +
+              executedPlan.map(_.treeString).mkString("\n")
+          )
+          assert(
+            regularAggCount == 1,
+            s"expected only the final merge to stay regular, got $regularAggCount")
+      }
+    }
+  }
+
+  test("flushable aggregate rule - pushed-through-join aggregate stays flushable without a merge") {
+    withSQLConf(
+      SQLConf.ADAPTIVE_EXECUTION_ENABLED.key -> "false",
+      SQLConf.AUTO_BROADCASTJOIN_THRESHOLD.key -> "30MB",
+      GlutenConfig.PUSH_AGGREGATE_THROUGH_JOIN_ENABLED.key -> "true"
+    ) {
+      // Grouping by the join key means ImplementJoinAggregate plans no pre-shuffle merge, because
+      // the pushed aggregate is already at the final grouping's granularity. The pushed aggregate
+      // still has to stay flushable: it reads the raw fact table, which is exactly where Velox's
+      // flushing and abandoning matter most.
+      runQueryAndCompare(
+        "select p_partkey, sum(l_quantity) from lineitem " +
+          "join part on l_partkey = p_partkey group by p_partkey") {
+        df =>
+          val executedPlan = getExecutedPlan(df)
+          val flushableAggCount = executedPlan.count {
+            plan => plan.isInstanceOf[FlushableHashAggregateExecTransformer]
+          }
+          val regularAggCount = executedPlan.count {
+            plan => plan.isInstanceOf[RegularHashAggregateExecTransformer]
+          }
+          assert(
+            flushableAggCount == 1,
+            s"expected the aggregate pushed below the join to be flushable, got " +
+              s"$flushableAggCount in:\n" + executedPlan.map(_.treeString).mkString("\n")
+          )
+          assert(
+            regularAggCount == 1,
+            s"expected only the final merge to stay regular, got $regularAggCount in:\n" +
+              executedPlan.map(_.treeString).mkString("\n"))
+      }
+    }
+  }
+
   test("flushable aggregate decimal sum") {
     withSQLConf(
       SQLConf.ADAPTIVE_EXECUTION_ENABLED.key -> "false",

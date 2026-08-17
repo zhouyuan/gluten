@@ -19,8 +19,8 @@ package org.apache.gluten.extension.joinagg
 import org.apache.gluten.config.GlutenConfig
 
 import org.apache.spark.sql.SparkSession
-import org.apache.spark.sql.catalyst.expressions.{Alias, GetStructField, NamedExpression}
-import org.apache.spark.sql.catalyst.expressions.aggregate.AggregateExpression
+import org.apache.spark.sql.catalyst.expressions.{Alias, Attribute, GetStructField, NamedExpression}
+import org.apache.spark.sql.catalyst.expressions.aggregate.{AggregateExpression, Final, PartialMerge}
 import org.apache.spark.sql.catalyst.planning.PhysicalAggregation
 import org.apache.spark.sql.catalyst.plans.logical.{Aggregate, LogicalPlan}
 import org.apache.spark.sql.execution.{ProjectExec, SparkPlan, SparkStrategy}
@@ -44,7 +44,10 @@ case class ImplementJoinAggregate(spark: SparkSession) extends SparkStrategy {
    *   2. inserts a post-project for the pushed phase to pack Spark aggregate buffers into a
    *      struct, matching the wrapper's logical output type;
    *   3. inserts a pre-project for the final phase to unpack that struct back into the buffer
-   *      attributes expected by the wrapped Spark aggregate.
+   *      attributes expected by the wrapped Spark aggregate;
+   *   4. lowers the final phase into the usual PartialMerge + Final aggregate pair, but only when
+   *      the pushed aggregate groups more finely than the final one, so that the extra local merge
+   *      is planned only where it can actually shrink the shuffle.
    *
    * In short: the wrapper exists only at the logical boundary; this strategy makes the plan look
    * like an ordinary Spark aggregate plan again while preserving the wrapper data contract across
@@ -98,7 +101,7 @@ case class ImplementJoinAggregate(spark: SparkSession) extends SparkStrategy {
         case JoinAggregateFunctionWrapper.PartialPhase =>
           planPartialPhase(grouping, aggExpressions, resultExpressions, childPlan)
         case JoinAggregateFunctionWrapper.FinalPhase =>
-          planFinalPhase(grouping, aggExpressions, resultExpressions, childPlan)
+          planFinalPhase(grouping, aggExpressions, resultExpressions, childPlan, child)
       }
     case _ =>
       None
@@ -198,7 +201,8 @@ case class ImplementJoinAggregate(spark: SparkSession) extends SparkStrategy {
       grouping: Seq[NamedExpression],
       aggregateExpressions: Seq[AggregateExpression],
       resultExpressions: Seq[NamedExpression],
-      childPlan: SparkPlan): Option[SparkPlan] = {
+      childPlan: SparkPlan,
+      logicalChild: LogicalPlan): Option[SparkPlan] = {
     // Lower the final wrapper phase by first unpacking the wrapper struct into the wrapped
     // aggregate's input buffer attributes, then running a normal Spark final / merge aggregate.
     val wrapperWithRewritten: Seq[(JoinAggregateFunctionWrapper, AggregateExpression)] =
@@ -246,19 +250,157 @@ case class ImplementJoinAggregate(spark: SparkSession) extends SparkStrategy {
     val aggregateAttrs = rewrittenAggExprs.map(_.resultAttribute)
     val rewrittenResultExpressions =
       rewriteResultAsAggregateAttributes(resultExpressions, rewrittenAggExprs)
+    val groupingAttrs = grouping.map(_.toAttribute)
+
+    // The final merge asks for its child to be clustered on the grouping keys, so
+    // EnsureRequirements plants a shuffle right below it. When the aggregate pushed below the join
+    // groups at a finer granularity than this final merge, add a local PartialMerge stage under
+    // that shuffle first, mirroring what AggUtils.planAggregateWithoutDistinct does for an ordinary
+    // aggregate, so the shuffle only carries one row per group per task.
+    val partialMergeAgg = planPreShufflePartialMerge(
+      grouping,
+      groupingAttrs,
+      rewrittenAggExprs,
+      childWithUnpacked,
+      logicalChild,
+      // `BaseAggregateExec.inputAttributes` expects the input aggregate buffers to be the
+      // trailing columns of the child's output, which is exactly how the unpack projection above
+      // appends them to the join output.
+      inputBufferOffset = childPlan.output.length
+    )
 
     Some(
       HashAggregateExec(
-        requiredChildDistributionExpressions = Some(grouping.map(_.toAttribute)),
+        requiredChildDistributionExpressions = Some(groupingAttrs),
+        isStreaming = false,
+        numShufflePartitions = None,
+        // When the PartialMerge stage is added it has already evaluated the grouping
+        // expressions, so the final merge only groups by their output attributes.
+        groupingExpressions = if (partialMergeAgg.isDefined) groupingAttrs else grouping,
+        aggregateExpressions = rewrittenAggExprs,
+        aggregateAttributes = aggregateAttrs,
+        initialInputBufferOffset = if (partialMergeAgg.isDefined) groupingAttrs.length else 0,
+        resultExpressions = rewrittenResultExpressions,
+        child = partialMergeAgg.getOrElse(childWithUnpacked)
+      ))
+  }
+
+  /**
+   * Builds the local PartialMerge stage that merges the pushed aggregate buffers before the shuffle
+   * required by the final merge above it.
+   *
+   * Returns None for the aggregate shapes this split does not cover, in which case the caller keeps
+   * the single-stage final aggregate:
+   *   - aggregates that did not come from a pushed wrapper. Those are still in Complete mode and
+   *     read raw input rows, so their pre-shuffle stage would have to be Partial, not PartialMerge.
+   *   - DISTINCT or FILTER aggregates, for which Spark plans a different staging.
+   *   - aggregates whose pushed counterpart already groups at this same granularity, where the
+   *     local merge cannot remove a single row. See `preShuffleMergeCanReduce`.
+   */
+  private def planPreShufflePartialMerge(
+      grouping: Seq[NamedExpression],
+      groupingAttrs: Seq[Attribute],
+      finalAggExprs: Seq[AggregateExpression],
+      child: SparkPlan,
+      logicalChild: LogicalPlan,
+      inputBufferOffset: Int): Option[HashAggregateExec] = {
+    val splittable =
+      finalAggExprs.forall(ae => ae.mode == Final && !ae.isDistinct && ae.filter.isEmpty)
+    if (!splittable) {
+      return None
+    }
+    if (!preShuffleMergeCanReduce(grouping, logicalChild)) {
+      return None
+    }
+
+    // Both stages share the same aggregate function instances, so the buffer attributes the
+    // PartialMerge stage outputs are the ones the final merge above binds against.
+    val partialMergeAggExprs = finalAggExprs.map(_.copy(mode = PartialMerge))
+    Some(
+      HashAggregateExec(
+        requiredChildDistributionExpressions = None,
         isStreaming = false,
         numShufflePartitions = None,
         groupingExpressions = grouping,
-        aggregateExpressions = rewrittenAggExprs,
-        aggregateAttributes = aggregateAttrs,
-        initialInputBufferOffset = 0,
-        resultExpressions = rewrittenResultExpressions,
-        child = childWithUnpacked
+        aggregateExpressions = partialMergeAggExprs,
+        aggregateAttributes =
+          partialMergeAggExprs.flatMap(_.aggregateFunction.aggBufferAttributes),
+        initialInputBufferOffset = inputBufferOffset,
+        resultExpressions = groupingAttrs ++ partialMergeAggExprs.flatMap(
+          _.aggregateFunction.inputAggBufferAttributes),
+        child = child
       ))
+  }
+
+  /**
+   * Whether a local PartialMerge stage below the shuffle can actually remove rows.
+   *
+   * `PushAggregateThroughJoin` groups the aggregate it pushes below a join by `(final grouping keys
+   * available on that side) ++ (equi-join keys of that side)`. The pushed aggregate is therefore
+   * only finer-grained than this final merge when it had to keep a join key that is not itself a
+   * final grouping key. When the query groups by the join key - a very common shape, for instance
+   * `GROUP BY c_customer_sk` over `ss_customer_sk = c_customer_sk` in TPC-DS q23a - the pushed
+   * aggregate already emits exactly one row per final group per task, so a local merge would read
+   * the whole shuffle input only to write the very same rows back out. On a fact-table sized input
+   * that is a full extra hash aggregation for no reduction at all, so skip it and let the final
+   * merge read the join output directly.
+   *
+   * This only reasons about equi-join equality, not about functional dependencies inside a
+   * dimension table: `GROUP BY d_date` over `ss_sold_date_sk = d_date_sk` still counts as reducible
+   * here, even though `d_date` happens to be unique in `date_dim`. Being wrong in that direction
+   * only costs the extra stage, which Velox's flushable aggregation abandons at runtime once it
+   * observes that it is not reducing.
+   */
+  private def preShuffleMergeCanReduce(
+      grouping: Seq[NamedExpression],
+      logicalChild: LogicalPlan): Boolean = {
+    val finalGroupingRefIds = grouping.flatMap(_.references.toSeq).map(_.exprId).toSet
+    if (finalGroupingRefIds.isEmpty) {
+      // Global aggregate: every key the pushed aggregate grouped by is dropped here, so the local
+      // merge collapses the whole join output down to a single row per task.
+      return true
+    }
+
+    val pushedGroupings = collectPushedGroupings(logicalChild)
+    if (pushedGroupings.isEmpty) {
+      // Nothing was pushed below us, so there are no partial buffers to merge early.
+      return false
+    }
+
+    // A pushed grouping key that is equi-join-equal to a final grouping key does not make the
+    // pushed aggregate any finer than the final one.
+    val coveredIds =
+      JoinAggregateCardinality.expandThroughEqualities(
+        finalGroupingRefIds,
+        JoinAggregateCardinality.equiJoinEqualities(logicalChild))
+    pushedGroupings.exists(_.exists(attr => !coveredIds.contains(attr.exprId)))
+  }
+
+  /**
+   * Grouping keys of the aggregates that were pushed below the joins under this final wrapper
+   * aggregate. Stops descending at a nested final wrapper aggregate, whose own pushed aggregates
+   * belong to that nested pair rather than to this one.
+   */
+  private def collectPushedGroupings(plan: LogicalPlan): Seq[Seq[Attribute]] = plan match {
+    case agg: Aggregate if wrapperPhaseOf(agg).contains(JoinAggregateFunctionWrapper.FinalPhase) =>
+      Nil
+    case agg: Aggregate
+        if wrapperPhaseOf(agg).contains(JoinAggregateFunctionWrapper.PartialPhase) =>
+      Seq(agg.groupingExpressions.flatMap(_.references)) ++
+        agg.children.flatMap(collectPushedGroupings)
+    case other =>
+      other.children.flatMap(collectPushedGroupings)
+  }
+
+  private def wrapperPhaseOf(agg: Aggregate): Option[JoinAggregateFunctionWrapper.TargetPhase] = {
+    agg.aggregateExpressions
+      .flatMap {
+        _.collect {
+          case AggregateExpression(wrapper: JoinAggregateFunctionWrapper, _, _, _, _) =>
+            wrapper.targetPhase
+        }
+      }
+      .headOption
   }
 
   private def containsWrapperAggregate(agg: Aggregate): Boolean = {

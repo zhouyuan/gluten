@@ -22,12 +22,15 @@ import org.apache.gluten.extension.joinagg.PushAggregateThroughJoin
 
 import org.apache.spark.SparkConf
 import org.apache.spark.sql.Row
+import org.apache.spark.sql.catalyst.expressions.aggregate.{AggregateMode, Final, Partial, PartialMerge}
 import org.apache.spark.sql.catalyst.plans.PlanTest
 import org.apache.spark.sql.catalyst.plans.logical.Aggregate
 import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
 import org.apache.spark.sql.catalyst.rules.Rule
 import org.apache.spark.sql.execution.{SparkPlan, SparkStrategy}
 import org.apache.spark.sql.execution.adaptive.AdaptiveSparkPlanExec
+import org.apache.spark.sql.execution.aggregate.BaseAggregateExec
+import org.apache.spark.sql.execution.exchange.ShuffleExchangeLike
 import org.apache.spark.sql.internal.SQLConf
 import org.apache.spark.sql.test.SharedSparkSession
 
@@ -437,6 +440,152 @@ class PushAggregateThroughJoinSuite extends PlanTest with SharedSparkSession {
     runCaseWithMaxDepth(pushdownCase, maxDepth = 1, expectedPushCount = 1)
     runCaseWithMaxDepth(pushdownCase, maxDepth = 2, expectedPushCount = 2)
     runCaseWithMaxDepth(pushdownCase, maxDepth = Int.MaxValue, expectedPushCount = 2)
+  }
+
+  test("revert split when there is no join to push through") {
+    val pushdownCase = PushdownCase(
+      inputSql = """
+                   |SELECT
+                   |  ss_item_sk AS item_sk,
+                   |  sum(ss_sales_price) AS total_sales_price
+                   |FROM store_sales
+                   |GROUP BY ss_item_sk
+                   |""".stripMargin,
+      expectedAggCount = 1
+    )
+    joinAggregateRule.resetSuccessfulSplitCount()
+    runCaseWithMaxDepth(pushdownCase, maxDepth = Int.MaxValue, expectedPushCount = 0)
+    assert(joinAggregateRule.getSuccessfulSplitCount == 0)
+  }
+
+  test("revert split of aggregate above union while branch aggregates still push") {
+    // Mirrors TPC-DS q14a: the top-level aggregate sits on a union, so its own split cannot
+    // cross a join edge and must be undone, while each branch keeps its pushed aggregate.
+    val pushdownCase = PushdownCase(
+      inputSql = """
+                   |SELECT key, sum(total_sales_price) AS total
+                   |FROM (
+                   |  SELECT i_item_sk AS key, sum(ss_sales_price) AS total_sales_price
+                   |  FROM store_sales
+                   |  JOIN item ON ss_item_sk = i_item_sk
+                   |  GROUP BY i_item_sk
+                   |
+                   |  UNION ALL
+                   |
+                   |  SELECT d_date_sk AS key, sum(ss_sales_price) AS total_sales_price
+                   |  FROM store_sales
+                   |  JOIN date_dim ON ss_sold_date_sk = d_date_sk
+                   |  GROUP BY d_date_sk
+                   |)
+                   |GROUP BY key
+                   |""".stripMargin,
+      expectedAggCount = 5
+    )
+    runCaseWithMaxDepth(pushdownCase, maxDepth = Int.MaxValue, expectedPushCount = 2)
+  }
+
+  /**
+   * Runs `inputSql` with the join-aggregate rewrite on and asserts the aggregate modes of the
+   * resulting physical plan, top down, plus that the results are unchanged.
+   */
+  private def assertAggregateStages(
+      inputSql: String,
+      expectedStages: Seq[Seq[AggregateMode]]): Unit = {
+    withSQLConf(GlutenConfig.PUSH_AGGREGATE_THROUGH_JOIN_ENABLED.key -> "true") {
+      val expectedRows = withExtraPlanning(Nil, Nil) {
+        spark.sql(inputSql).collect().toSeq.sortBy(_.toString())
+      }
+
+      withExtraPlanning(Seq(joinAggregateRule), Seq(ImplementJoinAggregate(spark))) {
+        val df = spark.sql(inputSql)
+        // Read the plan before executing it, so the aggregates are not yet hidden behind
+        // materialized AQE query stages.
+        val plan = finalExecutedPlan(df.queryExecution.executedPlan)
+        val stages = plan.collect {
+          case agg: BaseAggregateExec => agg.aggregateExpressions.map(_.mode).distinct
+        }
+        assert(
+          stages == expectedStages,
+          s"Unexpected aggregate stages $stages in:\n${plan.treeString}")
+
+        // Whatever stage ends up directly below the final merge, it belongs below the shuffle that
+        // the final merge requires.
+        val finalAgg = plan
+          .collectFirst {
+            case agg: BaseAggregateExec if agg.aggregateExpressions.forall(_.mode == Final) => agg
+          }
+          .getOrElse(fail(s"No final aggregate in:\n${plan.treeString}"))
+        assert(
+          finalAgg.child.isInstanceOf[ShuffleExchangeLike],
+          s"Expected a shuffle below the final merge, got:\n${finalAgg.child.treeString}")
+
+        assertRowsEqual(df.collect().toSeq.sortBy(_.toString()), expectedRows)
+      }
+    }
+  }
+
+  test("final wrapper aggregate is lowered as PartialMerge + Final") {
+    // `d_date` is coarser than the `d_date_sk` join key the pushed aggregate had to group by, so
+    // the local merge can shrink the shuffle. Top down: the final merge, the local merge above the
+    // join, and the aggregate that was pushed below the join.
+    assertAggregateStages(
+      """
+        |SELECT
+        |  d_date AS sold_date,
+        |  sum(ss_sales_price) AS total_sales_price
+        |FROM store_sales
+        |JOIN date_dim ON ss_sold_date_sk = d_date_sk
+        |GROUP BY d_date
+        |""".stripMargin,
+      Seq(Seq(Final), Seq(PartialMerge), Seq(Partial))
+    )
+  }
+
+  test("no pre-shuffle merge when the final aggregate groups by the join key") {
+    // `i_item_sk` is the join key, so the pushed aggregate - grouped by `ss_item_sk` - already
+    // emits one row per final group per task. A local merge could not drop a single row, so it must
+    // not be planned: TPC-DS q23a shuffles billions of such rows and the extra hash aggregation
+    // would be pure overhead.
+    assertAggregateStages(
+      """
+        |SELECT
+        |  i_item_sk AS item_sk,
+        |  sum(ss_sales_price) AS total_sales_price
+        |FROM store_sales
+        |JOIN item ON ss_item_sk = i_item_sk
+        |GROUP BY i_item_sk
+        |""".stripMargin,
+      Seq(Seq(Final), Seq(Partial))
+    )
+  }
+
+  test("pre-shuffle merge when the final aggregate groups coarser than the join key") {
+    // Many `i_item_sk` values map to one `i_category_id`, so merging locally above the join really
+    // does shrink what crosses the shuffle.
+    assertAggregateStages(
+      """
+        |SELECT
+        |  i_category_id AS category_id,
+        |  sum(ss_sales_price) AS total_sales_price
+        |FROM store_sales
+        |JOIN item ON ss_item_sk = i_item_sk
+        |GROUP BY i_category_id
+        |""".stripMargin,
+      Seq(Seq(Final), Seq(PartialMerge), Seq(Partial))
+    )
+  }
+
+  test("pre-shuffle merge for a global aggregate above a join") {
+    // No grouping keys at all: the final merge asks for SinglePartition, so without the local merge
+    // the entire join output would be shuffled into one partition.
+    assertAggregateStages(
+      """
+        |SELECT sum(ss_sales_price) AS total_sales_price
+        |FROM store_sales
+        |JOIN item ON ss_item_sk = i_item_sk
+        |""".stripMargin,
+      Seq(Seq(Final), Seq(PartialMerge), Seq(Partial))
+    )
   }
 
   test("pre-aggregate with filter inside inner equi-join") {

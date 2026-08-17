@@ -20,7 +20,8 @@ import org.apache.gluten.config.GlutenConfig
 
 import org.apache.spark.internal.Logging
 import org.apache.spark.sql.SparkSession
-import org.apache.spark.sql.catalyst.expressions.aggregate.{AggregateExpression, Complete, Final, Partial}
+import org.apache.spark.sql.catalyst.expressions.Attribute
+import org.apache.spark.sql.catalyst.expressions.aggregate.{AggregateExpression, Complete, Final, Partial, PartialMerge}
 import org.apache.spark.sql.catalyst.rules.Rule
 import org.apache.spark.sql.execution.SparkPlan
 import org.apache.spark.sql.execution.aggregate.{BaseAggregateExec, HashAggregateExec, ObjectHashAggregateExec, SortAggregateExec}
@@ -30,6 +31,10 @@ import org.apache.spark.sql.execution.aggregate.{BaseAggregateExec, HashAggregat
  *
  * Merge HashAggregate(t1.i, SUM, final) + HashAggregate(t1.i, SUM, partial) into
  * HashAggregate(t1.i, SUM, complete)
+ *
+ * Likewise HashAggregate(t1.i, SUM, final) + HashAggregate(t1.i, SUM, partialMerge) collapses into
+ * HashAggregate(t1.i, SUM, final), because without a shuffle in between the local merge only
+ * duplicates work the final merge does anyway.
  *
  * Note: this rule must be applied before the `PullOutPreProject` rule, because the
  * `PullOutPreProject` rule will modify the attributes in some cases.
@@ -43,6 +48,42 @@ case class MergeTwoPhasesHashBaseAggregate(session: SparkSession)
   val enableColumnarHashAgg: Boolean = !scanOnly && glutenConf.enableColumnarHashAgg
   val replaceSortAggWithHashAgg: Boolean = GlutenConfig.get.forceToUseHashAgg
   val mergeTwoPhasesAggEnabled: Boolean = GlutenConfig.get.mergeTwoPhasesAggEnabled
+
+  /**
+   * A PartialMerge aggregate sitting directly below a Final aggregate means `EnsureRequirements`
+   * found no shuffle necessary between them: the child was already clustered on the grouping keys.
+   * The local merge then only pre-does work the Final aggregate performs anyway, so it can be
+   * dropped and the Final aggregate can read the aggregate buffers straight from the child.
+   *
+   * This shape is produced by `ImplementJoinAggregate`, which always splits the aggregate above a
+   * pushed-through-join aggregate into PartialMerge + Final because it cannot know at planning time
+   * whether the join output will already be clustered on the grouping keys.
+   */
+  private def isRedundantPartialMergeAgg(
+      partialMergeAgg: BaseAggregateExec,
+      finalAgg: BaseAggregateExec): Boolean = {
+    if (
+      !partialMergeAgg.aggregateExpressions.forall(_.mode == PartialMerge) ||
+      !finalAgg.aggregateExpressions.forall(_.mode == Final) ||
+      partialMergeAgg.aggregateExpressions.size != finalAgg.aggregateExpressions.size
+    ) {
+      return false
+    }
+    // Both stages must merge the very same buffers, positionally, and must come from one logical
+    // aggregate. Otherwise they are two independent aggregations that happen to be adjacent.
+    val sameFunctions = partialMergeAgg.aggregateExpressions.map(_.aggregateFunction) ==
+      finalAgg.aggregateExpressions.map(_.aggregateFunction)
+    // Only plain grouping attributes: for a derived grouping expression the dropped stage is what
+    // evaluates it, and the final merge's required child distribution still refers to the
+    // attribute that stage produced.
+    val sameGrouping = partialMergeAgg.groupingExpressions.forall(_.isInstanceOf[Attribute]) &&
+      finalAgg.groupingExpressions == partialMergeAgg.groupingExpressions.map(_.toAttribute)
+    val sameLogicalLink = (finalAgg.logicalLink, partialMergeAgg.logicalLink) match {
+      case (Some(agg1), Some(agg2)) => agg1.sameResult(agg2)
+      case _ => false
+    }
+    sameFunctions && sameGrouping && sameLogicalLink
+  }
 
   private def isPartialAgg(partialAgg: BaseAggregateExec, finalAgg: BaseAggregateExec): Boolean = {
     // Aggregates with a FILTER clause can be merged as long as the FILTER predicate is carried
@@ -107,6 +148,24 @@ case class MergeTwoPhasesHashBaseAggregate(session: SparkSession)
             groupingExpressions = child.groupingExpressions,
             aggregateExpressions = completeAggregateExpressions,
             initialInputBufferOffset = 0,
+            child = child.child
+          )
+        case hashAgg @ HashAggregateExec(
+              _,
+              isStreaming,
+              _,
+              _,
+              _,
+              _,
+              _,
+              _,
+              child: HashAggregateExec)
+            if !isStreaming && isRedundantPartialMergeAgg(child, hashAgg) =>
+          // Drop the redundant local merge, keeping the final merge only. It now reads the
+          // aggregate buffers from the same input the dropped stage read them from.
+          hashAgg.copy(
+            groupingExpressions = child.groupingExpressions,
+            initialInputBufferOffset = child.initialInputBufferOffset,
             child = child.child
           )
         case objectHashAgg @ ObjectHashAggregateExec(

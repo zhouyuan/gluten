@@ -27,8 +27,6 @@ import org.apache.spark.sql.execution.SparkPlan
 import org.apache.spark.sql.execution.exchange.ShuffleExchangeLike
 import org.apache.spark.sql.types.{DataType, DoubleType, FloatType}
 
-import scala.collection.mutable
-
 /**
  * To transform regular aggregation to intermediate aggregation that internally enables
  * optimizations such as flushing and abandoning.
@@ -38,13 +36,12 @@ case class FlushableHashAggregateRule(session: SparkSession) extends Rule[SparkP
     if (!VeloxConfig.get.enableVeloxFlushablePartialAggregation) {
       return plan
     }
-    val protectedAggs = collectProtectedOneDistinctPartialMergeAggs(plan)
     plan.transformUpWithPruning(_.containsPattern(EXCHANGE)) {
       case s: ShuffleExchangeLike =>
         // If an exchange follows a hash aggregate in which all functions are in partial mode,
         // then it's safe to convert the hash aggregate to flushable hash aggregate.
         val out = s.withNewChildren(
-          List(replaceEligibleAggregates(s.child, protectedAggs))
+          List(replaceEligibleAggregates(s.child))
         )
         out
     }
@@ -71,15 +68,19 @@ case class FlushableHashAggregateRule(session: SparkSession) extends Rule[SparkP
   }
 
   /**
-   * Walks the plan downward, applying func to each RegularHashAggregateExecTransformer or
-   * SortHashAggregateExecTransformer that is eligible for flushable conversion. An aggregate is
-   * eligible when all expressions are Partial/PartialMerge, it is not the protected PartialMerge
-   * aggregate directly below a distinct-partial aggregate, and no aggregate function disallows
-   * flushing.
+   * Walks the exchange-free region below an exchange downward, converting every
+   * RegularHashAggregateExecTransformer / SortHashAggregateExecTransformer that is eligible into
+   * its flushable variant. An aggregate is eligible when all expressions are Partial/PartialMerge,
+   * it is not the protected PartialMerge aggregate directly below a distinct-partial aggregate, and
+   * no aggregate function disallows flushing.
+   *
+   * The walk always continues below the current node, whether or not that node was converted. A
+   * single exchange-free region can hold several intermediate aggregates stacked on top of each
+   * other - for instance the pre-shuffle PartialMerge stage that `ImplementJoinAggregate` plans
+   * above a join together with the Partial aggregate it pushed below that same join - and an
+   * aggregate that cannot be converted must not hide the ones underneath it.
    */
-  private def replaceEligibleAggregates(
-      plan: SparkPlan,
-      protectedAggs: mutable.Map[Int, HashAggregateExecTransformer]): SparkPlan = {
+  private def replaceEligibleAggregates(plan: SparkPlan): SparkPlan = {
     def toFlushableAgg(agg: HashAggregateExecTransformer): FlushableHashAggregateExecTransformer = {
       FlushableHashAggregateExecTransformer(
         agg.requiredChildDistributionExpressions,
@@ -92,100 +93,72 @@ case class FlushableHashAggregateRule(session: SparkSession) extends Rule[SparkP
       )
     }
 
-    def transformDown: SparkPlan => SparkPlan = {
-      case agg: RegularHashAggregateExecTransformer
-          if !agg.aggregateExpressions.forall(p => p.mode == Partial || p.mode == PartialMerge) =>
-        // Not an intermediate agg. Skip.
-        agg
-      case agg: RegularHashAggregateExecTransformer
-          if protectedAggs.contains(agg.id) =>
-        // This is the PartialMerge aggregate directly below a distinct-partial aggregate in
-        // Spark's one-distinct pipeline. Keep it non-flushable so the distinct step continues to
-        // see globally de-duplicated (grouping + distinct) keys.
-        agg
-      case agg: RegularHashAggregateExecTransformer
-          if aggregatesNotSupportFlush(agg.aggregateExpressions) =>
-        // Aggregate uses a function that is unsafe to flush. Skip.
-        agg
-      case agg: RegularHashAggregateExecTransformer =>
-        // All guards passed; replace with the flushable variant.
-        toFlushableAgg(agg)
-      case agg: SortHashAggregateExecTransformer
-          if !agg.aggregateExpressions.forall(p => p.mode == Partial || p.mode == PartialMerge) =>
-        // Not an intermediate agg. Skip.
-        agg
-      case agg: SortHashAggregateExecTransformer if protectedAggs.contains(agg.id) =>
-        // See the RegularHashAggregateExecTransformer branch above.
-        agg
-      case agg: SortHashAggregateExecTransformer
-          if aggregatesNotSupportFlush(agg.aggregateExpressions) =>
-        // Aggregate uses a function that is unsafe to flush. Skip.
-        agg
-      case agg: SortHashAggregateExecTransformer =>
-        // All guards passed; replace with the flushable variant.
-        toFlushableAgg(agg)
-      case exchange: ShuffleExchangeLike =>
-        // Stop at the next exchange. This rule is applied from an exchange boundary and should not
-        // continue rewriting into a different shuffle region.
-        exchange
-      case other => other.withNewChildren(other.children.map(transformDown))
-    }
+    /**
+     * `parentIsDistinctPartialAgg` marks the aggregate that must stay regular in Spark's
+     * one-distinct aggregation pipeline:
+     *
+     * RegularHashAggregateExecTransformer [k] [count(distinct v)] // finalAggregate +-
+     * RegularHashAggregateExecTransformer [k] [count(distinct v)] // partialDistinctAggregate +-
+     * RegularHashAggregateExecTransformer [k, v] [count(...)] // partialMergeAggregate +-
+     * ColumnarExchange hashpartitioning(k, v, 200) +- RegularHashAggregateExecTransformer [k, v]
+     * [count(...)] // partialAggregate +- ...
+     *
+     * The `partialMergeAggregate` is the step that materializes the de-duplicated `(k, v)` stream
+     * consumed by the distinct-partial aggregate above it. If it flushes, duplicate `(k, v)` keys
+     * may be reintroduced within one partition and the distinct aggregation pipeline would no
+     * longer see the shape Spark planned for.
+     */
+    def isEligible(
+        agg: HashAggregateExecTransformer,
+        parentIsDistinctPartialAgg: Boolean): Boolean =
+      if (!agg.aggregateExpressions.forall(p => p.mode == Partial || p.mode == PartialMerge)) {
+        // Not an intermediate agg.
+        false
+      } else if (
+        parentIsDistinctPartialAgg && agg.aggregateExpressions.forall(_.mode == PartialMerge)
+      ) {
+        // Protected: see the note above.
+        false
+      } else if (aggregatesNotSupportFlush(agg.aggregateExpressions)) {
+        // Aggregate uses a function that is unsafe to flush.
+        false
+      } else {
+        true
+      }
 
-    val out = transformDown(plan)
-    out
-  }
-
-  /**
-   * Collect the PartialMerge aggregates that must stay regular in Spark's one-distinct aggregation
-   * pipeline.
-   *
-   * Example plan shape:
-   *
-   * RegularHashAggregateExecTransformer [k] [count(distinct v)] // finalAggregate +-
-   * RegularHashAggregateExecTransformer [k] [count(distinct v)] // partialDistinctAggregate +-
-   * RegularHashAggregateExecTransformer [k, v] [count(...)] // partialMergeAggregate +-
-   * ColumnarExchange hashpartitioning(k, v, 200) +- RegularHashAggregateExecTransformer [k, v]
-   * [count(...)] // partialAggregate +- ...
-   *
-   * We walk every aggregate node and, when we encounter the `partialDistinctAggregate`, we record
-   * its child `partialMergeAggregate` as protected.
-   *
-   * That `partialMergeAggregate` must stay regular. It is the step that materializes the
-   * de-duplicated `(k, v)` stream consumed by the distinct-partial aggregate above it. If it
-   * flushes, duplicate `(k, v)` keys may be reintroduced within one partition and the distinct
-   * aggregation pipeline would no longer see the shape Spark planned for.
-   */
-  private def collectProtectedOneDistinctPartialMergeAggs(
-      plan: SparkPlan): mutable.Map[Int, HashAggregateExecTransformer] = {
-    val protectedAggs = mutable.HashMap.empty[Int, HashAggregateExecTransformer]
-    plan.foreach {
+    def isDistinctPartialAgg(plan: SparkPlan): Boolean = plan match {
       case agg: HashAggregateExecTransformer =>
-        findProtectedPartialMergeAgg(agg).foreach {
-          protectedAgg => protectedAggs.put(protectedAgg.id, protectedAgg)
-        }
-      case _ =>
-    }
-    protectedAggs
-  }
-
-  /** If this aggregate is the distinct-partial stage, return its child PartialMerge aggregate. */
-  private def findProtectedPartialMergeAgg(
-      distinctPartialAgg: HashAggregateExecTransformer): Option[HashAggregateExecTransformer] = {
-    if (
-      !distinctPartialAgg.aggregateExpressions.exists(
-        expr => expr.isDistinct && expr.mode == Partial)
-    ) {
-      return None
+        agg.aggregateExpressions.exists(expr => expr.isDistinct && expr.mode == Partial)
+      case _ => false
     }
 
-    for {
-      partialMergeAgg <- asAggregate(distinctPartialAgg.child)
-      if partialMergeAgg.aggregateExpressions.forall(_.mode == PartialMerge)
-    } yield partialMergeAgg
-  }
+    def transformDown(plan: SparkPlan, parentIsDistinctPartialAgg: Boolean): SparkPlan =
+      plan match {
+        case exchange: ShuffleExchangeLike =>
+          // Stop at the next exchange. This rule is applied from an exchange boundary and should
+          // not continue rewriting into a different shuffle region.
+          exchange
+        case other =>
+          // Decide eligibility on the node as it stands now: rebuilding the children below hands
+          // out a fresh plan node, so any identity-based bookkeeping has to happen first.
+          val eligible = other match {
+            case agg: RegularHashAggregateExecTransformer =>
+              isEligible(agg, parentIsDistinctPartialAgg)
+            case agg: SortHashAggregateExecTransformer =>
+              isEligible(agg, parentIsDistinctPartialAgg)
+            case _ => false
+          }
+          val isDistinctPartial = isDistinctPartialAgg(other)
+          val rewritten =
+            other.withNewChildren(other.children.map(transformDown(_, isDistinctPartial)))
+          if (eligible) {
+            // `withNewChildren` keeps the node type, so the cast below is safe.
+            toFlushableAgg(rewritten.asInstanceOf[HashAggregateExecTransformer])
+          } else {
+            rewritten
+          }
+      }
 
-  private def asAggregate(plan: SparkPlan): Option[HashAggregateExecTransformer] = plan match {
-    case agg: HashAggregateExecTransformer => Some(agg)
-    case _ => None
+    transformDown(plan, parentIsDistinctPartialAgg = false)
   }
 }

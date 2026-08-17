@@ -156,6 +156,12 @@ class GlutenConfig(conf: SQLConf) extends GlutenCoreConfig(conf) {
   def pushAggregateThroughJoinMaxDepth: Int =
     getConf(PUSH_AGGREGATE_THROUGH_JOIN_MAX_DEPTH)
 
+  def pushAggregateThroughJoinMinReductionRatio: Double =
+    getConf(PUSH_AGGREGATE_THROUGH_JOIN_MIN_REDUCTION_RATIO)
+
+  def pushAggregateThroughJoinProfitabilityCheckMinRows: Long =
+    getConf(PUSH_AGGREGATE_THROUGH_JOIN_PROFITABILITY_CHECK_MIN_ROWS)
+
   def forceOrcCharTypeScanFallbackEnabled: Boolean =
     getConf(VELOX_FORCE_ORC_CHAR_TYPE_SCAN_FALLBACK)
 
@@ -789,6 +795,34 @@ object GlutenConfig extends ConfigRegistry {
       .intConf
       .checkValue(_ >= 1, "must be greater than or equal to 1.")
       .createWithDefault(Int.MaxValue)
+
+  val PUSH_AGGREGATE_THROUGH_JOIN_MIN_REDUCTION_RATIO =
+    buildConf("spark.gluten.sql.pushAggregateThroughJoin.minReductionRatio")
+      .doc(
+        "Minimum row reduction a pushed pre-aggregation must be expected to achieve for the " +
+          "push-aggregate-through-join optimization to keep it, expressed as " +
+          "input rows / output groups. Pushing an aggregate below a join costs a full extra " +
+          "aggregation pass over the pushed side and replaces the ordinary pre-shuffle partial " +
+          "aggregate, so it only pays off when the pushed grouping is much coarser than the " +
+          "pushed side. The estimate is one-sided: a push is kept only when it can be shown to " +
+          "reduce, which without analyzed tables and `spark.sql.cbo.enabled` is conservative. " +
+          "Set to 1.0 or less to keep every push the rewrite is syntactically able to make."
+      )
+      .doubleConf
+      .checkValue(_ >= 0.0d, "must be non-negative.")
+      .createWithDefault(2.0d)
+
+  val PUSH_AGGREGATE_THROUGH_JOIN_PROFITABILITY_CHECK_MIN_ROWS =
+    buildConf("spark.gluten.sql.pushAggregateThroughJoin.profitabilityCheckMinRows")
+      .doc(
+        "Estimated row count on the pushed side below which " +
+          "`spark.gluten.sql.pushAggregateThroughJoin.minReductionRatio` is not enforced. " +
+          "Below this size the extra aggregation pass cannot cost enough to matter, and the row " +
+          "estimate backing the check is at its least reliable."
+      )
+      .longConf
+      .checkValue(_ >= 0L, "must be non-negative.")
+      .createWithDefault(10000000L)
 
   val GLUTEN_SOFT_AFFINITY_ENABLED =
     buildConf("spark.gluten.soft-affinity.enabled")
