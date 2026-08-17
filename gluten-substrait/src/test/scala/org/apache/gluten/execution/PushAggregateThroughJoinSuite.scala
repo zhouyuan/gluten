@@ -22,12 +22,15 @@ import org.apache.gluten.extension.joinagg.PushAggregateThroughJoin
 
 import org.apache.spark.SparkConf
 import org.apache.spark.sql.Row
+import org.apache.spark.sql.catalyst.expressions.aggregate.{Final, Partial, PartialMerge}
 import org.apache.spark.sql.catalyst.plans.PlanTest
 import org.apache.spark.sql.catalyst.plans.logical.Aggregate
 import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
 import org.apache.spark.sql.catalyst.rules.Rule
 import org.apache.spark.sql.execution.{SparkPlan, SparkStrategy}
 import org.apache.spark.sql.execution.adaptive.AdaptiveSparkPlanExec
+import org.apache.spark.sql.execution.aggregate.BaseAggregateExec
+import org.apache.spark.sql.execution.exchange.ShuffleExchangeLike
 import org.apache.spark.sql.internal.SQLConf
 import org.apache.spark.sql.test.SharedSparkSession
 
@@ -437,6 +440,53 @@ class PushAggregateThroughJoinSuite extends PlanTest with SharedSparkSession {
     runCaseWithMaxDepth(pushdownCase, maxDepth = 1, expectedPushCount = 1)
     runCaseWithMaxDepth(pushdownCase, maxDepth = 2, expectedPushCount = 2)
     runCaseWithMaxDepth(pushdownCase, maxDepth = Int.MaxValue, expectedPushCount = 2)
+  }
+
+  test("final wrapper aggregate is lowered as PartialMerge + Final") {
+    val inputSql =
+      """
+        |SELECT
+        |  d_date AS sold_date,
+        |  sum(ss_sales_price) AS total_sales_price
+        |FROM store_sales
+        |JOIN date_dim ON ss_sold_date_sk = d_date_sk
+        |GROUP BY d_date
+        |""".stripMargin
+    withSQLConf(GlutenConfig.PUSH_AGGREGATE_THROUGH_JOIN_ENABLED.key -> "true") {
+      val expectedRows = withExtraPlanning(Nil, Nil) {
+        spark.sql(inputSql).collect().toSeq.sortBy(_.toString())
+      }
+
+      withExtraPlanning(Seq(joinAggregateRule), Seq(ImplementJoinAggregate(spark))) {
+        val df = spark.sql(inputSql)
+        // Read the plan before executing it, so the aggregates are not yet hidden behind
+        // materialized AQE query stages.
+        val plan = finalExecutedPlan(df.queryExecution.executedPlan)
+        val stages = plan.collect {
+          case agg: BaseAggregateExec => agg.aggregateExpressions.map(_.mode).distinct
+        }
+        // Top down: the final merge, the local merge above the join, and the aggregate that was
+        // pushed below the join.
+        assert(
+          stages == Seq(Seq(Final), Seq(PartialMerge), Seq(Partial)),
+          s"Unexpected aggregate stages $stages in:\n${plan.treeString}")
+
+        // The local merge only pays off below the shuffle that the final merge requires.
+        val finalAgg = plan
+          .collectFirst {
+            case agg: BaseAggregateExec if agg.aggregateExpressions.forall(_.mode == Final) => agg
+          }
+          .getOrElse(fail(s"No final aggregate in:\n${plan.treeString}"))
+        assert(
+          finalAgg.child.isInstanceOf[ShuffleExchangeLike],
+          s"Expected a shuffle below the final merge, got:\n${finalAgg.child.treeString}")
+        assert(
+          finalAgg.child.children.head.isInstanceOf[BaseAggregateExec],
+          s"Expected the local merge below the shuffle, got:\n${finalAgg.child.treeString}")
+
+        assertRowsEqual(df.collect().toSeq.sortBy(_.toString()), expectedRows)
+      }
+    }
   }
 
   test("pre-aggregate with filter inside inner equi-join") {

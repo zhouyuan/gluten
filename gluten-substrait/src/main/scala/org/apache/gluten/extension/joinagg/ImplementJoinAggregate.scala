@@ -19,8 +19,8 @@ package org.apache.gluten.extension.joinagg
 import org.apache.gluten.config.GlutenConfig
 
 import org.apache.spark.sql.SparkSession
-import org.apache.spark.sql.catalyst.expressions.{Alias, GetStructField, NamedExpression}
-import org.apache.spark.sql.catalyst.expressions.aggregate.AggregateExpression
+import org.apache.spark.sql.catalyst.expressions.{Alias, Attribute, GetStructField, NamedExpression}
+import org.apache.spark.sql.catalyst.expressions.aggregate.{AggregateExpression, Final, PartialMerge}
 import org.apache.spark.sql.catalyst.planning.PhysicalAggregation
 import org.apache.spark.sql.catalyst.plans.logical.{Aggregate, LogicalPlan}
 import org.apache.spark.sql.execution.{ProjectExec, SparkPlan, SparkStrategy}
@@ -44,7 +44,9 @@ case class ImplementJoinAggregate(spark: SparkSession) extends SparkStrategy {
    *   2. inserts a post-project for the pushed phase to pack Spark aggregate buffers into a
    *      struct, matching the wrapper's logical output type;
    *   3. inserts a pre-project for the final phase to unpack that struct back into the buffer
-   *      attributes expected by the wrapped Spark aggregate.
+   *      attributes expected by the wrapped Spark aggregate;
+   *   4. lowers the final phase into the usual PartialMerge + Final aggregate pair so that only
+   *      merged buffers cross the shuffle the final merge requires.
    *
    * In short: the wrapper exists only at the logical boundary; this strategy makes the plan look
    * like an ordinary Spark aggregate plan again while preserving the wrapper data contract across
@@ -246,18 +248,78 @@ case class ImplementJoinAggregate(spark: SparkSession) extends SparkStrategy {
     val aggregateAttrs = rewrittenAggExprs.map(_.resultAttribute)
     val rewrittenResultExpressions =
       rewriteResultAsAggregateAttributes(resultExpressions, rewrittenAggExprs)
+    val groupingAttrs = grouping.map(_.toAttribute)
+
+    // The final merge asks for its child to be clustered on the grouping keys, so
+    // EnsureRequirements plants a shuffle right below it. Add a local PartialMerge stage under
+    // that shuffle first, mirroring what AggUtils.planAggregateWithoutDistinct does for an
+    // ordinary aggregate: without it the whole join output is shuffled un-aggregated, which is
+    // the widest point of the plan because the join has just attached the dimension columns.
+    val partialMergeAgg = planPreShufflePartialMerge(
+      grouping,
+      groupingAttrs,
+      rewrittenAggExprs,
+      childWithUnpacked,
+      // `BaseAggregateExec.inputAttributes` expects the input aggregate buffers to be the
+      // trailing columns of the child's output, which is exactly how the unpack projection above
+      // appends them to the join output.
+      inputBufferOffset = childPlan.output.length)
 
     Some(
       HashAggregateExec(
-        requiredChildDistributionExpressions = Some(grouping.map(_.toAttribute)),
+        requiredChildDistributionExpressions = Some(groupingAttrs),
+        isStreaming = false,
+        numShufflePartitions = None,
+        // When the PartialMerge stage is added it has already evaluated the grouping
+        // expressions, so the final merge only groups by their output attributes.
+        groupingExpressions = if (partialMergeAgg.isDefined) groupingAttrs else grouping,
+        aggregateExpressions = rewrittenAggExprs,
+        aggregateAttributes = aggregateAttrs,
+        initialInputBufferOffset = if (partialMergeAgg.isDefined) groupingAttrs.length else 0,
+        resultExpressions = rewrittenResultExpressions,
+        child = partialMergeAgg.getOrElse(childWithUnpacked)
+      ))
+  }
+
+  /**
+   * Builds the local PartialMerge stage that merges the pushed aggregate buffers before the
+   * shuffle required by the final merge above it.
+   *
+   * Returns None for the aggregate shapes this split does not cover, in which case the caller
+   * keeps the single-stage final aggregate:
+   *   - aggregates that did not come from a pushed wrapper. Those are still in Complete mode and
+   *     read raw input rows, so their pre-shuffle stage would have to be Partial, not
+   *     PartialMerge.
+   *   - DISTINCT or FILTER aggregates, for which Spark plans a different staging.
+   */
+  private def planPreShufflePartialMerge(
+      grouping: Seq[NamedExpression],
+      groupingAttrs: Seq[Attribute],
+      finalAggExprs: Seq[AggregateExpression],
+      child: SparkPlan,
+      inputBufferOffset: Int): Option[HashAggregateExec] = {
+    val splittable =
+      finalAggExprs.forall(ae => ae.mode == Final && !ae.isDistinct && ae.filter.isEmpty)
+    if (!splittable) {
+      return None
+    }
+
+    // Both stages share the same aggregate function instances, so the buffer attributes the
+    // PartialMerge stage outputs are the ones the final merge above binds against.
+    val partialMergeAggExprs = finalAggExprs.map(_.copy(mode = PartialMerge))
+    Some(
+      HashAggregateExec(
+        requiredChildDistributionExpressions = None,
         isStreaming = false,
         numShufflePartitions = None,
         groupingExpressions = grouping,
-        aggregateExpressions = rewrittenAggExprs,
-        aggregateAttributes = aggregateAttrs,
-        initialInputBufferOffset = 0,
-        resultExpressions = rewrittenResultExpressions,
-        child = childWithUnpacked
+        aggregateExpressions = partialMergeAggExprs,
+        aggregateAttributes =
+          partialMergeAggExprs.flatMap(_.aggregateFunction.aggBufferAttributes),
+        initialInputBufferOffset = inputBufferOffset,
+        resultExpressions = groupingAttrs ++ partialMergeAggExprs.flatMap(
+          _.aggregateFunction.inputAggBufferAttributes),
+        child = child
       ))
   }
 
