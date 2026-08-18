@@ -148,10 +148,6 @@ jobs:
 
   build-native-lib-centos-7:
     needs: detect-changes
-    if: >-
-      needs.detect-changes.outputs.cpp == 'true' ||
-      needs.detect-changes.outputs.java == 'true' ||
-      needs.detect-changes.outputs.tools_it == 'true'
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v7
