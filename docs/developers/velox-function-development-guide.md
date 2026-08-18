@@ -39,10 +39,10 @@ registerBinaryIntegral<BitwiseAndFunction>({prefix + "bitwise_and"});
 Functions for complex types have similar implementations. 
 See `ArrayAverageFunction` in [velox/functions/prestosql/ArrayFunctions.h](https://github.com/facebookincubator/velox/blob/main/velox/functions/prestosql/ArrayFunctions.h).
 
-# Gluten Function Overlay
+## Gluten Function Overlay
 
 Upstreaming a function to Velox can take a long time. To avoid being blocked on that, Gluten provides a function overlay in
-[cpp/velox/operators/functions/overlay](https://github.com/apache/incubator-gluten/tree/main/cpp/velox/operators/functions/overlay),
+[cpp/velox/operators/functions/overlay](https://github.com/apache/gluten/tree/main/cpp/velox/operators/functions/overlay),
 where Velox-compatible function implementations can be hosted and managed on the Gluten side. The overlay is registered by
 `gluten::registerFunctionOverlay()` at the end of `gluten::registerAllFunctions()`, after all Velox presto/spark functions.
 Since a later registration with the same name and signature replaces the earlier one in Velox's registries, an overlay function
