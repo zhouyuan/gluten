@@ -15,25 +15,19 @@
  * limitations under the License.
  */
 
-#pragma once
-
-#include <string>
+#include "KafkaConnector.h"
+#include "KafkaReader.h"
 
 namespace gluten {
 
-struct VeloxConnectorIds {
-  std::string hive;
-  std::string iceberg;
-  std::string delta;
-  std::string iterator;
-  std::string kafka;
-  std::string cudfHive;
-  bool hiveRegistered{false};
-  bool icebergRegistered{false};
-  bool deltaRegistered{false};
-  bool iteratorRegistered{false};
-  bool kafkaRegistered{false};
-  bool cudfHiveRegistered{false};
-};
+std::unique_ptr<facebook::velox::exec::SourceOperator> 
+KafkaDataSourceFactory::createKafkaReader(
+    int32_t operatorId,
+    facebook::velox::exec::DriverCtx* driverCtx,
+    const std::shared_ptr<const facebook::velox::core::PlanNode>& planNode) {
+  return std::make_unique<KafkaReader>(operatorId, driverCtx, planNode);
+}
 
 } // namespace gluten
+
+// Made with Bob
