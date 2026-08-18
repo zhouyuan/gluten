@@ -190,17 +190,8 @@ jobs:
       - uses: actions/upload-artifact@v7
         with:
           name: velox-native-lib-centos-7-${{github.sha}}
-          # Only the installed libs (libgluten.so / libvelox.so): every consumer
-          # in this workflow either packages ${cpp.releases.dir} into the
-          # backends-velox jar (backends-velox/pom.xml) or runs tests against
-          # that jar -- nothing reads the rest of cpp/build, which is gigabytes
-          # of CMake intermediates downloaded by ~40 jobs per run. (The udf
-          # example libs are not in this artifact either way: the static build
-          # runs with --build_examples=OFF, and UDFTest is tags-excluded in
-          # every spark-test job; cpp-test-udf-test builds its own natively.)
           path: ./cpp/build/releases/
           if-no-files-found: error
-          # Pure inter-job hand-off; nothing needs it after the run ends.
           retention-days: 1
 
   tpc-test-ubuntu:
@@ -263,7 +254,6 @@ jobs:
         uses: actions/download-artifact@v8
         with:
           name: velox-native-lib-centos-7-${{github.sha}}
-          # The artifact root is the releases/ dir (see the upload step).
           path: ./cpp/build/releases/
       - name: Setup tzdata
         run: |
@@ -396,7 +386,6 @@ jobs:
         uses: actions/download-artifact@v8
         with:
           name: velox-native-lib-centos-7-${{github.sha}}
-          # The artifact root is the releases/ dir (see the upload step).
           path: ./cpp/build/releases/
       - name: Update mirror list
         run: |
@@ -463,7 +452,6 @@ jobs:
         uses: actions/download-artifact@v8
         with:
           name: velox-native-lib-centos-7-${{github.sha}}
-          # The artifact root is the releases/ dir (see the upload step).
           path: ./cpp/build/releases/
       - name: Build and run TPCH/DS tests
         run: |
@@ -525,7 +513,6 @@ jobs:
         uses: actions/download-artifact@v8
         with:
           name: velox-native-lib-centos-7-${{github.sha}}
-          # The artifact root is the releases/ dir (see the upload step).
           path: ./cpp/build/releases/
       - name: Setup java
         run: |
@@ -644,7 +631,6 @@ jobs:
         uses: actions/download-artifact@v8
         with:
           name: velox-native-lib-centos-7-${{github.sha}}
-          # The artifact root is the releases/ dir (see the upload step).
           path: ./cpp/build/releases/
       - name: Setup java
         run: |
@@ -687,7 +673,6 @@ jobs:
         uses: actions/download-artifact@v8
         with:
           name: velox-native-lib-centos-7-${{github.sha}}
-          # The artifact root is the releases/ dir (see the upload step).
           path: ./cpp/build/releases/
       - name: Install Uniffle ${{ matrix.uniffle }}
         run: |
@@ -745,7 +730,6 @@ jobs:
         uses: actions/download-artifact@v8
         with:
           name: velox-native-lib-centos-7-${{github.sha}}
-          # The artifact root is the releases/ dir (see the upload step).
           path: ./cpp/build/releases/
       - name: Update mirror list
         run: |
@@ -819,7 +803,6 @@ jobs:
         uses: actions/download-artifact@v8
         with:
           name: velox-native-lib-centos-7-${{github.sha}}
-          # The artifact root is the releases/ dir (see the upload step).
           path: ./cpp/build/releases/
       - name: Prepare
         run: |
@@ -877,7 +860,6 @@ jobs:
         uses: actions/download-artifact@v8
         with:
           name: velox-native-lib-centos-7-${{github.sha}}
-          # The artifact root is the releases/ dir (see the upload step).
           path: ./cpp/build/releases/
 
       - name: Build and Run unit test for Spark 3.3.1 (slow tests)
@@ -927,7 +909,6 @@ jobs:
         uses: actions/download-artifact@v8
         with:
           name: velox-native-lib-centos-7-${{github.sha}}
-          # The artifact root is the releases/ dir (see the upload step).
           path: ./cpp/build/releases/
       - name: Prepare spark.test.home for Spark 3.4.4 (other tests)
         run: |
@@ -999,7 +980,6 @@ jobs:
         uses: actions/download-artifact@v8
         with:
           name: velox-native-lib-centos-7-${{github.sha}}
-          # The artifact root is the releases/ dir (see the upload step).
           path: ./cpp/build/releases/
       - name: Build and Run unit test for Spark 3.4.4 (slow tests, ${{ matrix.suite }})
         run: |
@@ -1054,7 +1034,6 @@ jobs:
         uses: actions/download-artifact@v8
         with:
           name: velox-native-lib-centos-7-${{github.sha}}
-          # The artifact root is the releases/ dir (see the upload step).
           path: ./cpp/build/releases/
       - name: Prepare
         run: |
@@ -1127,7 +1106,6 @@ jobs:
         uses: actions/download-artifact@v8
         with:
           name: velox-native-lib-centos-7-${{github.sha}}
-          # The artifact root is the releases/ dir (see the upload step).
           path: ./cpp/build/releases/
       - name: Prepare
         run: |
@@ -1194,7 +1172,6 @@ jobs:
         uses: actions/download-artifact@v8
         with:
           name: velox-native-lib-centos-7-${{github.sha}}
-          # The artifact root is the releases/ dir (see the upload step).
           path: ./cpp/build/releases/
       - name: Build and Run unit test for Spark 3.5.5 (slow tests, ${{ matrix.suite }})
         run: |
@@ -1433,7 +1410,6 @@ jobs:
         uses: actions/download-artifact@v8
         with:
           name: velox-native-lib-centos-7-${{github.sha}}
-          # The artifact root is the releases/ dir (see the upload step).
           path: ./cpp/build/releases/
       - name: Prepare
         run: |
@@ -1500,7 +1476,6 @@ jobs:
         uses: actions/download-artifact@v8
         with:
           name: velox-native-lib-centos-7-${{github.sha}}
-          # The artifact root is the releases/ dir (see the upload step).
           path: ./cpp/build/releases/
       - name: Build and Run unit test for Spark 4.0 (slow tests, ${{ matrix.suite }})
         run: |
@@ -1558,7 +1533,6 @@ jobs:
         uses: actions/download-artifact@v8
         with:
           name: velox-native-lib-centos-7-${{github.sha}}
-          # The artifact root is the releases/ dir (see the upload step).
           path: ./cpp/build/releases/
       - name: Prepare
         run: |
@@ -1631,7 +1605,6 @@ jobs:
         uses: actions/download-artifact@v8
         with:
           name: velox-native-lib-centos-7-${{github.sha}}
-          # The artifact root is the releases/ dir (see the upload step).
           path: ./cpp/build/releases/
       - name: Build and Run unit test for Spark 4.1 (slow tests, ${{ matrix.suite }})
         run: |
