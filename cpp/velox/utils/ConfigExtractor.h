@@ -43,6 +43,17 @@ std::shared_ptr<facebook::velox::config::ConfigBase> createHiveConnectorConfig(
     const std::shared_ptr<facebook::velox::config::ConfigBase>& conf,
     FileSystemType fsType = FileSystemType::kAll);
 
+/// Create hive connector config merged with per-query session overrides.
+/// Session overrides (e.g. fs.azure.account.auth.type set via spark.conf.set at
+/// runtime) are layered on top of the static backend config so that the ABFS /
+/// S3 / GCS client providers inside Velox see up-to-date credentials for each
+/// query, rather than the snapshot captured at SparkContext initialisation time.
+std::shared_ptr<facebook::velox::config::ConfigBase> createHiveConnectorConfigWithSessionOverrides(
+    const std::shared_ptr<facebook::velox::config::ConfigBase>& backendConf,
+    const std::unordered_map<std::string, std::string>& sessionConf,
+    const std::unordered_set<std::string>& accountNames = {},
+    FileSystemType fsType = FileSystemType::kAll);
+
 void overwriteVeloxConf(
     const facebook::velox::config::ConfigBase* from,
     std::unordered_map<std::string, std::string>& to,
