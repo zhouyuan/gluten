@@ -17,12 +17,14 @@
 
 set -e
 
+NUM_THREADS=${NUM_THREADS:-2}
+
 source /opt/rh/gcc-toolset-12/enable
 if [ "$(uname -m)" = "aarch64" ]; then
     export CPU_TARGET="aarch64";
     export VCPKG_FORCE_SYSTEM_BINARIES=1;
 fi
 
-export NUM_THREADS=2
+export NUM_THREADS=${NUM_THREADS}
 ./dev/builddeps-veloxbe.sh --enable_vcpkg=ON --build_arrow=OFF --build_tests=OFF --build_benchmarks=OFF \
                            --build_examples=OFF --enable_s3=ON --enable_gcs=ON --enable_hdfs=ON --enable_abfs=ON

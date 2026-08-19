@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-DOCKER_IMAGE=apache/gluten:centos-7-vcpkg-build-depends
+DOCKER_IMAGE=apache/gluten:vcpkg-centos-9
 GLUTEN_REPO=$(shell realpath -L ../..)
 
 CCACHE_DIR=$(HOME)/.ccache
@@ -45,8 +45,8 @@ docker-image:
 
 docker-image-static-build:
 	docker build \
-		--file Dockerfile.centos7-static-build \
-		--tag "apache/gluten:vcpkg-centos-7" \
+		--file Dockerfile.centos9-static-build \
+		--tag "apache/gluten:vcpkg-centos-9" \
 		--build-arg HTTPS_PROXY="" \
 		--build-arg HTTP_PROXY="" \
 		.
