@@ -60,8 +60,7 @@ class KafkaReader : public facebook::velox::exec::SourceOperator {
 
   facebook::velox::RowVectorPtr getOutput() override;
 
-  facebook::velox::exec::BlockingReason isBlocked(
-      facebook::velox::ContinueFuture* future) override;
+  facebook::velox::exec::BlockingReason isBlocked(facebook::velox::ContinueFuture* future) override;
 
   bool isFinished() override;
 
@@ -80,8 +79,7 @@ class KafkaReader : public facebook::velox::exec::SourceOperator {
   std::vector<RdKafka::Message*> pollMessages();
 
   /// Convert Kafka messages to RowVector format
-  facebook::velox::RowVectorPtr convertMessagesToRowVector(
-      const std::vector<RdKafka::Message*>& messages);
+  facebook::velox::RowVectorPtr convertMessagesToRowVector(const std::vector<RdKafka::Message*>& messages);
 
   /// Handle offset management
   void commitOffset(int64_t offset);

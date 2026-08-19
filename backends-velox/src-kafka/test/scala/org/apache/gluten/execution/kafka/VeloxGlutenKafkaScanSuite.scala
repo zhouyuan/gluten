@@ -18,10 +18,11 @@ package org.apache.gluten.execution.kafka
 
 import org.apache.gluten.execution.{MicroBatchScanExecTransformer, VeloxWholeStageTransformerSuite}
 
-import org.apache.kafka.clients.admin.{AdminClient, AdminClientConfig, NewTopic}
 import org.apache.spark.SparkConf
 import org.apache.spark.sql.execution.streaming.StreamingQueryWrapper
 import org.apache.spark.sql.streaming.Trigger
+
+import org.apache.kafka.clients.admin.{AdminClient, AdminClientConfig, NewTopic}
 
 import java.util.{Collections, Properties}
 
@@ -29,8 +30,8 @@ import scala.concurrent.duration.DurationInt
 
 /**
  * Kafka streaming read tests for the Velox backend. Requires the native library to be built with
- * ENABLE_KAFKA and a running Kafka broker, reachable at localhost:9092 by default or at the
- * address given by the KAFKA_BOOTSTRAP_SERVERS environment variable.
+ * ENABLE_KAFKA and a running Kafka broker, reachable at localhost:9092 by default or at the address
+ * given by the KAFKA_BOOTSTRAP_SERVERS environment variable.
  */
 class VeloxGlutenKafkaScanSuite
   extends VeloxWholeStageTransformerSuite

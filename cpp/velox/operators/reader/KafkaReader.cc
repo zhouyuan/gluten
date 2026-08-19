@@ -16,8 +16,8 @@
  */
 
 #include "KafkaReader.h"
-#include "KafkaSplit.h"
 #include <glog/logging.h>
+#include "KafkaSplit.h"
 #include "velox/vector/FlatVector.h"
 
 namespace gluten {
@@ -30,8 +30,7 @@ class KafkaEventCb : public RdKafka::EventCb {
   void event_cb(RdKafka::Event& event) override {
     switch (event.type()) {
       case RdKafka::Event::EVENT_ERROR:
-        LOG(ERROR) << "Kafka error: " << RdKafka::err2str(event.err()) 
-                   << " - " << event.str();
+        LOG(ERROR) << "Kafka error: " << RdKafka::err2str(event.err()) << " - " << event.str();
         break;
       case RdKafka::Event::EVENT_STATS:
         LOG(INFO) << "Kafka stats: " << event.str();
@@ -72,12 +71,7 @@ KafkaReader::KafkaReader(
     int32_t operatorId,
     facebook::velox::exec::DriverCtx* driverCtx,
     const std::shared_ptr<const facebook::velox::core::PlanNode>& planNode)
-    : SourceOperator(
-          driverCtx,
-          planNode->outputType(),
-          operatorId,
-          planNode->id(),
-          "KafkaReader") {
+    : SourceOperator(driverCtx, planNode->outputType(), operatorId, planNode->id(), "KafkaReader") {
   LOG(INFO) << "KafkaReader created with operator ID: " << operatorId;
 }
 
@@ -151,7 +145,7 @@ void KafkaReader::connectToKafka() {
 
   // Create topic partition for assignment
   std::vector<RdKafka::TopicPartition*> partitions;
-  RdKafka::TopicPartition* partition = 
+  RdKafka::TopicPartition* partition =
       RdKafka::TopicPartition::create(config_.topic, config_.partition, config_.startOffset);
   partitions.push_back(partition);
 
@@ -163,8 +157,7 @@ void KafkaReader::connectToKafka() {
   }
 
   currentOffset_ = config_.startOffset;
-  LOG(INFO) << "Connected to Kafka topic: " << config_.topic 
-            << ", partition: " << config_.partition
+  LOG(INFO) << "Connected to Kafka topic: " << config_.topic << ", partition: " << config_.partition
             << ", start offset: " << config_.startOffset;
 
   delete partition;
@@ -172,25 +165,25 @@ void KafkaReader::connectToKafka() {
 
 std::vector<RdKafka::Message*> KafkaReader::pollMessages() {
   std::vector<RdKafka::Message*> messages;
-  
+
   if (!consumer_) {
     return messages;
   }
 
   int32_t remainingRecords = config_.maxPollRecords;
   auto startTime = std::chrono::steady_clock::now();
-  
+
   while (remainingRecords > 0) {
     // Check if we've exceeded the poll timeout
-    auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
-        std::chrono::steady_clock::now() - startTime).count();
+    auto elapsed =
+        std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - startTime).count();
     if (elapsed >= config_.pollTimeoutMs) {
       break;
     }
 
     // Poll for a single message
     RdKafka::Message* msg = consumer_->consume(100); // 100ms timeout per consume
-    
+
     if (!msg) {
       continue;
     }
@@ -202,10 +195,9 @@ std::vector<RdKafka::Message*> KafkaReader::pollMessages() {
         currentOffset_ = msg->offset();
         messagesRead_++;
         remainingRecords--;
-        
+
         // Check if we've reached the end offset
-        if (config_.endOffset != RdKafka::Topic::OFFSET_END && 
-            currentOffset_ >= config_.endOffset) {
+        if (config_.endOffset != RdKafka::Topic::OFFSET_END && currentOffset_ >= config_.endOffset) {
           finished_ = true;
           return messages;
         }
@@ -234,8 +226,7 @@ std::vector<RdKafka::Message*> KafkaReader::pollMessages() {
   return messages;
 }
 
-facebook::velox::RowVectorPtr KafkaReader::convertMessagesToRowVector(
-    const std::vector<RdKafka::Message*>& messages) {
+facebook::velox::RowVectorPtr KafkaReader::convertMessagesToRowVector(const std::vector<RdKafka::Message*>& messages) {
   if (messages.empty()) {
     return nullptr;
   }
@@ -250,11 +241,7 @@ facebook::velox::RowVectorPtr KafkaReader::convertMessagesToRowVector(
 
   // Create and return RowVector
   return std::make_shared<facebook::velox::RowVector>(
-      pool(),
-      outputType_,
-      facebook::velox::BufferPtr(nullptr),
-      numRows,
-      childVectors);
+      pool(), outputType_, facebook::velox::BufferPtr(nullptr), numRows, childVectors);
 }
 
 facebook::velox::VectorPtr KafkaReader::createColumnVector(
@@ -262,7 +249,7 @@ facebook::velox::VectorPtr KafkaReader::createColumnVector(
     const std::vector<RdKafka::Message*>& messages,
     size_t columnIndex) {
   size_t numRows = messages.size();
-  
+
   // Handle common Kafka message fields based on column index
   // Column 0: key (VARBINARY)
   // Column 1: value (VARBINARY)
@@ -274,23 +261,22 @@ facebook::velox::VectorPtr KafkaReader::createColumnVector(
   if (type->isVarbinary() || type->isVarchar()) {
     auto flatVector = std::dynamic_pointer_cast<facebook::velox::FlatVector<facebook::velox::StringView>>(
         facebook::velox::BaseVector::create(type, numRows, pool()));
-    
+
     for (size_t i = 0; i < numRows; ++i) {
       const auto* msg = messages[i];
-      
+
       if (columnIndex == 0) {
         // Key
         if (msg->key()) {
-          flatVector->set(i, facebook::velox::StringView(
-              static_cast<const char*>(msg->key()->c_str()), msg->key()->size()));
+          flatVector->set(
+              i, facebook::velox::StringView(static_cast<const char*>(msg->key()->c_str()), msg->key()->size()));
         } else {
           flatVector->setNull(i, true);
         }
       } else if (columnIndex == 1) {
         // Value
         if (msg->payload()) {
-          flatVector->set(i, facebook::velox::StringView(
-              static_cast<const char*>(msg->payload()), msg->len()));
+          flatVector->set(i, facebook::velox::StringView(static_cast<const char*>(msg->payload()), msg->len()));
         } else {
           flatVector->setNull(i, true);
         }
@@ -300,29 +286,29 @@ facebook::velox::VectorPtr KafkaReader::createColumnVector(
         flatVector->set(i, facebook::velox::StringView(topicName));
       }
     }
-    
+
     return flatVector;
   } else if (type->isInteger()) {
     auto flatVector = std::dynamic_pointer_cast<facebook::velox::FlatVector<int32_t>>(
         facebook::velox::BaseVector::create(type, numRows, pool()));
-    
+
     for (size_t i = 0; i < numRows; ++i) {
       const auto* msg = messages[i];
-      
+
       if (columnIndex == 3) {
         // Partition
         flatVector->set(i, msg->partition());
       }
     }
-    
+
     return flatVector;
   } else if (type->isBigint()) {
     auto flatVector = std::dynamic_pointer_cast<facebook::velox::FlatVector<int64_t>>(
         facebook::velox::BaseVector::create(type, numRows, pool()));
-    
+
     for (size_t i = 0; i < numRows; ++i) {
       const auto* msg = messages[i];
-      
+
       if (columnIndex == 4) {
         // Offset
         flatVector->set(i, msg->offset());
@@ -331,10 +317,10 @@ facebook::velox::VectorPtr KafkaReader::createColumnVector(
         flatVector->set(i, msg->timestamp().timestamp);
       }
     }
-    
+
     return flatVector;
   }
-  
+
   // Default: create empty vector
   return facebook::velox::BaseVector::create(type, numRows, pool());
 }
@@ -345,8 +331,7 @@ void KafkaReader::commitOffset(int64_t offset) {
   }
 
   std::vector<RdKafka::TopicPartition*> partitions;
-  RdKafka::TopicPartition* partition = 
-      RdKafka::TopicPartition::create(config_.topic, config_.partition, offset + 1);
+  RdKafka::TopicPartition* partition = RdKafka::TopicPartition::create(config_.topic, config_.partition, offset + 1);
   partitions.push_back(partition);
 
   RdKafka::ErrorCode err = consumer_->commitSync(partitions);
@@ -365,13 +350,13 @@ void KafkaReader::cleanup() {
     if (currentOffset_ > 0) {
       commitOffset(currentOffset_);
     }
-    
+
     // Close consumer
     consumer_->close();
     consumer_.reset();
     LOG(INFO) << "Kafka consumer closed. Total messages read: " << messagesRead_;
   }
-  
+
   conf_.reset();
   tconf_.reset();
 }
@@ -394,7 +379,7 @@ facebook::velox::RowVectorPtr KafkaReader::getOutput() {
 
   // Poll messages from Kafka
   auto messages = pollMessages();
-  
+
   if (messages.empty()) {
     // No messages available, but not finished yet
     if (!finished_) {
@@ -406,7 +391,7 @@ facebook::velox::RowVectorPtr KafkaReader::getOutput() {
 
   // Convert messages to RowVector
   auto result = convertMessagesToRowVector(messages);
-  
+
   // Clean up messages
   for (auto* msg : messages) {
     delete msg;
@@ -420,8 +405,7 @@ facebook::velox::RowVectorPtr KafkaReader::getOutput() {
   return result;
 }
 
-facebook::velox::exec::BlockingReason KafkaReader::isBlocked(
-    facebook::velox::ContinueFuture* future) {
+facebook::velox::exec::BlockingReason KafkaReader::isBlocked(facebook::velox::ContinueFuture* future) {
   // Kafka consumer is non-blocking with timeout
   return facebook::velox::exec::BlockingReason::kNotBlocked;
 }
@@ -430,16 +414,15 @@ bool KafkaReader::isFinished() {
   return (noMoreSplits_ && !hasSplit_) || finished_;
 }
 
-void KafkaReader::addSplit(
-    std::shared_ptr<facebook::velox::connector::ConnectorSplit> split) {
+void KafkaReader::addSplit(std::shared_ptr<facebook::velox::connector::ConnectorSplit> split) {
   // Extract Kafka configuration from split
   auto kafkaSplit = std::dynamic_pointer_cast<const KafkaConnectorSplit>(split);
   if (!kafkaSplit) {
     throw std::runtime_error("Split is not a KafkaConnectorSplit");
   }
-  
+
   hasSplit_ = true;
-  
+
   // Populate config from split
   config_.brokers = kafkaSplit->getBrokers();
   config_.topic = kafkaSplit->getTopic();
@@ -448,7 +431,7 @@ void KafkaReader::addSplit(
   config_.endOffset = kafkaSplit->getEndOffset();
   config_.groupId = kafkaSplit->getGroupId();
   config_.additionalProps = kafkaSplit->getAdditionalProps();
-  
+
   LOG(INFO) << "Added Kafka split: " << kafkaSplit->toString();
 }
 

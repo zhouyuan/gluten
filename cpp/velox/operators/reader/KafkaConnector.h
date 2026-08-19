@@ -25,9 +25,7 @@ namespace gluten {
 /// Kafka connector for streaming data from Kafka topics
 class KafkaConnector : public facebook::velox::connector::Connector {
  public:
-  explicit KafkaConnector(
-      const std::string& id,
-      std::shared_ptr<const facebook::velox::config::ConfigBase> config)
+  explicit KafkaConnector(const std::string& id, std::shared_ptr<const facebook::velox::config::ConfigBase> config)
       : Connector(id), config_(std::move(config)) {}
 
   std::unique_ptr<facebook::velox::connector::DataSource> createDataSource(

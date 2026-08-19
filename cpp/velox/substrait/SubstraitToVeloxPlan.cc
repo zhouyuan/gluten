@@ -1484,13 +1484,12 @@ core::PlanNodePtr SubstraitToVeloxPlanConverter::constructCudfValueStreamNode(
 #endif
 
 #ifdef ENABLE_KAFKA
-core::PlanNodePtr SubstraitToVeloxPlanConverter::constructKafkaStreamNode(
-    const ::substrait::ReadRel& readRel) {
+core::PlanNodePtr SubstraitToVeloxPlanConverter::constructKafkaStreamNode(const ::substrait::ReadRel& readRel) {
   // Get output schema from ReadRel
   std::vector<std::string> colNameList;
   std::vector<TypePtr> veloxTypeList;
   bool asLowerCase = !veloxCfg_->get<bool>(kCaseSensitive, false);
-  
+
   if (readRel.has_base_schema()) {
     const auto& baseSchema = readRel.base_schema();
     colNameList.reserve(baseSchema.names().size());
@@ -1508,34 +1507,31 @@ core::PlanNodePtr SubstraitToVeloxPlanConverter::constructKafkaStreamNode(
   std::vector<std::string> outNames;
   outNames.reserve(colNameList.size());
   connector::ColumnHandleMap assignments;
-  
+
   for (int idx = 0; idx < colNameList.size(); idx++) {
     auto outName = SubstraitParser::makeNodeName(planNodeId_, idx);
     assignments[outName] = std::make_shared<connector::hive::HiveColumnHandle>(
-        colNameList[idx], 
+        colNameList[idx],
         connector::hive::HiveColumnHandle::ColumnType::kRegular,
-        veloxTypeList[idx], 
+        veloxTypeList[idx],
         veloxTypeList[idx]);
     outNames.emplace_back(outName);
   }
-  
+
   auto outputType = ROW(std::move(outNames), std::move(veloxTypeList));
 
   // Create Kafka table handle
   common::SubfieldFilters subfieldFilters;
   auto tableHandle = std::make_shared<connector::hive::HiveTableHandle>(
       connectorIds_.kafka,
-      "kafka_stream", 
-      std::move(subfieldFilters), 
-      nullptr,  // remainingFilter
+      "kafka_stream",
+      std::move(subfieldFilters),
+      nullptr, // remainingFilter
       outputType);
 
   // Create TableScanNode for Kafka
   auto tableScanNode = std::make_shared<core::TableScanNode>(
-      nextPlanNodeId(), 
-      std::move(outputType), 
-      std::move(tableHandle), 
-      assignments);
+      nextPlanNodeId(), std::move(outputType), std::move(tableHandle), assignments);
 
   // Set split info for Kafka stream
   auto splitInfo = std::make_shared<SplitInfo>();
@@ -1855,7 +1851,7 @@ int32_t SubstraitToVeloxPlanConverter::getStreamIndex(const ::substrait::ReadRel
     // Return -1 to indicate this should be handled as a regular scan
     return -1;
   }
-  
+
   if (sRead.has_local_files()) {
     const auto& fileList = sRead.local_files().items();
     if (fileList.size() == 0) {

@@ -20,8 +20,7 @@
 
 namespace gluten {
 
-std::unique_ptr<facebook::velox::exec::SourceOperator> 
-KafkaDataSourceFactory::createKafkaReader(
+std::unique_ptr<facebook::velox::exec::SourceOperator> KafkaDataSourceFactory::createKafkaReader(
     int32_t operatorId,
     facebook::velox::exec::DriverCtx* driverCtx,
     const std::shared_ptr<const facebook::velox::core::PlanNode>& planNode) {
