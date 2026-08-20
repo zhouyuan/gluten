@@ -898,7 +898,7 @@ void VeloxHashShuffleWriter::calculateSimpleColumnBytes() {
     // width the partition buffer allocates, i.e. short decimal (allocated as int64, 8 bytes not 16)
     // and timestamp (allocated as int128, 16 bytes not 8). Note bool is still rounded up to one byte
     // per row.
-    fixedWidthBufferBytes_ += valueBufferSizeForFixedWidthArray(static_cast<uint32_t>(col), 1);
+    fixedWidthBufferBytes_ += valueBufferSizeForFixedWidthArray(col, 1);
   }
   fixedWidthBufferBytes_ += kSizeOfStringLength * binaryColumnIndices_.size();
 }
