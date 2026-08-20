@@ -38,6 +38,7 @@ ENABLE_HDFS=OFF
 ENABLE_ABFS=OFF
 ENABLE_VCPKG=OFF
 ENABLE_GPU=OFF
+ENABLE_DATAFUSION=OFF
 ENABLE_ENHANCED_FEATURES=OFF
 RUN_SETUP_SCRIPT=ON
 VELOX_REPO=""
@@ -109,6 +110,10 @@ do
         ;;
         --enable_gpu=*)
         ENABLE_GPU=("${arg#*=}")
+        shift # Remove argument name from processing
+        ;;
+        --enable_datafusion=*)
+        ENABLE_DATAFUSION=("${arg#*=}")
         shift # Remove argument name from processing
         ;;
         --enable_enhanced_features=*)
@@ -289,12 +294,24 @@ function build_gluten_cpp {
   ninja -j $NUM_THREADS
 }
 
+function build_gluten_datafusion {
+  echo "Start to build Gluten DataFusion (Rust)"
+  cd $GLUTEN_DIR/rust
+  cargo build --release -p gluten-datafusion
+  # Ship the cdylib next to libgluten/libvelox so the existing backends-velox
+  # resource copy packages it into the jar.
+  cp target/release/libgluten_datafusion.* $GLUTEN_DIR/cpp/build/releases/
+}
+
 function build_velox_backend {
   if [ $BUILD_ARROW == "ON" ]; then
     build_arrow
   fi
   build_velox
   build_gluten_cpp
+  if [ $ENABLE_DATAFUSION == "ON" ]; then
+    build_gluten_datafusion
+  fi
 }
 
 function get_velox {

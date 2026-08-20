@@ -1,0 +1,31 @@
+[package]
+name = "gluten-datafusion"
+description = "Gluten scan offload backed by Apache DataFusion"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[lib]
+name = "gluten_datafusion"
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+# Must stay on the same major version as the `arrow` dependency of the pinned
+# `datafusion` release; the "ffi" feature enables the Arrow C Data Interface.
+arrow = { version = "59", features = ["ffi"] }
+datafusion = { version = "55", default-features = false, features = ["parquet"] }
+futures = "0.3"
+jni = "0.21"
+prost = "0.14"
+prost-types = "0.14"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tokio = { version = "1", features = ["rt-multi-thread"] }
+url = "2"
+
+[build-dependencies]
+prost-build = "0.14"
+protoc-bin-vendored = "3"
+
+[dev-dependencies]
+tempfile = "3"

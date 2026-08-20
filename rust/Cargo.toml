@@ -1,0 +1,13 @@
+[workspace]
+members = ["gluten-datafusion"]
+resolver = "2"
+
+[workspace.package]
+version = "1.7.0"
+edition = "2021"
+license = "Apache-2.0"
+
+[profile.release]
+lto = "thin"
+codegen-units = 1
+strip = "debuginfo"

@@ -1895,6 +1895,79 @@
       </build>
     </profile>
     <profile>
+      <!-- Experimental: DataFusion-backed scan offload for the Velox backend. Requires the
+           libgluten_datafusion native library, built via
+           `dev/builddeps-veloxbe.sh` with `enable_datafusion=ON` (or `cargo build` under rust/). -->
+      <id>datafusion</id>
+      <activation>
+        <activeByDefault>false</activeByDefault>
+      </activation>
+      <build>
+        <plugins>
+          <plugin>
+            <groupId>org.codehaus.mojo</groupId>
+            <artifactId>build-helper-maven-plugin</artifactId>
+            <executions>
+              <execution>
+                <id>add-datafusion-sources</id>
+                <goals>
+                  <goal>add-source</goal>
+                </goals>
+                <phase>generate-sources</phase>
+                <configuration>
+                  <sources>
+                    <source>${project.basedir}/src-datafusion/main/scala</source>
+                    <source>${project.basedir}/src-datafusion/main/java</source>
+                  </sources>
+                </configuration>
+              </execution>
+              <execution>
+                <id>add-datafusion-resources</id>
+                <goals>
+                  <goal>add-resource</goal>
+                </goals>
+                <phase>generate-resources</phase>
+                <configuration>
+                  <resources>
+                    <resource>
+                      <directory>${project.basedir}/src-datafusion/main/resources</directory>
+                    </resource>
+                  </resources>
+                </configuration>
+              </execution>
+              <execution>
+                <id>add-datafusion-test-sources</id>
+                <goals>
+                  <goal>add-test-source</goal>
+                </goals>
+                <phase>generate-test-sources</phase>
+                <configuration>
+                  <sources>
+                    <source>${project.basedir}/src-datafusion/test/scala</source>
+                    <source>${project.basedir}/src-datafusion/test/java</source>
+                  </sources>
+                </configuration>
+              </execution>
+              <execution>
+                <id>add-datafusion-test-resources</id>
+                <goals>
+                  <goal>add-test-resource</goal>
+                </goals>
+                <phase>generate-test-resources</phase>
+                <configuration>
+                  <resources>
+                    <resource>
+                      <directory>${project.basedir}/src-datafusion/test/resources</directory>
+                    </resource>
+                  </resources>
+                </configuration>
+              </execution>
+            </executions>
+          </plugin>
+        </plugins>
+      </build>
+    </profile>
+    <profile>
       <id>iceberg-test</id>
       <activation>
         <activeByDefault>false</activeByDefault>
