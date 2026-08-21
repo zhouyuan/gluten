@@ -56,6 +56,7 @@ option(ENABLE_HDFS "Enable HDFS" OFF)
 option(ENABLE_ORC "Enable ORC" OFF)
 option(ENABLE_ABFS "Enable ABFS" OFF)
 option(ENABLE_GPU "Enable GPU" OFF)
+option(BUILD_DUCKDB "Build the experimental DuckDB scan offload library" OFF)
 option(ENABLE_ENHANCED_FEATURES "Enable enhanced features" OFF)
 
 set(root_directory ${PROJECT_BINARY_DIR})
@@ -262,4 +263,8 @@ add_subdirectory(core)
 
 if(BUILD_VELOX_BACKEND)
   add_subdirectory(velox)
+endif()
+
+if(BUILD_DUCKDB)
+  add_subdirectory(duckdb)
 endif()
