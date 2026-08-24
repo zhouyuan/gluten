@@ -197,6 +197,50 @@ class ScalarFunctionsValidateSuite extends FunctionsValidateSuite {
     }
   }
 
+  test("element_at") {
+    withSQLConf(SQLConf.ANSI_ENABLED.key -> "false") {
+      // An index past either end of the array gives NULL with ANSI mode off, and a key
+      // the map does not contain gives NULL whatever the ANSI mode is.
+      runQueryAndCompare(
+        "SELECT element_at(array(l_orderkey, l_partkey), 1)," +
+          " element_at(array(l_orderkey, l_partkey), -1)," +
+          " element_at(array(l_orderkey, l_partkey), 3)," +
+          " element_at(array(l_orderkey, l_partkey), -3)," +
+          " element_at(map(1, 'a', 2, 'b'), 3) FROM lineitem") {
+        checkGlutenPlan[ProjectExecTransformer]
+      }
+
+      // An index of 0 is an error whatever the ANSI mode is.
+      intercept[SparkException] {
+        sql("SELECT element_at(array(l_orderkey, l_partkey), 0) FROM lineitem").collect()
+      }
+    }
+  }
+
+  test("size") {
+    withTempPath {
+      path =>
+        Seq[Seq[Integer]](Seq(1, 2, 3), Seq.empty, null)
+          .toDF("i")
+          .write
+          .parquet(path.getCanonicalPath)
+        spark.read.parquet(path.getCanonicalPath).createOrReplaceTempView("size_tbl")
+
+        withSQLConf(SQLConf.ANSI_ENABLED.key -> "false") {
+          // With ANSI mode off, spark.sql.legacy.sizeOfNull decides between -1 and NULL
+          // for a null collection.
+          Seq("true", "false").foreach {
+            legacySizeOfNull =>
+              withSQLConf(SQLConf.LEGACY_SIZE_OF_NULL.key -> legacySizeOfNull) {
+                runQueryAndCompare("SELECT size(i), cardinality(i) FROM size_tbl") {
+                  checkGlutenPlan[ProjectExecTransformer]
+                }
+              }
+          }
+        }
+    }
+  }
+
   test("shiftright") {
     runQueryAndCompare("SELECT shiftright(int_field1, 1) from datatab limit 1") {
       checkGlutenPlan[ProjectExecTransformer]
