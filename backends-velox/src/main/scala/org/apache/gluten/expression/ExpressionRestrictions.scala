@@ -83,6 +83,17 @@ object Unbase64Restrictions extends ExpressionRestrictions {
   override val restrictionMessages: Array[String] = Array(NOT_SUPPORT_FAIL_ON_ERROR)
 }
 
+object EltRestrictions extends ExpressionRestrictions {
+  val NOT_SUPPORT_FAIL_ON_ERROR_MISMATCH: String =
+    s"${ExpressionNames.ELT} whose failOnError disagrees with the session's " +
+      s"'${SQLConf.ANSI_ENABLED.key}' is not supported, since Velox derives the ANSI " +
+      s"behavior of elt from the session config"
+
+  override val functionName: String = ExpressionNames.ELT
+
+  override val restrictionMessages: Array[String] = Array(NOT_SUPPORT_FAIL_ON_ERROR_MISMATCH)
+}
+
 object Base64Restrictions extends ExpressionRestrictions {
   val NOT_SUPPORT_DISABLE_CHUNK_BASE64_STRING: String =
     s"${ExpressionNames.BASE64} with chunkBase64String disabled is not supported"
@@ -125,6 +136,7 @@ object ExpressionRestrictions {
       ToJsonRestrictions,
       Unbase64Restrictions,
       Base64Restrictions,
+      EltRestrictions,
       FormatNumberRestrictions
     )
   }

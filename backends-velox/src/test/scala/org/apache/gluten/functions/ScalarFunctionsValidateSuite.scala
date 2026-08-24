@@ -177,6 +177,26 @@ class ScalarFunctionsValidateSuite extends FunctionsValidateSuite {
     }
   }
 
+  test("elt") {
+    withSQLConf(SQLConf.ANSI_ENABLED.key -> "false") {
+      // int_field1 is 1, 2, 3, so every input gets selected by some row.
+      runQueryAndCompare("SELECT elt(int_field1, string_field1, 'b', 'c') FROM datatab") {
+        checkGlutenPlan[ProjectExecTransformer]
+      }
+      // A NULL index, an out-of-range index and a NULL selected input all give NULL
+      // with ANSI mode off.
+      runQueryAndCompare(
+        "SELECT elt(NULL, 'a', 'b'), elt(int_field1 + 3, 'a', 'b'), " +
+          "elt(1, string_field1, 'b') FROM datatab") {
+        checkGlutenPlan[ProjectExecTransformer]
+      }
+      runQueryAndCompare(
+        "SELECT elt(int_field1, cast(string_field1 as binary), cast('b' as binary)) FROM datatab") {
+        checkGlutenPlan[ProjectExecTransformer]
+      }
+    }
+  }
+
   test("shiftright") {
     runQueryAndCompare("SELECT shiftright(int_field1, 1) from datatab limit 1") {
       checkGlutenPlan[ProjectExecTransformer]

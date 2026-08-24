@@ -144,3 +144,79 @@ TEST_F(SparkFunctionTest, expressionLevelLegacyCastIgnoresSessionAnsiOn) {
 
   facebook::velox::test::assertEqualVectors(makeFlatVector<int8_t>({-121}), evaluate(legacyCast, input));
 }
+
+TEST_F(SparkFunctionTest, elt) {
+  // The index picks a different input per row. A NULL in an input that is not
+  // picked does not affect the result, while a NULL in the picked one does.
+  auto index = makeFlatVector<int32_t>({1, 2, 3, 3});
+  auto first = makeNullableFlatVector<StringView>({"a0", std::nullopt, "a2", "a3"});
+  auto second = makeNullableFlatVector<StringView>({std::nullopt, "b1", "b2", "b3"});
+  auto third = makeNullableFlatVector<StringView>({"c0", "c1", "c2", std::nullopt});
+
+  facebook::velox::test::assertEqualVectors(
+      makeNullableFlatVector<StringView>({"a0", "b1", "c2", std::nullopt}),
+      evaluate("elt(c0, c1, c2, c3)", makeRowVector({index, first, second, third})));
+}
+
+TEST_F(SparkFunctionTest, eltNullIndex) {
+  // A NULL index returns NULL, with ANSI mode on as well.
+  queryCtx_->testingOverrideConfigUnsafe({{sparkAnsiEnabledConfigKey(), "true"}});
+  auto index = makeNullableFlatVector<int32_t>({std::nullopt, 2});
+  auto first = makeFlatVector<StringView>({"a0", "a1"});
+  auto second = makeFlatVector<StringView>({"b0", "b1"});
+
+  facebook::velox::test::assertEqualVectors(
+      makeNullableFlatVector<StringView>({std::nullopt, "b1"}),
+      evaluate("elt(c0, c1, c2)", makeRowVector({index, first, second})));
+}
+
+TEST_F(SparkFunctionTest, eltIndexOutOfRangeAnsiOff) {
+  queryCtx_->testingOverrideConfigUnsafe({{sparkAnsiEnabledConfigKey(), "false"}});
+  auto index = makeFlatVector<int32_t>({0, -1, 3, 2});
+  auto first = makeFlatVector<StringView>({"a0", "a1", "a2", "a3"});
+  auto second = makeFlatVector<StringView>({"b0", "b1", "b2", "b3"});
+
+  facebook::velox::test::assertEqualVectors(
+      makeNullableFlatVector<StringView>({std::nullopt, std::nullopt, std::nullopt, "b3"}),
+      evaluate("elt(c0, c1, c2)", makeRowVector({index, first, second})));
+}
+
+TEST_F(SparkFunctionTest, eltIndexOutOfRangeAnsiOn) {
+  queryCtx_->testingOverrideConfigUnsafe({{sparkAnsiEnabledConfigKey(), "true"}});
+  auto first = makeFlatVector<StringView>({"a0", "a1"});
+  auto second = makeFlatVector<StringView>({"b0", "b1"});
+
+  auto evaluateWithIndex = [&](const std::vector<int32_t>& indexes) {
+    return evaluate("elt(c0, c1, c2)", makeRowVector({makeFlatVector<int32_t>(indexes), first, second}));
+  };
+
+  VELOX_ASSERT_THROW(evaluateWithIndex({1, 0}), "The index is out of bounds for elt. index: 0, number of inputs: 2");
+  VELOX_ASSERT_THROW(evaluateWithIndex({-1, 1}), "The index is out of bounds for elt. index: -1, number of inputs: 2");
+  VELOX_ASSERT_THROW(evaluateWithIndex({1, 3}), "The index is out of bounds for elt. index: 3, number of inputs: 2");
+
+  // In-range indexes are unaffected by ANSI mode.
+  facebook::velox::test::assertEqualVectors(makeFlatVector<StringView>({"a0", "b1"}), evaluateWithIndex({1, 2}));
+}
+
+TEST_F(SparkFunctionTest, eltVarbinary) {
+  auto index = makeFlatVector<int32_t>({2, 1});
+  auto first = makeNullableFlatVector<StringView>({"a0", "a1"}, VARBINARY());
+  auto second = makeNullableFlatVector<StringView>({"b0", std::nullopt}, VARBINARY());
+
+  auto result = evaluate("elt(c0, c1, c2)", makeRowVector({index, first, second}));
+  ASSERT_EQ(result->type()->kind(), TypeKind::VARBINARY);
+  facebook::velox::test::assertEqualVectors(makeNullableFlatVector<StringView>({"b0", "a1"}, VARBINARY()), result);
+}
+
+TEST_F(SparkFunctionTest, eltConstantIndexOverDictionaryInput) {
+  // A constant index selects the same input for all rows, and the selected
+  // input may carry an encoding.
+  auto index = makeConstant<int32_t>(2, 3);
+  auto first = makeFlatVector<StringView>({"a0", "a1", "a2"});
+  auto second = makeFlatVector<StringView>({"b0", "b1", "b2"});
+  auto dictionary = BaseVector::wrapInDictionary(nullptr, makeIndices({2, 0, 1}), 3, second);
+
+  facebook::velox::test::assertEqualVectors(
+      makeFlatVector<StringView>({"b2", "b0", "b1"}),
+      evaluate("elt(c0, c1, c2)", makeRowVector({index, first, dictionary})));
+}
