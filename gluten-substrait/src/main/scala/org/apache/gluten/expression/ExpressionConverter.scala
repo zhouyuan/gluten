@@ -926,6 +926,12 @@ object ExpressionConverter extends SQLConfHelper with Logging {
           replaceWithExpressionTransformer0(u.child, attributeSeq, expressionsMap),
           u
         )
+      case e: Elt =>
+        BackendsApiManager.getSparkPlanExecApiInstance.genEltTransformer(
+          substraitExprName,
+          e.children.map(replaceWithExpressionTransformer0(_, attributeSeq, expressionsMap)),
+          e
+        )
       case ce if BackendsApiManager.getSparkPlanExecApiInstance.expressionFlattenSupported(ce) =>
         replaceFlattenedExpressionWithExpressionTransformer(
           substraitExprName,

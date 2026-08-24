@@ -16,6 +16,7 @@
  */
 #include "operators/functions/overlay/RegisterFunctionOverlay.h"
 
+#include "operators/functions/overlay/Elt.h"
 #include "operators/functions/overlay/Round.h"
 #include "velox/functions/lib/RegistrationHelpers.h"
 
@@ -36,10 +37,18 @@ void registerRoundFunction() {
   velox::registerFunction<RoundFunction, float, float, int32_t>({"round"});
 }
 
+// Velox has no elt yet. It is registered here so Gluten can offload it, and it
+// honors Spark's ANSI rule for an out-of-range index.
+void registerEltFunction() {
+  velox::exec::registerStatefulVectorFunction(
+      "elt", eltSignatures(), makeElt, velox::exec::VectorFunctionMetadataBuilder().defaultNullBehavior(false).build());
+}
+
 } // namespace
 
 void registerFunctionOverlay() {
   registerRoundFunction();
+  registerEltFunction();
 }
 
 } // namespace gluten

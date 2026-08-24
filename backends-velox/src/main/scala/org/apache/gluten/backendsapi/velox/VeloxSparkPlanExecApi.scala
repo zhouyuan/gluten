@@ -1250,6 +1250,23 @@ class VeloxSparkPlanExecApi extends SparkPlanExecApi with Logging {
     GenericExpressionTransformer(substraitExprName, child, expr)
   }
 
+  override def genEltTransformer(
+      substraitExprName: String,
+      children: Seq[ExpressionTransformer],
+      expr: Elt): ExpressionTransformer = {
+    // Velox's elt derives whether an out-of-range index raises an error from the session's
+    // 'spark.sql.ansi.enabled', while Spark captures it in Elt.failOnError at analysis time.
+    // The two normally agree; fall back when they don't, so the ANSI behavior never diverges.
+    if (expr.failOnError != SQLConf.get.ansiEnabled) {
+      GlutenExceptionUtil
+        .throwsNotFullySupported(
+          ExpressionNames.ELT,
+          EltRestrictions.NOT_SUPPORT_FAIL_ON_ERROR_MISMATCH
+        )
+    }
+    GenericExpressionTransformer(substraitExprName, children, expr)
+  }
+
   override def genBase64StaticInvokeTransformer(
       substraitExprName: String,
       child: ExpressionTransformer,
