@@ -1329,6 +1329,24 @@ class VeloxSparkPlanExecApi extends SparkPlanExecApi with Logging {
     GenericExpressionTransformer(substraitExprName, children, expr)
   }
 
+  override def genConvTransformer(
+      substraitExprName: String,
+      children: Seq[ExpressionTransformer],
+      expr: Conv): ExpressionTransformer = {
+    // Velox derives whether an overflow raises an error from the session's
+    // 'spark.sql.ansi.enabled', while Spark captures it in Conv.ansiEnabled at analysis time.
+    // The two differ for a view, which is analyzed with the ANSI mode it was created with, or
+    // when the config changes after a DataFrame is analyzed; fall back then.
+    if (expr.ansiEnabled != SQLConf.get.ansiEnabled) {
+      GlutenExceptionUtil
+        .throwsNotFullySupported(
+          ExpressionNames.CONV,
+          ConvRestrictions.NOT_SUPPORT_ANSI_ENABLED_MISMATCH
+        )
+    }
+    GenericExpressionTransformer(substraitExprName, children, expr)
+  }
+
   override def genBase64StaticInvokeTransformer(
       substraitExprName: String,
       child: ExpressionTransformer,

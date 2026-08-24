@@ -94,6 +94,17 @@ object EltRestrictions extends ExpressionRestrictions {
   override val restrictionMessages: Array[String] = Array(NOT_SUPPORT_FAIL_ON_ERROR_MISMATCH)
 }
 
+object ConvRestrictions extends ExpressionRestrictions {
+  val NOT_SUPPORT_ANSI_ENABLED_MISMATCH: String =
+    s"${ExpressionNames.CONV} whose ansiEnabled disagrees with the session's " +
+      s"'${SQLConf.ANSI_ENABLED.key}' is not supported, since Velox derives the ANSI " +
+      s"behavior of conv from the session config"
+
+  override val functionName: String = ExpressionNames.CONV
+
+  override val restrictionMessages: Array[String] = Array(NOT_SUPPORT_ANSI_ENABLED_MISMATCH)
+}
+
 object Base64Restrictions extends ExpressionRestrictions {
   val NOT_SUPPORT_DISABLE_CHUNK_BASE64_STRING: String =
     s"${ExpressionNames.BASE64} with chunkBase64String disabled is not supported"
@@ -137,6 +148,7 @@ object ExpressionRestrictions {
       Unbase64Restrictions,
       Base64Restrictions,
       EltRestrictions,
+      ConvRestrictions,
       FormatNumberRestrictions
     )
   }
