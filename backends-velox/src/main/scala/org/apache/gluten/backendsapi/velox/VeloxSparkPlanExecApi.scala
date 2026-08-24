@@ -1284,6 +1284,34 @@ class VeloxSparkPlanExecApi extends SparkPlanExecApi with Logging {
     GenericExpressionTransformer(substraitExprName, children, expr)
   }
 
+  override def genElementAtTransformer(
+      substraitExprName: String,
+      children: Seq[ExpressionTransformer],
+      expr: ElementAt): ExpressionTransformer = {
+    // Only the array input reads failOnError: Spark returns NULL for a key a map does not
+    // contain whatever the ANSI mode is, and so does Velox.
+    if (expr.left.dataType.isInstanceOf[ArrayType]) {
+      if (expr.defaultValueOutOfBound.isDefined) {
+        GlutenExceptionUtil
+          .throwsNotFullySupported(
+            ExpressionNames.ELEMENT_AT,
+            ElementAtRestrictions.NOT_SUPPORT_DEFAULT_VALUE_OUT_OF_BOUND
+          )
+      }
+      // Velox derives whether an out-of-bound index raises an error from the session's
+      // 'spark.sql.ansi.enabled', while Spark captures it in ElementAt.failOnError at
+      // analysis time. The two normally agree; fall back when they don't.
+      if (expr.failOnError != SQLConf.get.ansiEnabled) {
+        GlutenExceptionUtil
+          .throwsNotFullySupported(
+            ExpressionNames.ELEMENT_AT,
+            ElementAtRestrictions.NOT_SUPPORT_FAIL_ON_ERROR_MISMATCH
+          )
+      }
+    }
+    GenericExpressionTransformer(substraitExprName, children, expr)
+  }
+
   override def genBase64StaticInvokeTransformer(
       substraitExprName: String,
       child: ExpressionTransformer,

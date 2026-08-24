@@ -17,6 +17,7 @@
 #include "operators/functions/overlay/RegisterFunctionOverlay.h"
 
 #include "operators/functions/overlay/Conv.h"
+#include "operators/functions/overlay/ElementAt.h"
 #include "operators/functions/overlay/Elt.h"
 #include "operators/functions/overlay/Round.h"
 #include "velox/functions/lib/RegistrationHelpers.h"
@@ -51,12 +52,19 @@ void registerConvFunction() {
   velox::registerFunction<ConvFunction, velox::Varchar, velox::Varchar, int32_t, int32_t>({"conv"});
 }
 
+// Velox's element_at always returns NULL for an index past the end of an array,
+// which only matches Spark with ANSI mode off.
+void registerElementAtFunction() {
+  velox::exec::registerStatefulVectorFunction("element_at", elementAtSignatures(), makeElementAt);
+}
+
 } // namespace
 
 void registerFunctionOverlay() {
   registerRoundFunction();
   registerEltFunction();
   registerConvFunction();
+  registerElementAtFunction();
 }
 
 } // namespace gluten

@@ -275,3 +275,65 @@ TEST_F(SparkFunctionTest, convInvalidInputAnsiOn) {
   EXPECT_EQ(conv("   ", 10, 16), std::nullopt);
   EXPECT_EQ(conv(std::nullopt, 10, 16), std::nullopt);
 }
+
+TEST_F(SparkFunctionTest, elementAtArrayOutOfBoundAnsiOff) {
+  queryCtx_->testingOverrideConfigUnsafe({{sparkAnsiEnabledConfigKey(), "false"}});
+  auto array = makeArrayVector<int32_t>({{1, 2, 3}, {1, 2, 3}, {1, 2, 3}, {1, 2, 3}, {1, 2, 3}});
+  auto index = makeFlatVector<int32_t>({1, 3, -1, 4, -4});
+
+  // An index past either end of the array gives NULL with ANSI mode off.
+  facebook::velox::test::assertEqualVectors(
+      makeNullableFlatVector<int32_t>({1, 3, 3, std::nullopt, std::nullopt}),
+      evaluate("element_at(c0, c1)", makeRowVector({array, index})));
+}
+
+TEST_F(SparkFunctionTest, elementAtArrayOutOfBoundAnsiOn) {
+  queryCtx_->testingOverrideConfigUnsafe({{sparkAnsiEnabledConfigKey(), "true"}});
+  auto array = makeArrayVector<int32_t>({{1, 2, 3}, {1, 2, 3}});
+
+  // In-bound indices, including the negative ones counting from the end, are
+  // unaffected by ANSI mode.
+  facebook::velox::test::assertEqualVectors(
+      makeFlatVector<int32_t>({1, 3}),
+      evaluate("element_at(c0, c1)", makeRowVector({array, makeFlatVector<int32_t>({1, -1})})));
+
+  VELOX_ASSERT_THROW(
+      evaluate("element_at(c0, c1)", makeRowVector({array, makeFlatVector<int32_t>({1, 4})})),
+      "Array subscript index out of bounds");
+  VELOX_ASSERT_THROW(
+      evaluate("element_at(c0, c1)", makeRowVector({array, makeFlatVector<int32_t>({-4, 1})})),
+      "Array subscript index out of bounds");
+}
+
+TEST_F(SparkFunctionTest, elementAtArrayZeroIndex) {
+  auto data = makeRowVector({makeArrayVector<int32_t>({{1, 2, 3}}), makeFlatVector<int32_t>({0})});
+
+  // An index of 0 is an error whatever the ANSI mode is.
+  queryCtx_->testingOverrideConfigUnsafe({{sparkAnsiEnabledConfigKey(), "false"}});
+  VELOX_ASSERT_THROW(evaluate("element_at(c0, c1)", data), "SQL array indices start at 1");
+
+  queryCtx_->testingOverrideConfigUnsafe({{sparkAnsiEnabledConfigKey(), "true"}});
+  VELOX_ASSERT_THROW(evaluate("element_at(c0, c1)", data), "SQL array indices start at 1");
+}
+
+TEST_F(SparkFunctionTest, elementAtMapMissingKeyAnsiOn) {
+  queryCtx_->testingOverrideConfigUnsafe({{sparkAnsiEnabledConfigKey(), "true"}});
+  auto map = makeMapVector<int32_t, int32_t>({{{1, 10}, {2, 20}}, {{1, 10}, {2, 20}}});
+  auto key = makeFlatVector<int32_t>({2, 3});
+
+  // A key the map does not contain gives NULL, with ANSI mode on as well.
+  facebook::velox::test::assertEqualVectors(
+      makeNullableFlatVector<int32_t>({20, std::nullopt}), evaluate("element_at(c0, c1)", makeRowVector({map, key})));
+}
+
+TEST_F(SparkFunctionTest, sizeOfNull) {
+  // Gluten passes Spark's Size.legacySizeOfNull as the second argument, and
+  // Spark derives it from 'spark.sql.legacy.sizeOfNull' AND NOT ANSI mode, so
+  // both behaviors have to work regardless of the session's ANSI mode.
+  queryCtx_->testingOverrideConfigUnsafe({{sparkAnsiEnabledConfigKey(), "true"}});
+  auto data = makeRowVector({makeArrayVectorFromJson<int32_t>({"[1, 2, 3]", "null"})});
+
+  facebook::velox::test::assertEqualVectors(
+      makeNullableFlatVector<int32_t>({3, std::nullopt}), evaluate("size(c0, false)", data));
+  facebook::velox::test::assertEqualVectors(makeFlatVector<int32_t>({3, -1}), evaluate("size(c0, true)", data));
+}
