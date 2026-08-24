@@ -43,6 +43,13 @@ class SparkFunctionTest : public SparkFunctionBaseTest {
   }
 
  protected:
+  std::optional<std::string> conv(
+      const std::optional<std::string>& num,
+      const std::optional<int32_t>& fromBase,
+      const std::optional<int32_t>& toBase) {
+    return evaluateOnce<std::string>("conv(c0, c1, c2)", num, fromBase, toBase);
+  }
+
   template <typename T>
   void runRoundTest(const std::vector<std::tuple<T, T>>& data) {
     auto result = evaluate<SimpleVector<T>>("round(c0)", makeRowVector({makeFlatVector<T, 0>(data)}));
@@ -219,4 +226,52 @@ TEST_F(SparkFunctionTest, eltConstantIndexOverDictionaryInput) {
   facebook::velox::test::assertEqualVectors(
       makeFlatVector<StringView>({"b2", "b0", "b1"}),
       evaluate("elt(c0, c1, c2)", makeRowVector({index, first, dictionary})));
+}
+
+TEST_F(SparkFunctionTest, convOverflowAnsiOff) {
+  queryCtx_->testingOverrideConfigUnsafe({{sparkAnsiEnabledConfigKey(), "false"}});
+
+  // Digits that do not fit in an unsigned 64-bit integer saturate, which is
+  // what Spark does with ANSI mode off.
+  EXPECT_EQ(conv("9223372036854775807", 36, 16), "FFFFFFFFFFFFFFFF");
+  EXPECT_EQ(conv("10000000000000000", 16, 10), "18446744073709551615");
+  EXPECT_EQ(conv("-10000000000000000", 16, -10), "-1");
+}
+
+TEST_F(SparkFunctionTest, convOverflowAnsiOn) {
+  queryCtx_->testingOverrideConfigUnsafe({{sparkAnsiEnabledConfigKey(), "true"}});
+
+  VELOX_ASSERT_THROW(conv("9223372036854775807", 36, 16), "Overflow in function conv()");
+  VELOX_ASSERT_THROW(conv("10000000000000000", 16, 10), "Overflow in function conv()");
+  VELOX_ASSERT_THROW(conv("-10000000000000000", 16, -10), "Overflow in function conv()");
+}
+
+TEST_F(SparkFunctionTest, convNoOverflowAnsiOn) {
+  queryCtx_->testingOverrideConfigUnsafe({{sparkAnsiEnabledConfigKey(), "true"}});
+
+  EXPECT_EQ(conv("4", 10, 2), "100");
+  EXPECT_EQ(conv("big", 36, 16), "3A48");
+  // 2^64 - 1 is the largest input that does not overflow.
+  EXPECT_EQ(conv("18446744073709551615", 10, 10), "18446744073709551615");
+  EXPECT_EQ(conv("FFFFFFFFFFFFFFFF", 16, -10), "-1");
+  // The sign is applied after the digits are accumulated, so wrapping around
+  // through a negative input is not an overflow.
+  EXPECT_EQ(conv("-1", 10, 16), "FFFFFFFFFFFFFFFF");
+  EXPECT_EQ(conv("-15", 10, 16), "FFFFFFFFFFFFFFF1");
+  // The digits stop at the first character that is invalid for the base, so a
+  // long tail of invalid characters is not an overflow either.
+  EXPECT_EQ(conv("11abcabcabcabcabcabcabcabc", 10, 16), "B");
+}
+
+TEST_F(SparkFunctionTest, convInvalidInputAnsiOn) {
+  queryCtx_->testingOverrideConfigUnsafe({{sparkAnsiEnabledConfigKey(), "true"}});
+
+  // Invalid input gives NULL, with ANSI mode on as well.
+  EXPECT_EQ(conv("15", 1, 10), std::nullopt);
+  EXPECT_EQ(conv("15", 37, 10), std::nullopt);
+  EXPECT_EQ(conv("15", 10, 1), std::nullopt);
+  EXPECT_EQ(conv("15", 10, -37), std::nullopt);
+  EXPECT_EQ(conv("", 10, 16), std::nullopt);
+  EXPECT_EQ(conv("   ", 10, 16), std::nullopt);
+  EXPECT_EQ(conv(std::nullopt, 10, 16), std::nullopt);
 }

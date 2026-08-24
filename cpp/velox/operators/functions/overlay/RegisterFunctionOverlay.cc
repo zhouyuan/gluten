@@ -16,6 +16,7 @@
  */
 #include "operators/functions/overlay/RegisterFunctionOverlay.h"
 
+#include "operators/functions/overlay/Conv.h"
 #include "operators/functions/overlay/Elt.h"
 #include "operators/functions/overlay/Round.h"
 #include "velox/functions/lib/RegistrationHelpers.h"
@@ -44,11 +45,18 @@ void registerEltFunction() {
       "elt", eltSignatures(), makeElt, velox::exec::VectorFunctionMetadataBuilder().defaultNullBehavior(false).build());
 }
 
+// Velox's conv always lets the conversion overflow, which only matches Spark
+// with ANSI mode off.
+void registerConvFunction() {
+  velox::registerFunction<ConvFunction, velox::Varchar, velox::Varchar, int32_t, int32_t>({"conv"});
+}
+
 } // namespace
 
 void registerFunctionOverlay() {
   registerRoundFunction();
   registerEltFunction();
+  registerConvFunction();
 }
 
 } // namespace gluten

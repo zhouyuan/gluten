@@ -57,7 +57,9 @@ Use the overlay when:
 An overlay function follows Spark's ANSI rule the same way Velox's `sparksql` functions do: read
 `SparkQueryConfig::ansiEnabled()` from the query config, which Gluten populates from the session's
 `spark.sql.ansi.enabled`. Returning NULL on invalid input with ANSI mode off and raising a user error with it on is what
-`elt` does for an out-of-range index. Note that Gluten still falls back on ANSI mode as a whole unless
+`elt` does for an out-of-range index. When only the ANSI behavior is missing from an otherwise correct Velox function,
+keep delegating to it instead of forking it: `conv` (`overlay/Conv.h`) wraps Velox's `conv` and only adds the overflow
+error that ANSI mode requires. Note that Gluten still falls back on ANSI mode as a whole unless
 `spark.gluten.sql.ansiFallback.enabled` is set to `false`.
 
 To add a function:
