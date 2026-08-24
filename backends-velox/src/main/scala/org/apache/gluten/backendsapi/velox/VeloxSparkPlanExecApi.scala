@@ -30,7 +30,7 @@ import org.apache.gluten.substrait.SubstraitContext
 import org.apache.gluten.substrait.expression.{ExpressionBuilder, ExpressionNode, WindowFunctionNode}
 import org.apache.gluten.vectorized.{ColumnarBatchSerializer, ColumnarBatchSerializeResult}
 
-import org.apache.spark.{ShuffleDependency, SparkEnv, SparkException}
+import org.apache.spark.{broadcast, ShuffleDependency, SparkEnv, SparkException}
 import org.apache.spark.api.python.{ColumnarArrowEvalPythonExec, PullOutArrowEvalPythonPreProjectHelper}
 import org.apache.spark.internal.Logging
 import org.apache.spark.memory.SparkMemoryUtil
@@ -879,57 +879,15 @@ class VeloxSparkPlanExecApi extends SparkPlanExecApi with Logging {
     val useOffheapBroadcastBuildRelation =
       VeloxConfig.get.enableBroadcastBuildRelationInOffheap
 
-    val serialized: Seq[ColumnarBatchSerializeResult] = newChild
-      .executeColumnar()
-      .mapPartitions(itr => Iterator(BroadcastUtils.serializeStream(itr)))
-      .filter(_.numRows != 0)
-      .collect
-    val buildSideRowCount = serialized.map(_.numRows).sum
-    val rawSize = serialized.map(_.sizeInBytes()).sum
-    if (rawSize >= GlutenConfig.get.maxBroadcastTableSize) {
-      throw new SparkException(
-        "Cannot broadcast the table that is larger than " +
-          s"${SparkMemoryUtil.bytesToString(GlutenConfig.get.maxBroadcastTableSize)}: " +
-          s"${SparkMemoryUtil.bytesToString(rawSize)}")
-    }
-    numOutputRows += buildSideRowCount
-    dataSize += rawSize
-
-    val rawThreads =
-      math
-        .ceil(dataSize.value.toDouble / VeloxConfig.get.veloxBroadcastHashTableBuildTargetBytes)
-        .toInt
-    val buildThreadsValue = if (rawThreads < 1) 1 else rawThreads
-    buildThreads += buildThreadsValue
-
-    // Create the base ColumnarBuildSideRelation first
-    val columnarRelation = if (useOffheapBroadcastBuildRelation) {
-      TaskResources.runUnsafe {
-        UnsafeColumnarBuildSideRelation(
-          newOutput,
-          serialized.flatMap(_.offHeapData().asScala),
-          mode,
-          newBuildKeys,
-          offload,
-          buildThreadsValue)
-      }
-    } else {
-      ColumnarBuildSideRelation(
-        newOutput,
-        serialized.flatMap(_.onHeapData().asScala).toArray,
-        mode,
-        newBuildKeys,
-        offload,
-        buildThreadsValue)
-    }
-
     // Check if we should build hash table on driver (Spark-native approach)
     // Only do this for HashedRelationBroadcastMode and when offload is enabled
     val shouldBuildOnDriver = VeloxConfig.get.enableDriverSideBroadcastHashTableBuild &&
       mode.isInstanceOf[HashedRelationBroadcastMode] &&
       offload
 
-    if (shouldBuildOnDriver) {
+    // The join context is resolved before the build side is collected, because it is also part of
+    // the key of the driver-side broadcast relation cache: a cache hit skips the collect.
+    val buildContextOpt: Option[BroadcastHashJoinContext] = if (shouldBuildOnDriver) {
       // Try to get broadcast join context from logical plan tag
       // In multi-join scenarios, there may be multiple contexts. Find the one that matches
       // the current broadcast child's output.
@@ -951,8 +909,13 @@ class VeloxSparkPlanExecApi extends SparkPlanExecApi with Logging {
             }
         }
 
-      joinContextOpt match {
-        case Some(joinContext) =>
+      if (joinContextOpt.isEmpty) {
+        // No join context available - fall back to executor-side build
+        logInfo(s"No broadcast join context found in logical plan, using executor-side build")
+      }
+
+      joinContextOpt.map {
+        joinContext =>
           // We have join context information - build hash table on driver
           logInfo(
             s"Building hash table on driver in BroadcastExchangeExec " +
@@ -1009,7 +972,7 @@ class VeloxSparkPlanExecApi extends SparkPlanExecApi with Logging {
           } else {
             joinContext.originalLeftKeys
           }
-          val buildContext = BroadcastHashJoinContext(
+          BroadcastHashJoinContext(
             buildSideJoinKeys = if (newBuildKeys.nonEmpty) newBuildKeys else joinKeys,
             substraitJoinType = substraitJoinType,
             buildRight = joinContext.buildRight,
@@ -1026,64 +989,166 @@ class VeloxSparkPlanExecApi extends SparkPlanExecApi with Logging {
             serializeHashTableTimeMetric = Option(serializeHashTableTimeMetric),
             serializedHashTableSizeMetric = Option(serializedHashTableSizeMetric)
           )
-
-          try {
-            // Build and serialize hash table on driver
-            val (serializedHashTable, safeMode) = columnarRelation match {
-              case rel: ColumnarBuildSideRelation =>
-                (
-                  VeloxBroadcastBuildSideCache
-                    .buildAndSerializeOnDriverInBroadcastExchange(
-                      rel,
-                      buildContext,
-                      buildSideRowCount),
-                  rel.safeBroadcastMode
-                )
-              case rel: UnsafeColumnarBuildSideRelation =>
-                (
-                  VeloxBroadcastBuildSideCache
-                    .buildAndSerializeOnDriverInBroadcastExchange(
-                      rel,
-                      buildContext,
-                      buildSideRowCount),
-                  rel.getSafeBroadcastMode
-                )
-            }
-
-            logInfo(
-              s"Successfully built hash table on driver: " +
-                s"size=${serializedHashTable.sizeInBytes} bytes, " +
-                s"rows=${serializedHashTable.numRows}, " +
-                s"joinType=${joinContext.joinType}, " +
-                s"broadcastId=$broadcastId")
-
-            // Return SerializedHashTableBroadcastRelation
-            SerializedHashTableBroadcastRelation(
-              serializedHashTable,
-              safeMode,
-              newOutput,
-              0L, // buildTimeMs - tracked inside SerializedBroadcastHashTable
-              0L // serializeTimeMs - tracked inside SerializedBroadcastHashTable
-            )
-          } catch {
-            case e: Exception =>
-              logWarning(
-                s"Failed to build hash table on driver for broadcastId=$broadcastId, " +
-                  s"falling back to executor-side build: ${e.getMessage}",
-                e)
-              columnarRelation
-          }
-
-        case None =>
-          // No join context available - fall back to executor-side build
-          logInfo(s"No broadcast join context found in logical plan, using executor-side build")
-          columnarRelation
       }
     } else {
-      // Return ColumnarBuildSideRelation for executor-side build (legacy approach)
-      columnarRelation
+      None
+    }
+
+    // A hash table built by a previous query can be reused as long as the build side plan and the
+    // join properties it was built with are the same. This is what makes repeated workloads, e.g.
+    // the concurrent streams of a TPC-DS throughput run, skip the whole build side pipeline.
+    val relationCacheKeyOpt = buildContextOpt
+      .filter(_ => VeloxDriverBroadcastRelationCache.enabled)
+      .flatMap {
+        buildContext =>
+          VeloxDriverBroadcastRelationCache.keyOf(
+            newChild,
+            newOutput,
+            newBuildKeys,
+            buildContext,
+            useOffheapBroadcastBuildRelation)
+      }
+
+    val cachedRelation = relationCacheKeyOpt.flatMap(VeloxDriverBroadcastRelationCache.getIfPresent)
+    if (cachedRelation.isDefined) {
+      val cached = cachedRelation.get
+      logInfo(
+        s"Reusing the broadcast relation built by a previous query: " +
+          s"size=${cached.serializedSize} bytes, rows=${cached.numRows}")
+      // The build side job is skipped, so report the metrics of the job that built the relation.
+      numOutputRows += cached.numRows
+      dataSize += cached.rawSize
+      Option(buildThreads).foreach(_ += cached.buildThreads)
+      Option(serializedHashTableSizeMetric).foreach(_.set(cached.serializedSize))
+      return cached.relation
+    }
+
+    val serialized: Seq[ColumnarBatchSerializeResult] = newChild
+      .executeColumnar()
+      .mapPartitions(itr => Iterator(BroadcastUtils.serializeStream(itr)))
+      .filter(_.numRows != 0)
+      .collect
+    val buildSideRowCount = serialized.map(_.numRows).sum
+    val rawSize = serialized.map(_.sizeInBytes()).sum
+    if (rawSize >= GlutenConfig.get.maxBroadcastTableSize) {
+      throw new SparkException(
+        "Cannot broadcast the table that is larger than " +
+          s"${SparkMemoryUtil.bytesToString(GlutenConfig.get.maxBroadcastTableSize)}: " +
+          s"${SparkMemoryUtil.bytesToString(rawSize)}")
+    }
+    numOutputRows += buildSideRowCount
+    dataSize += rawSize
+
+    val rawThreads =
+      math
+        .ceil(dataSize.value.toDouble / VeloxConfig.get.veloxBroadcastHashTableBuildTargetBytes)
+        .toInt
+    val buildThreadsValue = if (rawThreads < 1) 1 else rawThreads
+    buildThreads += buildThreadsValue
+
+    // Create the base ColumnarBuildSideRelation first
+    val columnarRelation = if (useOffheapBroadcastBuildRelation) {
+      TaskResources.runUnsafe {
+        UnsafeColumnarBuildSideRelation(
+          newOutput,
+          serialized.flatMap(_.offHeapData().asScala),
+          mode,
+          newBuildKeys,
+          offload,
+          buildThreadsValue)
+      }
+    } else {
+      ColumnarBuildSideRelation(
+        newOutput,
+        serialized.flatMap(_.onHeapData().asScala).toArray,
+        mode,
+        newBuildKeys,
+        offload,
+        buildThreadsValue)
+    }
+
+    buildContextOpt match {
+      case Some(buildContext) =>
+        try {
+          // Build and serialize hash table on driver. When the relation is kept by the driver-side
+          // relation cache, that cache owns the serialized hash table, so it is not tracked by the
+          // per-exchange cache as well.
+          val trackSerializedHashTable = relationCacheKeyOpt.isEmpty
+          val (serializedHashTable, safeMode) = columnarRelation match {
+            case rel: ColumnarBuildSideRelation =>
+              (
+                VeloxBroadcastBuildSideCache
+                  .buildAndSerializeOnDriverInBroadcastExchange(
+                    rel,
+                    buildContext,
+                    buildSideRowCount,
+                    trackSerializedHashTable),
+                rel.safeBroadcastMode
+              )
+            case rel: UnsafeColumnarBuildSideRelation =>
+              (
+                VeloxBroadcastBuildSideCache
+                  .buildAndSerializeOnDriverInBroadcastExchange(
+                    rel,
+                    buildContext,
+                    buildSideRowCount,
+                    trackSerializedHashTable),
+                rel.getSafeBroadcastMode
+              )
+          }
+
+          logInfo(
+            s"Successfully built hash table on driver: " +
+              s"size=${serializedHashTable.sizeInBytes} bytes, " +
+              s"rows=${serializedHashTable.numRows}, " +
+              s"joinType=${buildContext.substraitJoinType}, " +
+              s"broadcastId=${buildContext.buildHashTableId}")
+
+          // Return SerializedHashTableBroadcastRelation
+          val relation = SerializedHashTableBroadcastRelation(
+            serializedHashTable,
+            safeMode,
+            newOutput,
+            0L, // buildTimeMs - tracked inside SerializedBroadcastHashTable
+            0L // serializeTimeMs - tracked inside SerializedBroadcastHashTable
+          )
+
+          relationCacheKeyOpt.foreach {
+            key =>
+              VeloxDriverBroadcastRelationCache.put(
+                key,
+                relation,
+                buildSideRowCount,
+                rawSize,
+                buildThreadsValue,
+                serializedHashTable.sizeInBytes)
+          }
+
+          relation
+        } catch {
+          case e: Exception =>
+            logWarning(
+              s"Failed to build hash table on driver for " +
+                s"broadcastId=${buildContext.buildHashTableId}, " +
+                s"falling back to executor-side build: ${e.getMessage}",
+              e
+            )
+            columnarRelation
+        }
+
+      case None =>
+        // Return ColumnarBuildSideRelation for executor-side build (legacy approach)
+        columnarRelation
     }
   }
+
+  override def cachedBroadcast(relation: BuildSideRelation): Option[broadcast.Broadcast[Any]] =
+    VeloxDriverBroadcastRelationCache.cachedBroadcast(relation)
+
+  override def cacheBroadcast(
+      relation: BuildSideRelation,
+      broadcasted: broadcast.Broadcast[Any]): Unit =
+    VeloxDriverBroadcastRelationCache.registerBroadcast(relation, broadcasted)
 
   override def doCanonicalizeForBroadcastMode(mode: BroadcastMode): BroadcastMode = {
     mode match {

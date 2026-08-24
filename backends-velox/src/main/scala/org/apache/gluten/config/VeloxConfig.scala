@@ -120,6 +120,12 @@ class VeloxConfig(conf: SQLConf) extends GlutenConfig(conf) {
   def enableDriverSideBroadcastHashTableBuild: Boolean =
     getConf(VELOX_DRIVER_SIDE_BROADCAST_HASH_TABLE_BUILD)
 
+  def enableDriverSideBroadcastHashTableCache: Boolean =
+    getConf(VELOX_DRIVER_SIDE_BROADCAST_HASH_TABLE_CACHE_ENABLED)
+
+  def driverSideBroadcastHashTableCacheMaxSize: Long =
+    getConf(VELOX_DRIVER_SIDE_BROADCAST_HASH_TABLE_CACHE_MAX_SIZE)
+
   def enableGpuAsyncShuffleReader: Boolean = getConf(ENABLE_GPU_ASYNC_SHUFFLE_READER)
 
   def gpuAsyncReaderMaxPrefetchBytes: Long = getConf(GPU_ASYNC_SHUFFLE_READER_MAX_PREFETCH_BYTES)
@@ -772,6 +778,30 @@ object VeloxConfig extends ConfigRegistry {
           "each executor builds its own hash table from the broadcast data.")
       .booleanConf
       .createWithDefault(false)
+
+  val VELOX_DRIVER_SIDE_BROADCAST_HASH_TABLE_CACHE_ENABLED =
+    buildConf("spark.gluten.sql.columnar.backend.velox.driverSideBroadcastHashTableCache.enabled")
+      .doc(
+        "Reuse the hash tables built by driver-side broadcast hash table build across queries of " +
+          "the same application. Cache entries are keyed by the canonicalized build side plan " +
+          "plus the join properties the hash table was built with, so identical broadcast build " +
+          "sides coming from different queries, e.g. the concurrent streams of a TPC-DS " +
+          "throughput run, share one hash table instead of collecting, building and " +
+          "broadcasting it again. Only takes effect when " +
+          "spark.gluten.sql.columnar.backend.velox.driverSideBroadcastHashTableBuild is enabled. " +
+          "Reusing assumes the data behind a build side does not change while the application " +
+          "is running, and the cached hash tables hold driver off-heap memory until they are " +
+          "evicted, so this is disabled by default.")
+      .booleanConf
+      .createWithDefault(false)
+
+  val VELOX_DRIVER_SIDE_BROADCAST_HASH_TABLE_CACHE_MAX_SIZE =
+    buildConf("spark.gluten.sql.columnar.backend.velox.driverSideBroadcastHashTableCache.maxSize")
+      .doc(
+        "The maximum total size of the serialized hash tables kept by the driver-side broadcast " +
+          "hash table cache. Least-recently-used entries are evicted once the limit is exceeded.")
+      .bytesConf(ByteUnit.BYTE)
+      .createWithDefaultString("1GB")
 
   val QUERY_TRACE_ENABLED = buildConf("spark.gluten.sql.columnar.backend.velox.queryTraceEnabled")
     .doc("Enable query tracing flag.")

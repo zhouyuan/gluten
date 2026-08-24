@@ -24,7 +24,7 @@ import org.apache.gluten.sql.shims.SparkShimLoader
 import org.apache.gluten.substrait.SubstraitContext
 import org.apache.gluten.substrait.expression.WindowFunctionNode
 
-import org.apache.spark.ShuffleDependency
+import org.apache.spark.{broadcast, ShuffleDependency}
 import org.apache.spark.rdd.RDD
 import org.apache.spark.serializer.Serializer
 import org.apache.spark.shuffle.{GenShuffleReaderParameters, GenShuffleWriterParameters, GlutenShuffleReaderWrapper, GlutenShuffleWriterWrapper}
@@ -453,6 +453,16 @@ trait SparkPlanExecApi {
   def doCanonicalizeForBroadcastMode(mode: BroadcastMode): BroadcastMode = {
     mode.canonicalized
   }
+
+  /**
+   * The broadcast that was already created for the given relation, if the backend keeps broadcast
+   * relations alive on the driver to share them between queries. None means the relation has to be
+   * broadcast.
+   */
+  def cachedBroadcast(relation: BuildSideRelation): Option[broadcast.Broadcast[Any]] = None
+
+  /** Remember the broadcast created for a relation, so that a later query can reuse it. */
+  def cacheBroadcast(relation: BuildSideRelation, broadcasted: broadcast.Broadcast[Any]): Unit = {}
 
   /** Create ColumnarWriteFilesExec */
   def createColumnarWriteFilesExec(

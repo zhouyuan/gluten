@@ -111,11 +111,17 @@ object VeloxBroadcastBuildSideCache
    * BroadcastExchangeExec and doesn't need a broadcast variable.
    *
    * This is the Spark-native approach where hash table is built in BroadcastExchangeExec.
+   *
+   * @param trackInDriverCache
+   *   whether the serialized hash table is kept in `driverSerializedCache`, which also owns its
+   *   off-heap memory. Set to false when the caller keeps the built relation alive itself, e.g.
+   *   `VeloxDriverBroadcastRelationCache`, so that the hash table has a single owner.
    */
   def buildAndSerializeOnDriverInBroadcastExchange(
       relation: BuildSideRelation,
       broadcastContext: BroadcastHashJoinContext,
-      numRows: Long): SerializedBroadcastHashTable = {
+      numRows: Long,
+      trackInDriverCache: Boolean = true): SerializedBroadcastHashTable = {
 
     val broadcastId = broadcastContext.buildHashTableId
 
@@ -180,7 +186,9 @@ object VeloxBroadcastBuildSideCache
           broadcastContext.serializeHashTableTimeMetric.foreach(_ += serializeTimeMs)
           broadcastContext.serializedHashTableSizeMetric.foreach(_ += result.sizeInBytes)
 
-          driverSerializedCache.put(broadcastId, result)
+          if (trackInDriverCache) {
+            driverSerializedCache.put(broadcastId, result)
+          }
           result
         } finally {
           resetRelation(droppedDuplicates)
@@ -233,6 +241,7 @@ object VeloxBroadcastBuildSideCache
   def cleanAll(): Unit = {
     buildSideRelationCache.invalidateAll()
     driverSerializedCache.invalidateAll()
+    VeloxDriverBroadcastRelationCache.cleanAll()
   }
 
   override def onRemoval(

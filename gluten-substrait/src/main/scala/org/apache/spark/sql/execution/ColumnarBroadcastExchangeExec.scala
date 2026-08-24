@@ -85,10 +85,21 @@ case class ColumnarBroadcastExchangeExec(mode: BroadcastMode, child: SparkPlan)
 
         val broadcasted = GlutenTimeMetric.millis(longMetric("broadcastTime")) {
           _ =>
-            // Broadcast the relation
-            SparkShimLoader.getSparkShims.broadcastInternal(
-              sparkContext,
-              relation.asInstanceOf[Any])
+            val execApi = BackendsApiManager.getSparkPlanExecApiInstance
+            execApi.cachedBroadcast(relation) match {
+              case Some(cached) =>
+                // The relation comes from a driver-side cache and has been broadcast already by a
+                // previous query, so the very same broadcast can be handed out again.
+                logInfo("Reusing the broadcast of a cached broadcast relation")
+                cached
+              case None =>
+                // Broadcast the relation
+                val broadcastResult = SparkShimLoader.getSparkShims.broadcastInternal(
+                  sparkContext,
+                  relation.asInstanceOf[Any])
+                execApi.cacheBroadcast(relation, broadcastResult)
+                broadcastResult
+            }
         }
 
         // Update driver metrics

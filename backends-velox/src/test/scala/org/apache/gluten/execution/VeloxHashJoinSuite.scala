@@ -489,6 +489,99 @@ class VeloxHashJoinSuite extends VeloxWholeStageTransformerSuite {
     }
   }
 
+  test("driver-side broadcast hash table cache is reused by an identical later query") {
+    withSQLConf(
+      ("spark.sql.autoBroadcastJoinThreshold", "10MB"),
+      ("spark.sql.adaptive.enabled", "false"),
+      (VeloxConfig.VELOX_DRIVER_SIDE_BROADCAST_HASH_TABLE_BUILD.key, "true"),
+      (VeloxConfig.VELOX_DRIVER_SIDE_BROADCAST_HASH_TABLE_CACHE_ENABLED.key, "true"),
+      (VeloxConfig.VELOX_BROADCAST_BUILD_RELATION_USE_OFFHEAP.key, "true")
+    ) {
+      withTable("cached_bhj_fact", "cached_bhj_dim") {
+        spark.range(0, 200).selectExpr("id as k", "id % 7 as v").write
+          .saveAsTable("cached_bhj_fact")
+        spark.range(0, 50).selectExpr("id as k", "concat('dim_', cast(id as string)) as name").write
+          .saveAsTable("cached_bhj_dim")
+
+        val query =
+          """
+            |SELECT /*+ BROADCAST(d) */
+            |  f.k, f.v, d.name
+            |FROM cached_bhj_fact f
+            |JOIN cached_bhj_dim d
+            |ON f.k = d.k
+            |ORDER BY f.k
+            |""".stripMargin
+
+        val first = spark.sql(query)
+        val expected = first.collect().toSeq
+        val firstRelations = collectBroadcastRelations(first)
+        assert(
+          firstRelations.size == 1 &&
+            firstRelations.head.isInstanceOf[SerializedHashTableBroadcastRelation],
+          s"Expected a single serialized broadcast relation, got $firstRelations"
+        )
+        assert(
+          VeloxDriverBroadcastRelationCache.size() == 1,
+          s"Expected the built relation to be cached, got " +
+            s"${VeloxDriverBroadcastRelationCache.size()} entries"
+        )
+        // The relation cache owns the serialized hash table, the per-exchange cache must not
+        // track it as well.
+        assert(VeloxBroadcastBuildSideCache.driverSerializedCacheSize() == 0)
+
+        val hitsBefore = VeloxDriverBroadcastRelationCache.stats().hitCount()
+
+        val second = spark.sql(query)
+        checkAnswer(second, expected)
+        assert(
+          VeloxDriverBroadcastRelationCache.stats().hitCount() > hitsBefore,
+          "The second query should have hit the driver-side broadcast relation cache")
+        assert(
+          VeloxDriverBroadcastRelationCache.size() == 1,
+          "The second query must not add another entry for the same build side")
+
+        // A query that reuses a relation does not run the build side job, it still has to report
+        // the statistics of the exchange.
+        val exchanges = collectWithSubqueries(second.queryExecution.executedPlan) {
+          case exchange: ColumnarBroadcastExchangeExec => exchange
+        }
+        assert(exchanges.size == 1)
+        assert(exchanges.head.metrics("numOutputRows").value == 50)
+        assert(exchanges.head.metrics("dataSize").value > 0)
+
+        VeloxBroadcastBuildSideCache.cleanAll()
+        assert(VeloxDriverBroadcastRelationCache.size() == 0)
+      }
+    }
+  }
+
+  test("driver-side broadcast hash table cache is not used for different build keys") {
+    withSQLConf(
+      ("spark.sql.autoBroadcastJoinThreshold", "10MB"),
+      ("spark.sql.adaptive.enabled", "false"),
+      (VeloxConfig.VELOX_DRIVER_SIDE_BROADCAST_HASH_TABLE_BUILD.key, "true"),
+      (VeloxConfig.VELOX_DRIVER_SIDE_BROADCAST_HASH_TABLE_CACHE_ENABLED.key, "true")
+    ) {
+      withTable("key_bhj_fact", "key_bhj_dim") {
+        spark.range(0, 100).selectExpr("id as k1", "id % 5 as k2").write
+          .saveAsTable("key_bhj_fact")
+        spark.range(0, 20).selectExpr("id as k1", "id % 5 as k2", "id as v").write
+          .saveAsTable("key_bhj_dim")
+
+        val onK1 = spark.sql("""SELECT /*+ BROADCAST(d) */ count(*) FROM key_bhj_fact f
+                               | JOIN key_bhj_dim d ON f.k1 = d.k1""".stripMargin)
+        val onK2 = spark.sql("""SELECT /*+ BROADCAST(d) */ count(*) FROM key_bhj_fact f
+                               | JOIN key_bhj_dim d ON f.k2 = d.k2""".stripMargin)
+        checkAnswer(onK1, Seq(Row(20)))
+        checkAnswer(onK2, Seq(Row(400)))
+        assert(
+          VeloxDriverBroadcastRelationCache.size() == 2,
+          "Build sides joined on different keys must not share a hash table")
+      }
+    }
+  }
+
   test("Broadcast join with multiple cast expressions in join keys") {
     withSQLConf(
       ("spark.sql.autoBroadcastJoinThreshold", "10MB"),
