@@ -58,6 +58,9 @@ object VeloxRuleApi {
     injector.injectOptimizerRule(CollapseGetJsonObjectExpressionRule.apply)
     injector.injectOptimizerRule(RewriteCastFromArray.apply)
     injector.injectOptimizerRule(RewriteUnboundedWindow.apply)
+    // Ahead of PushAggregateThroughJoinBatch: turning the outer join into an anti join shrinks the
+    // subtree that rule then looks at.
+    injector.injectOptimizerRule(RewriteLeftOuterToLeftAntiBatch.apply)
     injector.injectOptimizerRule(PushAggregateThroughJoinBatch.apply)
     injector.injectPlannerStrategy(ImplementJoinAggregate.apply)
 
