@@ -460,7 +460,7 @@ jobs:
 
   # Build and package for macOS (arm64)
   build-native-lib-macos:
-    if: ${{ startsWith(github.repository, 'apache/') }}
+
     runs-on: macos-15
     env:
       INSTALL_PREFIX: /tmp/deps-install
@@ -509,7 +509,7 @@ jobs:
           if-no-files-found: error
 
   build-bundle-package-macos-jdk17:
-    if: ${{ startsWith(github.repository, 'apache/') }}
+
     needs: build-native-lib-macos
     runs-on: macos-15
     env:
