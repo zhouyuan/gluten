@@ -487,8 +487,6 @@ jobs:
           export CCACHE_MAXSIZE=1G
           mkdir -p $CCACHE_DIR
           ./dev/builddeps-veloxbe.sh --run_setup_script=ON --build_arrow=ON
-          mkdir -p $GITHUB_WORKSPACE/.m2/repository/org/apache/arrow/
-          cp -r ~/.m2/repository/org/apache/arrow/* $GITHUB_WORKSPACE/.m2/repository/org/apache/arrow/
       - name: Save Ccache
         if: always()
         uses: actions/cache/save@v4
@@ -501,13 +499,6 @@ jobs:
           name: velox-native-lib-macos-${{github.sha}}
           path: ./cpp/build/releases/
           if-no-files-found: error
-      - name: Upload Arrow Jar
-        uses: actions/upload-artifact@v7
-        with:
-          name: velox-arrow-jar-macos-${{github.sha}}
-          path: .m2/repository/org/apache/arrow/
-          if-no-files-found: error
-
   build-bundle-package-macos-jdk17:
 
     needs: build-native-lib-macos
@@ -528,11 +519,6 @@ jobs:
         with:
           name: velox-native-lib-macos-${{github.sha}}
           path: ./cpp/build/releases
-      - name: Download Arrow Jar
-        uses: actions/download-artifact@v8
-        with:
-          name: velox-arrow-jar-macos-${{github.sha}}
-          path: ~/.m2/repository/org/apache/arrow/
       - name: Get current date
         id: date
         run: echo "::set-output name=date::$(date +'%Y-%m-%d')"
