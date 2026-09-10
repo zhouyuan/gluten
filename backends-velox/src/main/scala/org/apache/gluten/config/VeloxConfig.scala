@@ -165,6 +165,109 @@ object VeloxConfig extends ConfigRegistry {
       .booleanConf
       .createWithDefault(true)
 
+  val COLUMNAR_VELOX_DECODED_CACHE_ENABLED =
+    buildStaticConf("spark.gluten.sql.columnar.backend.velox.decodedCacheEnabled")
+      .doc(
+        "Enable the decoded scan cache, default off. Caches decoded Parquet column data so " +
+          "that a warm scan skips decompression and decoding, not just IO. Works with or " +
+          "without spark.gluten.sql.columnar.backend.velox.cacheEnabled: with it, the two " +
+          "caches share one budget; without it, the decoded cache gets its own memory store " +
+          "sized by decodedCacheMemSize. Experimental: see " +
+          "docs/developers/VeloxDecodedCache.md.")
+      .booleanConf
+      .createWithDefault(false)
+
+  val COLUMNAR_VELOX_DECODED_CACHE_MEM_SIZE =
+    buildStaticConf("spark.gluten.sql.columnar.backend.velox.decodedCacheMemSize")
+      .doc(
+        "Size of the decoded scan cache's own memory store. Only used when " +
+          "spark.gluten.sql.columnar.backend.velox.cacheEnabled is off; when the raw byte " +
+          "cache is on, the decoded cache shares its instance and memCacheSize instead. " +
+          "Like the raw cache arena, this memory is not tracked by Spark.")
+      .bytesConf(ByteUnit.BYTE)
+      .createWithDefaultString("1GB")
+
+  val COLUMNAR_VELOX_DECODED_CACHE_SSD_SIZE =
+    buildStaticConf("spark.gluten.sql.columnar.backend.velox.decodedCacheSsdSize")
+      .doc(
+        "SSD tier size for the decoded scan cache's own store, 0 for memory only. Only used " +
+          "when spark.gluten.sql.columnar.backend.velox.cacheEnabled is off; when the raw byte " +
+          "cache is on, the decoded cache shares its SSD tier. An SSD hit still skips " +
+          "decompression and decoding, and because SSD checkpoints persist file names, " +
+          "decoded data can survive an executor restart.")
+      .bytesConf(ByteUnit.BYTE)
+      .createWithDefaultString("0")
+
+  val COLUMNAR_VELOX_DECODED_CACHE_SSD_PATH =
+    buildStaticConf("spark.gluten.sql.columnar.backend.velox.decodedCacheSsdPath")
+      .doc(
+        "Folder for the decoded scan cache's SSD tier files, better on SSD. May be the same " +
+          "folder as ssdCachePath: the two tiers use distinct file prefixes.")
+      .stringConf
+      .createWithDefault("/tmp")
+
+  val COLUMNAR_VELOX_DECODED_CACHE_SSD_SHARDS =
+    buildStaticConf("spark.gluten.sql.columnar.backend.velox.decodedCacheSsdShards")
+      .doc("Shards of the decoded scan cache's SSD tier.")
+      .intConf
+      .checkValue(_ > 0, "must be a positive number")
+      .createWithDefault(1)
+
+  val COLUMNAR_VELOX_DECODED_CACHE_SSD_IO_THREADS =
+    buildStaticConf("spark.gluten.sql.columnar.backend.velox.decodedCacheSsdIOThreads")
+      .doc("IO threads for the decoded scan cache's SSD tier read/write operations.")
+      .intConf
+      .checkValue(_ > 0, "must be a positive number")
+      .createWithDefault(4)
+
+  val COLUMNAR_VELOX_DECODED_CACHE_WINDOW_ROWS =
+    buildStaticConf("spark.gluten.sql.columnar.backend.velox.decodedCacheWindowRows")
+      .doc(
+        "Rows per cached window. Larger windows amortize per-entry overhead; smaller ones " +
+          "waste less when only part of a window is read. A window is never cached if it " +
+          "serializes above 8MB, the largest entry the SSD tier accepts.")
+      .intConf
+      .checkValue(_ > 0, "must be a positive number")
+      .createWithDefault(65536)
+
+  val COLUMNAR_VELOX_DECODED_CACHE_ADMIT_MIN_TOUCHES =
+    buildStaticConf("spark.gluten.sql.columnar.backend.velox.decodedCacheAdmitMinTouches")
+      .doc(
+        "A split is transcoded into the cache only after it has been read this many times. " +
+          "The default of 2 keeps one-shot scans, which have nobody to amortize the transcode " +
+          "cost, on the normal read path. Set to 1 to warm on first touch.")
+      .intConf
+      .checkValue(_ >= 1, "must be at least 1")
+      .createWithDefault(2)
+
+  val COLUMNAR_VELOX_DECODED_CACHE_SERVE_FILTERED_READS =
+    buildStaticConf("spark.gluten.sql.columnar.backend.velox.decodedCacheServeFilteredReads")
+      .doc(
+        "When false, only scans without pushed-down filters use the cache. Cached reads " +
+          "materialize a whole window before filtering, so a very selective filter over a wide " +
+          "projection can cost more CPU than selective reading over a warm raw cache.")
+      .booleanConf
+      .createWithDefault(true)
+
+  val COLUMNAR_VELOX_DECODED_CACHE_MAX_PINNED_BYTES_PER_SPLIT =
+    buildStaticConf("spark.gluten.sql.columnar.backend.velox.decodedCacheMaxPinnedBytesPerSplit")
+      .doc(
+        "A split is served from the cache only if every window it needs can be pinned within " +
+          "this budget. Pinning costs no extra memory but blocks eviction, so this bounds how " +
+          "much of the cache a single split can hold down.")
+      .bytesConf(ByteUnit.BYTE)
+      .createWithDefaultString("512MB")
+
+  val COLUMNAR_VELOX_DECODED_CACHE_MAX_KEYS =
+    buildStaticConf("spark.gluten.sql.columnar.backend.velox.decodedCacheMaxKeys")
+      .doc(
+        "Upper bound on distinct decoded cache key namespaces. Each one holds a string id " +
+          "lease for the process lifetime, so this is a hard memory bound. New keys are " +
+          "refused once it is reached.")
+      .longConf
+      .checkValue(_ > 0, "must be a positive number")
+      .createWithDefault(1024 * 1024)
+
   val COLUMNAR_VELOX_SSD_CACHE_PATH =
     buildStaticConf("spark.gluten.sql.columnar.backend.velox.ssdCachePath")
       .doc("The folder to store the cache files, better on SSD")

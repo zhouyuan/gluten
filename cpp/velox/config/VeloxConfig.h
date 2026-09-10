@@ -162,6 +162,30 @@ const std::string kVeloxSsdCheckSumEnabled = "spark.gluten.sql.columnar.backend.
 const std::string kVeloxSsdCheckSumReadVerificationEnabled =
     "spark.gluten.sql.columnar.backend.velox.ssdChecksumReadVerificationEnabled";
 
+// decoded scan cache. See docs/developers/VeloxDecodedCache.md.
+const std::string kVeloxDecodedCacheEnabled = "spark.gluten.sql.columnar.backend.velox.decodedCacheEnabled";
+const bool kVeloxDecodedCacheEnabledDefault = false;
+const std::string kVeloxDecodedCacheMemSize = "spark.gluten.sql.columnar.backend.velox.decodedCacheMemSize";
+const uint64_t kVeloxDecodedCacheMemSizeDefault = 1073741824; // 1G
+const std::string kVeloxDecodedCacheSsdSize = "spark.gluten.sql.columnar.backend.velox.decodedCacheSsdSize";
+const uint64_t kVeloxDecodedCacheSsdSizeDefault = 0; // memory only
+const std::string kVeloxDecodedCacheSsdPath = "spark.gluten.sql.columnar.backend.velox.decodedCacheSsdPath";
+const std::string kVeloxDecodedCacheSsdShards = "spark.gluten.sql.columnar.backend.velox.decodedCacheSsdShards";
+const std::string kVeloxDecodedCacheSsdIOThreads = "spark.gluten.sql.columnar.backend.velox.decodedCacheSsdIOThreads";
+const std::string kVeloxDecodedCacheWindowRows = "spark.gluten.sql.columnar.backend.velox.decodedCacheWindowRows";
+const int32_t kVeloxDecodedCacheWindowRowsDefault = 65536;
+const std::string kVeloxDecodedCacheAdmitMinTouches =
+    "spark.gluten.sql.columnar.backend.velox.decodedCacheAdmitMinTouches";
+const int32_t kVeloxDecodedCacheAdmitMinTouchesDefault = 2;
+const std::string kVeloxDecodedCacheServeFilteredReads =
+    "spark.gluten.sql.columnar.backend.velox.decodedCacheServeFilteredReads";
+const bool kVeloxDecodedCacheServeFilteredReadsDefault = true;
+const std::string kVeloxDecodedCacheMaxPinnedBytesPerSplit =
+    "spark.gluten.sql.columnar.backend.velox.decodedCacheMaxPinnedBytesPerSplit";
+const int64_t kVeloxDecodedCacheMaxPinnedBytesPerSplitDefault = 512LL << 20;
+const std::string kVeloxDecodedCacheMaxKeys = "spark.gluten.sql.columnar.backend.velox.decodedCacheMaxKeys";
+const int64_t kVeloxDecodedCacheMaxKeysDefault = 1 << 20;
+
 // async
 const std::string kNumTaskSlotsPerExecutor = "spark.gluten.numTaskSlotsPerExecutor";
 const std::string kVeloxIOThreads = "spark.gluten.sql.columnar.backend.velox.IOThreads";

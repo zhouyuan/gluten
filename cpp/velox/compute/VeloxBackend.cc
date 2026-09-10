@@ -39,6 +39,7 @@
 #include "velox/experimental/cudf/expression/SparkFunctions.h"
 #endif
 
+#include "cache/DecodedCacheReader.h"
 #include "compute/VeloxRuntime.h"
 #include "config/VeloxConfig.h"
 #ifdef ENABLE_S3
@@ -119,6 +120,21 @@ ThreadManager* veloxThreadManagerFactory(const std::string& kind, std::unique_pt
 
 void veloxThreadManagerReleaser(ThreadManager* threadManager) {
   delete threadManager;
+}
+
+/// Removes the SSD tier's backing files. A tier that was never configured
+/// leaves both strings empty, in which case there is nothing to remove.
+void removeCacheFiles(const std::string& pathPrefix, const std::string& filePrefix) {
+  if (pathPrefix.empty() || filePrefix.empty()) {
+    return;
+  }
+  std::error_code ec;
+  for (const auto& entry : std::filesystem::directory_iterator(pathPrefix, ec)) {
+    if (entry.path().filename().string().find(filePrefix) != std::string::npos) {
+      LOG(INFO) << "Removing cache file " << entry.path().filename().string();
+      std::filesystem::remove(pathPrefix + "/" + entry.path().filename().string(), ec);
+    }
+  }
 }
 
 bool hasCudaDevice() {
@@ -308,6 +324,9 @@ void VeloxBackend::init(
   // local cache persistent relies on the cache pool from root memory pool so we need to init this
   // after the memory manager instanced
   initCache();
+  // Independent of initCache: the decoded cache can run with its own store
+  // when the raw byte cache is disabled.
+  initDecodedCache();
 
   registerShuffleDictionaryWriterFactory([](MemoryManager* memoryManager, arrow::util::Codec* codec) {
     return std::make_unique<ArrowShuffleDictionaryWriter>(memoryManager, codec);
@@ -338,39 +357,46 @@ void VeloxBackend::initJolFilesystem() {
   registerJolFileSystem(maxSpillFileSize);
 }
 
-std::unique_ptr<facebook::velox::cache::SsdCache> VeloxBackend::initSsdCache(uint64_t ssdCacheSize) {
+VeloxBackend::SsdCacheHandle VeloxBackend::initSsdCache(
+    uint64_t ssdSize,
+    const std::string& pathPrefix,
+    int32_t shards,
+    int32_t ioThreads,
+    const std::string& filePrefixTag,
+    bool allowCheckpoint) {
   FLAGS_velox_ssd_odirect = backendConf_->get<bool>(kVeloxSsdODirectEnabled, false);
-  int32_t ssdCacheShards = backendConf_->get<int32_t>(kVeloxSsdCacheShards, kVeloxSsdCacheShardsDefault);
-  int32_t ssdCacheIOThreads = backendConf_->get<int32_t>(kVeloxSsdCacheIOThreads, kVeloxSsdCacheIOThreadsDefault);
-  std::string ssdCachePathPrefix = backendConf_->get<std::string>(kVeloxSsdCachePath, kVeloxSsdCachePathDefault);
-  uint64_t ssdCheckpointIntervalSize = backendConf_->get<uint64_t>(kVeloxSsdCheckpointIntervalBytes, 0);
+  uint64_t ssdCheckpointIntervalSize =
+      allowCheckpoint ? backendConf_->get<uint64_t>(kVeloxSsdCheckpointIntervalBytes, 0) : 0;
   bool disableFileCow = backendConf_->get<bool>(kVeloxSsdDisableFileCow, false);
   bool checksumEnabled = backendConf_->get<bool>(kVeloxSsdCheckSumEnabled, false);
   bool checksumReadVerificationEnabled = backendConf_->get<bool>(kVeloxSsdCheckSumReadVerificationEnabled, false);
 
-  cachePathPrefix_ = ssdCachePathPrefix;
-  cacheFilePrefix_ = getCacheFilePrefix();
-  std::string ssdCachePath = ssdCachePathPrefix + "/" + cacheFilePrefix_;
-  ssdCacheExecutor_ = std::make_unique<folly::IOThreadPoolExecutor>(ssdCacheIOThreads);
+  SsdCacheHandle handle;
+  handle.pathPrefix = pathPrefix;
+  // A fresh uuid per tier, so two tiers sharing a directory cannot write each
+  // other's files.
+  handle.filePrefix = filePrefixTag + getCacheFilePrefix();
+  const std::string ssdCachePath = pathPrefix + "/" + handle.filePrefix;
+  handle.executor = std::make_unique<folly::IOThreadPoolExecutor>(ioThreads);
   const cache::SsdCache::Config config(
       ssdCachePath,
-      ssdCacheSize,
-      ssdCacheShards,
-      ssdCacheExecutor_.get(),
+      ssdSize,
+      shards,
+      handle.executor.get(),
       ssdCheckpointIntervalSize,
       disableFileCow,
       checksumEnabled,
       checksumReadVerificationEnabled);
-  auto ssd = std::make_unique<velox::cache::SsdCache>(config);
+  handle.cache = std::make_unique<velox::cache::SsdCache>(config);
   std::error_code ec;
-  const std::filesystem::space_info si = std::filesystem::space(ssdCachePathPrefix, ec);
-  if (si.available < ssdCacheSize) {
+  const std::filesystem::space_info si = std::filesystem::space(pathPrefix, ec);
+  if (si.available < ssdSize) {
     VELOX_FAIL(
-        "not enough space for ssd cache in " + ssdCachePath + " cache size: " + std::to_string(ssdCacheSize) +
+        "not enough space for ssd cache in " + ssdCachePath + " cache size: " + std::to_string(ssdSize) +
         "free space: " + std::to_string(si.available));
   }
-  LOG(INFO) << "Initializing SSD cache with: " << config.toString();
-  return ssd;
+  LOG(INFO) << "Initializing SSD cache at " << ssdCachePath << " with: " << config.toString();
+  return handle;
 }
 
 void VeloxBackend::initCache() {
@@ -387,13 +413,112 @@ void VeloxBackend::initCache() {
       asyncDataCache_ = velox::cache::AsyncDataCache::create(cacheAllocator_.get());
     } else {
       // TODO: this is not tracked by Spark.
-      auto ssd = initSsdCache(ssdCacheSize);
-      asyncDataCache_ = velox::cache::AsyncDataCache::create(cacheAllocator_.get(), std::move(ssd));
+      auto handle = initSsdCache(
+          ssdCacheSize,
+          backendConf_->get<std::string>(kVeloxSsdCachePath, kVeloxSsdCachePathDefault),
+          backendConf_->get<int32_t>(kVeloxSsdCacheShards, kVeloxSsdCacheShardsDefault),
+          backendConf_->get<int32_t>(kVeloxSsdCacheIOThreads, kVeloxSsdCacheIOThreadsDefault),
+          /*filePrefixTag=*/"",
+          /*allowCheckpoint=*/true);
+      ssdCacheExecutor_ = std::move(handle.executor);
+      cachePathPrefix_ = handle.pathPrefix;
+      cacheFilePrefix_ = handle.filePrefix;
+      asyncDataCache_ = velox::cache::AsyncDataCache::create(cacheAllocator_.get(), std::move(handle.cache));
     }
 
     VELOX_CHECK_NOT_NULL(dynamic_cast<velox::cache::AsyncDataCache*>(asyncDataCache_.get()));
     LOG(INFO) << "AsyncDataCache is ready";
   }
+}
+
+void VeloxBackend::initDecodedCache() {
+  if (!backendConf_->get<bool>(kVeloxDecodedCacheEnabled, kVeloxDecodedCacheEnabledDefault)) {
+    return;
+  }
+
+  // The decoded cache needs an AsyncDataCache to hold its windows, but it does
+  // not need the *raw* byte cache. Two arrangements:
+  //
+  //  - Raw cache on: share its instance. Decoded and raw entries then compete
+  //    in one budget by LRU, which is what you want since a decoded window
+  //    makes its raw counterpart nearly worthless. The SSD tier comes along.
+  //  - Raw cache off: build a private memory-only store. This is the
+  //    'decoded only' configuration, and it is the more sensible one for a
+  //    workload that always reads the same columns.
+  //
+  // A second AsyncDataCache is safe: create() only calls
+  // allocator->registerCache() on its own allocator and never touches the
+  // static AsyncDataCache::setInstance(), which Gluten does not use -- it
+  // passes the cache to QueryCtx explicitly.
+  velox::cache::AsyncDataCache* store = dynamic_cast<velox::cache::AsyncDataCache*>(asyncDataCache_.get());
+  if (store == nullptr) {
+    const auto memSize = backendConf_->get<uint64_t>(kVeloxDecodedCacheMemSize, kVeloxDecodedCacheMemSizeDefault);
+    GLUTEN_CHECK(memSize > 0, "decodedCacheMemSize must be positive when the Velox cache is disabled");
+    velox::memory::MmapAllocator::Options allocatorOptions;
+    allocatorOptions.capacity = memSize;
+    decodedCacheAllocator_ = std::make_shared<velox::memory::MmapAllocator>(allocatorOptions);
+
+    // Optional SSD tier for the private store. Worth more here than for raw
+    // bytes: an SSD hit still skips decompression and decoding, not just IO.
+    //
+    // Checkpointing is deliberately forced off for this tier, so it is a
+    // within-process capacity extension and never outlives the executor.
+    // SsdFile checkpoints would persist entries and, because they store file
+    // *names* and rebuild the id mapping on recovery, deterministic decoded
+    // keys would be found again after a restart. But the payload is a
+    // PrestoVectorSerde blob -- a wire/spill format with no on-disk stability
+    // contract -- and the key has no notion of which Velox produced it. After
+    // a Gluten/Velox upgrade a recovered entry could deserialize under a
+    // different serde. Cross-restart persistence needs a payload format we
+    // version ourselves, which is what the phase-2 encoding would provide.
+    const auto ssdSize = backendConf_->get<uint64_t>(kVeloxDecodedCacheSsdSize, kVeloxDecodedCacheSsdSizeDefault);
+    // TODO: this is not tracked by Spark, same as the raw cache arena above.
+    if (ssdSize == 0) {
+      decodedCacheStore_ = velox::cache::AsyncDataCache::create(decodedCacheAllocator_.get());
+      LOG(INFO) << "Decoded scan cache owns a private memory-only store of " << memSize << " bytes";
+    } else {
+      auto handle = initSsdCache(
+          ssdSize,
+          backendConf_->get<std::string>(kVeloxDecodedCacheSsdPath, kVeloxSsdCachePathDefault),
+          backendConf_->get<int32_t>(kVeloxDecodedCacheSsdShards, kVeloxSsdCacheShardsDefault),
+          backendConf_->get<int32_t>(kVeloxDecodedCacheSsdIOThreads, kVeloxSsdCacheIOThreadsDefault),
+          /*filePrefixTag=*/"decoded.",
+          /*allowCheckpoint=*/false);
+      decodedSsdCacheExecutor_ = std::move(handle.executor);
+      decodedCachePathPrefix_ = handle.pathPrefix;
+      decodedCacheFilePrefix_ = handle.filePrefix;
+      decodedCacheStore_ = velox::cache::AsyncDataCache::create(decodedCacheAllocator_.get(), std::move(handle.cache));
+      LOG(INFO) << "Decoded scan cache owns a private store of " << memSize << " bytes in memory and " << ssdSize
+                << " bytes on SSD";
+    }
+    store = decodedCacheStore_.get();
+  } else {
+    LOG(INFO) << "Decoded scan cache shares the Velox cache instance";
+  }
+  // Note the private store is deliberately never handed to QueryCtx: doing so
+  // would let the ordinary read path fill it with raw bytes.
+
+  DecodedCacheOptions options;
+  options.windowRows = backendConf_->get<int32_t>(kVeloxDecodedCacheWindowRows, kVeloxDecodedCacheWindowRowsDefault);
+  options.admitMinTouches =
+      backendConf_->get<int32_t>(kVeloxDecodedCacheAdmitMinTouches, kVeloxDecodedCacheAdmitMinTouchesDefault);
+  options.serveFilteredReads =
+      backendConf_->get<bool>(kVeloxDecodedCacheServeFilteredReads, kVeloxDecodedCacheServeFilteredReadsDefault);
+  options.maxPinnedBytesPerSplit = backendConf_->get<int64_t>(
+      kVeloxDecodedCacheMaxPinnedBytesPerSplit, kVeloxDecodedCacheMaxPinnedBytesPerSplitDefault);
+  options.maxKeys = backendConf_->get<int64_t>(kVeloxDecodedCacheMaxKeys, kVeloxDecodedCacheMaxKeysDefault);
+  GLUTEN_CHECK(options.windowRows > 0, "decodedCacheWindowRows must be positive");
+  GLUTEN_CHECK(options.admitMinTouches >= 1, "decodedCacheAdmitMinTouches must be at least 1");
+
+  DecodedCache::setInstance(std::make_shared<DecodedCache>(store, std::move(options)));
+  // Layer the decoded cache over whatever is registered for Parquet. Only
+  // Parquet is covered: the phase-1 cached representation is produced from a
+  // Velox RowVector, but the eligibility rules and the row-range bookkeeping
+  // have only been reasoned about against the Parquet reader's row-group
+  // semantics.
+  registerDecodedCacheReaderFactory(velox::dwio::common::FileFormat::PARQUET);
+  LOG(INFO) << "Decoded scan cache is enabled: windowRows=" << options.windowRows
+            << " admitMinTouches=" << options.admitMinTouches << " serveFilteredReads=" << options.serveFilteredReads;
 }
 
 std::shared_ptr<facebook::velox::connector::Connector> VeloxBackend::createHiveConnector(
@@ -472,17 +597,27 @@ void VeloxBackend::tearDown() {
   spillExecutor_.reset();
   ioExecutor_.reset();
   ssdCacheExecutor_.reset();
+  decodedSsdCacheExecutor_.reset();
   globalMemoryManager_.reset();
+
+  // Release the decoded cache first, whichever store it borrows: it may still
+  // hold pins, and those must not outlive the cache they point into.
+  if (auto* decodedCache = DecodedCache::getInstance()) {
+    LOG(INFO) << decodedCache->stats().toString();
+  }
+  DecodedCache::releaseInstance();
+  if (decodedCacheStore_ != nullptr) {
+    LOG(INFO) << decodedCacheStore_->toString();
+    decodedCacheStore_->shutdown();
+    decodedCacheStore_.reset();
+    decodedCacheAllocator_.reset();
+    removeCacheFiles(decodedCachePathPrefix_, decodedCacheFilePrefix_);
+  }
 
   // dump cache stats on exit if enabled
   if (dynamic_cast<facebook::velox::cache::AsyncDataCache*>(asyncDataCache_.get())) {
     LOG(INFO) << asyncDataCache_->toString();
-    for (const auto& entry : std::filesystem::directory_iterator(cachePathPrefix_)) {
-      if (entry.path().filename().string().find(cacheFilePrefix_) != std::string::npos) {
-        LOG(INFO) << "Removing cache file " << entry.path().filename().string();
-        std::filesystem::remove(cachePathPrefix_ + "/" + entry.path().filename().string());
-      }
-    }
+    removeCacheFiles(cachePathPrefix_, cacheFilePrefix_);
     asyncDataCache_->shutdown();
   }
 }

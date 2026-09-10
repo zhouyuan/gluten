@@ -22,6 +22,7 @@
 
 #include <google/protobuf/any.pb.h>
 #include <google/protobuf/wrappers.pb.h>
+#include "cache/DecodedCache.h"
 #include "config/GlutenConfig.h"
 #include "delta/DeltaSplitInfo.h"
 #include "iceberg/IcebergPlanConverter.h"
@@ -200,6 +201,15 @@ std::shared_ptr<SplitInfo> parseScanSplitInfo(
     if (file.has_properties()) {
       fileProps.fileSize = file.properties().filesize();
       fileProps.modificationTime = file.properties().modificationtime();
+      // FileHandle keeps only {file, uuid, groupId}, so the modification time
+      // is dropped before the reader sees it. Record it here, while it is still
+      // available, for use in decoded cache keys.
+      if (auto* decodedCache = DecodedCache::getInstance()) {
+        decodedCache->registerFile(
+            file.uri_file(),
+            fileProps.fileSize.value_or(0),
+            fileProps.modificationTime.value_or(-1));
+      }
     }
     splitInfo->properties.emplace_back(fileProps);
     switch (file.file_format_case()) {

@@ -140,6 +140,9 @@ add_velox_test(spark_functions_test SOURCES SparkFunctionTest.cc
 add_velox_test(runtime_test SOURCES RuntimeTest.cc)
 add_velox_test(velox_memory_test SOURCES MemoryManagerTest.cc)
 add_velox_test(buffer_outputstream_test SOURCES BufferOutputStreamTest.cc)
+add_velox_test(decoded_cache_test SOURCES DecodedCacheTest.cc)
+add_velox_test(decoded_window_format_test SOURCES
+               DecodedWindowFormatTest.cc)
 if(ENABLE_S3)
   add_velox_test(gluten_s3_file_system_test SOURCES GlutenS3FileSystemTest.cc)
 endif()

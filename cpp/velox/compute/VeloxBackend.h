@@ -106,8 +106,31 @@ class VeloxBackend {
 
   void init(std::unique_ptr<AllocationListener> listener, const std::unordered_map<std::string, std::string>& conf);
   void initCache();
+  void initDecodedCache();
   void initUdf();
-  std::unique_ptr<facebook::velox::cache::SsdCache> initSsdCache(uint64_t ssdSize);
+
+  /// An SSD tier plus the state that has to outlive it: the executor it posts
+  /// async fsyncs to, and the path/prefix its files are named with so they can
+  /// be removed on shutdown.
+  struct SsdCacheHandle {
+    std::unique_ptr<facebook::velox::cache::SsdCache> cache;
+    std::unique_ptr<folly::Executor> executor;
+    std::string pathPrefix;
+    std::string filePrefix;
+  };
+
+  /// Builds an SSD tier under 'pathPrefix'. 'filePrefixTag' distinguishes the
+  /// files of one tier from another's in the same directory. Shared by the raw
+  /// byte cache and the decoded scan cache; the checkpoint, file-COW and
+  /// checksum settings are read from the raw cache's config in both cases,
+  /// since they describe the device rather than the payload.
+  SsdCacheHandle initSsdCache(
+      uint64_t ssdSize,
+      const std::string& pathPrefix,
+      int32_t shards,
+      int32_t ioThreads,
+      const std::string& filePrefixTag,
+      bool allowCheckpoint);
 
   void initJolFilesystem();
 
@@ -127,10 +150,18 @@ class VeloxBackend {
   std::unique_ptr<folly::Executor> ioExecutor_;
   std::unique_ptr<folly::Executor> ssdCacheExecutor_;
   std::shared_ptr<facebook::velox::memory::MmapAllocator> cacheAllocator_;
+  // Private store for decoded scan cache windows, created only when the raw
+  // byte cache is disabled. Never handed to QueryCtx.
+  std::shared_ptr<facebook::velox::memory::MmapAllocator> decodedCacheAllocator_;
+  std::shared_ptr<facebook::velox::cache::AsyncDataCache> decodedCacheStore_;
   std::shared_ptr<facebook::velox::config::ConfigBase> hiveConnectorConfig_;
 
   std::string cachePathPrefix_;
   std::string cacheFilePrefix_;
+  // SSD tier of the private decoded store, when one was configured.
+  std::unique_ptr<folly::Executor> decodedSsdCacheExecutor_;
+  std::string decodedCachePathPrefix_;
+  std::string decodedCacheFilePrefix_;
 
   std::shared_ptr<facebook::velox::config::ConfigBase> backendConf_;
 

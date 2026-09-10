@@ -82,6 +82,29 @@ class VeloxListenerApi extends ListenerApi with Logging {
           s"${COLUMNAR_VELOX_CACHE_ENABLED.key} is set to get better locality.")
     }
 
+    // The decoded cache is a per-executor, in-process cache, so it only pays off
+    // when the same split lands on the same executor -- the same reason the raw
+    // cache wants soft affinity.
+    if (
+      conf.get(COLUMNAR_VELOX_DECODED_CACHE_ENABLED) &&
+      !conf.get(GlutenConfig.GLUTEN_SOFT_AFFINITY_ENABLED)
+    ) {
+      logWarning(
+        s"It's recommened to enable ${GlutenConfig.GLUTEN_SOFT_AFFINITY_ENABLED.key} when " +
+          s"${COLUMNAR_VELOX_DECODED_CACHE_ENABLED.key} is set to get better locality.")
+    }
+
+    if (
+      conf.get(COLUMNAR_VELOX_DECODED_CACHE_ENABLED) &&
+      !conf.get(COLUMNAR_VELOX_CACHE_ENABLED)
+    ) {
+      logInfo(
+        s"${COLUMNAR_VELOX_DECODED_CACHE_ENABLED.key} is set without " +
+          s"${COLUMNAR_VELOX_CACHE_ENABLED.key}, so the decoded cache will use its own " +
+          s"memory store of ${conf.get(COLUMNAR_VELOX_DECODED_CACHE_MEM_SIZE)} bytes. " +
+          s"This memory is not tracked by Spark; budget for it in memory overhead.")
+    }
+
     if (conf.get(COLUMNAR_VELOX_CACHE_ENABLED) && conf.get(LOAD_QUANTUM) > 8 * 1024 * 1024) {
       throw new IllegalArgumentException(
         s"Velox currently only support up to 8MB load quantum size " +
