@@ -61,6 +61,10 @@ abstract class BackendTestSettings {
     disabledSuites.put(suiteName, reason)
   }
 
+  private[utils] def enabledSuiteNames: Set[String] = enabledSuites.keySet().asScala.toSet
+
+  private[utils] def disabledSuiteNames: Set[String] = disabledSuites.keySet().asScala.toSet
+
   private[utils] def shouldRun(suiteName: String, testName: String): Boolean = {
     if (disabledSuites.containsKey(suiteName) || !enabledSuites.containsKey(suiteName)) {
       return false

@@ -54,6 +54,53 @@
 
   <build>
     <plugins>
+      <!--
+        Generates one `class Gluten<X>Suite extends <X>Suite with <GlutenTrait> {}` per entry in
+        src/test/resources/gluten-ut/suites.txt, so those subclasses are not maintained by hand
+        (once per Spark version, per suite). Nothing is generated into src/, so nothing to commit.
+      -->
+      <plugin>
+        <groupId>org.codehaus.mojo</groupId>
+        <artifactId>exec-maven-plugin</artifactId>
+        <executions>
+          <execution>
+            <id>generate-gluten-ut-suites</id>
+            <goals>
+              <goal>exec</goal>
+            </goals>
+            <phase>generate-test-sources</phase>
+            <configuration>
+              <executable>python3</executable>
+              <arguments>
+                <argument>${project.basedir}/../../tools/scripts/gluten-ut/ut_suites.py</argument>
+                <argument>generate</argument>
+                <argument>--catalog</argument>
+                <argument>${project.basedir}/src/test/resources/gluten-ut/suites.txt</argument>
+                <argument>--out</argument>
+                <argument>${project.build.directory}/generated-test-sources/gluten-ut</argument>
+              </arguments>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+      <plugin>
+        <groupId>org.codehaus.mojo</groupId>
+        <artifactId>build-helper-maven-plugin</artifactId>
+        <executions>
+          <execution>
+            <id>add-generated-test-sources</id>
+            <goals>
+              <goal>add-test-source</goal>
+            </goals>
+            <phase>generate-test-sources</phase>
+            <configuration>
+              <sources>
+                <source>${project.build.directory}/generated-test-sources/gluten-ut</source>
+              </sources>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-resources-plugin</artifactId>

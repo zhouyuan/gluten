@@ -1,0 +1,1223 @@
+#
+# Licensed to the Apache Software Foundation (ASF) under one or more
+# contributor license agreements.  See the NOTICE file distributed with
+# this work for additional information regarding copyright ownership.
+# The ASF licenses this file to You under the Apache License, Version 2.0
+# (the "License"); you may not use this file except in compliance with
+# the License.  You may obtain a copy of the License at
+#
+#    http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# Gluten unit test settings for the velox backend, Spark 3.5.
+#
+# Read at run time by org.apache.gluten.utils.DataFileBackendTestSettings.
+# One directive per line; see tools/scripts/gluten-ut/ut_suites.py for the format.
+#
+#   enable <suite>                     run this suite
+#   disable <suite> -- <reason>        never run it
+#   exclude <suite>#<test>             run the suite except this test
+#   excludePrefix <suite>#<prefix>     ...except tests starting with <prefix>
+#   include <suite>#<test>             run only this test (mutually exclusive
+#                                      with exclude, per suite)
+#
+# A test name is everything after the first '#'. Comment lines directly above a
+# directive are its reason, and are preserved by the extractor.
+
+
+enable              org.apache.spark.sql.GlutenStringFunctionsSuite
+
+enable              org.apache.spark.sql.GlutenBloomFilterAggregateQuerySuite
+
+enable              org.apache.spark.sql.GlutenBloomFilterAggregateQuerySuiteCGOff
+
+enable              org.apache.spark.sql.connector.GlutenDataSourceV2DataFrameSessionCatalogSuite
+
+enable              org.apache.spark.sql.connector.GlutenDataSourceV2DataFrameSuite
+
+enable              org.apache.spark.sql.connector.GlutenDataSourceV2FunctionSuite
+
+enable              org.apache.spark.sql.connector.GlutenDataSourceV2SQLSessionCatalogSuite
+
+enable              org.apache.spark.sql.connector.GlutenDataSourceV2SQLSuiteV1Filter
+
+enable              org.apache.spark.sql.connector.GlutenDataSourceV2SQLSuiteV2Filter
+
+enable              org.apache.spark.sql.connector.GlutenDataSourceV2Suite
+# Rewrite the following tests in GlutenDataSourceV2Suite.
+exclude             org.apache.spark.sql.connector.GlutenDataSourceV2Suite#partitioning reporting
+exclude             org.apache.spark.sql.connector.GlutenDataSourceV2Suite#ordering and partitioning reporting
+
+enable              org.apache.spark.sql.connector.GlutenDeleteFromTableSuite
+
+enable              org.apache.spark.sql.connector.GlutenFileDataSourceV2FallBackSuite
+# Rewritten
+exclude             org.apache.spark.sql.connector.GlutenFileDataSourceV2FallBackSuite#Fallback Parquet V2 to V1
+
+enable              org.apache.spark.sql.connector.GlutenKeyGroupedPartitioningSuite
+# NEW SUITE: disable as they check vanilla spark plan
+exclude             org.apache.spark.sql.connector.GlutenKeyGroupedPartitioningSuite#partitioned join: number of buckets mismatch should trigger shuffle
+exclude             org.apache.spark.sql.connector.GlutenKeyGroupedPartitioningSuite#partitioned join: only one side reports partitioning
+exclude             org.apache.spark.sql.connector.GlutenKeyGroupedPartitioningSuite#partitioned join: join with two partition keys and different # of partition keys
+# disable due to check for SMJ node
+excludePrefix       org.apache.spark.sql.connector.GlutenKeyGroupedPartitioningSuite#SPARK-41413: partitioned join:
+excludePrefix       org.apache.spark.sql.connector.GlutenKeyGroupedPartitioningSuite#SPARK-42038: partially clustered:
+exclude             org.apache.spark.sql.connector.GlutenKeyGroupedPartitioningSuite#SPARK-44641: duplicated records when SPJ is not triggered
+
+enable              org.apache.spark.sql.connector.GlutenLocalScanSuite
+
+enable              org.apache.spark.sql.connector.GlutenMetadataColumnSuite
+
+enable              org.apache.spark.sql.connector.GlutenSupportsCatalogOptionsSuite
+
+enable              org.apache.spark.sql.connector.GlutenTableCapabilityCheckSuite
+
+enable              org.apache.spark.sql.connector.GlutenWriteDistributionAndOrderingSuite
+
+enable              org.apache.spark.sql.errors.GlutenQueryCompilationErrorsDSv2Suite
+
+enable              org.apache.spark.sql.errors.GlutenQueryCompilationErrorsSuite
+
+enable              org.apache.spark.sql.errors.GlutenQueryExecutionErrorsSuite
+# NEW SUITE: disable as it expects exception which doesn't happen when offloaded to gluten
+exclude             org.apache.spark.sql.errors.GlutenQueryExecutionErrorsSuite#INCONSISTENT_BEHAVIOR_CROSS_VERSION: compatibility with Spark 2.4/3.2 in reading/writing dates
+# Doesn't support unhex with failOnError=true.
+exclude             org.apache.spark.sql.errors.GlutenQueryExecutionErrorsSuite#CONVERSION_INVALID_INPUT: to_binary conversion function hex
+# bitmap_construct_agg offloaded to Velox throws GlutenException instead of
+# SparkArrayIndexOutOfBoundsException.
+exclude             org.apache.spark.sql.errors.GlutenQueryExecutionErrorsSuite#INVALID_BITMAP_POSITION: position out of bounds
+exclude             org.apache.spark.sql.errors.GlutenQueryExecutionErrorsSuite#INVALID_BITMAP_POSITION: negative position
+# Different exceptions when reading Timestamp from ORC.
+exclude             org.apache.spark.sql.errors.GlutenQueryExecutionErrorsSuite#UNSUPPORTED_FEATURE - SPARK-36346: can't read Timestamp as TimestampNTZ
+
+enable              org.apache.spark.sql.errors.GlutenQueryParsingErrorsSuite
+
+enable              org.apache.spark.sql.catalyst.expressions.GlutenArithmeticExpressionSuite
+exclude             org.apache.spark.sql.catalyst.expressions.GlutenArithmeticExpressionSuite#SPARK-45786: Decimal multiply, divide, remainder, quot
+
+enable              org.apache.spark.sql.catalyst.expressions.GlutenBitwiseExpressionsSuite
+
+enable              org.apache.spark.sql.catalyst.expressions.GlutenCastSuite
+exclude             org.apache.spark.sql.catalyst.expressions.GlutenCastSuite#Process Infinity, -Infinity, NaN in case insensitive manner
+# Set timezone through config.
+exclude             org.apache.spark.sql.catalyst.expressions.GlutenCastSuite#data type casting
+# Revised by setting timezone through config and commented unsupported cases.
+exclude             org.apache.spark.sql.catalyst.expressions.GlutenCastSuite#cast string to timestamp
+# Excluded in favour of the GlutenCastSuite rewrite, which drops the Long.MinValue
+# assertion: collect() -> toJavaTimestamp -> rebaseGregorianToJulianMicros overflows.
+exclude             org.apache.spark.sql.catalyst.expressions.GlutenCastSuite#cast from timestamp II
+exclude             org.apache.spark.sql.catalyst.expressions.GlutenCastSuite#SPARK-39749: cast Decimal to string
+
+enable              org.apache.spark.sql.catalyst.expressions.GlutenTryCastSuite
+exclude             org.apache.spark.sql.catalyst.expressions.GlutenTryCastSuite#Process Infinity, -Infinity, NaN in case insensitive manner
+exclude             org.apache.spark.sql.catalyst.expressions.GlutenTryCastSuite#cast from timestamp II
+# Set timezone through config.
+exclude             org.apache.spark.sql.catalyst.expressions.GlutenTryCastSuite#data type casting
+# Revised by setting timezone through config and commented unsupported cases.
+exclude             org.apache.spark.sql.catalyst.expressions.GlutenTryCastSuite#cast string to timestamp
+# TODO: fix after https://github.com/facebookincubator/velox/pull/14910
+exclude             org.apache.spark.sql.catalyst.expressions.GlutenTryCastSuite#SPARK-39749: cast Decimal to string
+
+enable              org.apache.spark.sql.catalyst.expressions.GlutenCollectionExpressionsSuite
+# Rewrite in Gluten to replace Seq with Array
+exclude             org.apache.spark.sql.catalyst.expressions.GlutenCollectionExpressionsSuite#Shuffle
+excludeGluten       org.apache.spark.sql.catalyst.expressions.GlutenCollectionExpressionsSuite#Shuffle
+# Rewrite
+exclude             org.apache.spark.sql.catalyst.expressions.GlutenCollectionExpressionsSuite#MapFromEntries
+
+enable              org.apache.spark.sql.catalyst.expressions.GlutenConditionalExpressionSuite
+
+enable              org.apache.spark.sql.catalyst.expressions.GlutenDateExpressionsSuite
+# Has exception in fallback execution when we use resultDF.collect in evaluation.
+exclude             org.apache.spark.sql.catalyst.expressions.GlutenDateExpressionsSuite#TIMESTAMP_MICROS
+# Replaced by a gluten test to pass timezone through config.
+exclude             org.apache.spark.sql.catalyst.expressions.GlutenDateExpressionsSuite#unix_timestamp
+# Replaced by a gluten test to pass timezone through config.
+exclude             org.apache.spark.sql.catalyst.expressions.GlutenDateExpressionsSuite#to_unix_timestamp
+# Replaced by a gluten test to pass timezone through config.
+exclude             org.apache.spark.sql.catalyst.expressions.GlutenDateExpressionsSuite#Hour
+# Unsupported format: yyyy-MM-dd HH:mm:ss.SSS
+exclude             org.apache.spark.sql.catalyst.expressions.GlutenDateExpressionsSuite#SPARK-33498: GetTimestamp,UnixTimestamp,ToUnixTimestamp with parseError
+# Replaced by a gluten test to pass timezone through config.
+exclude             org.apache.spark.sql.catalyst.expressions.GlutenDateExpressionsSuite#DateFormat
+# Legacy mode is not supported, assuming this mode is not commonly used.
+exclude             org.apache.spark.sql.catalyst.expressions.GlutenDateExpressionsSuite#to_timestamp exception mode
+# Replaced by a gluten test to pass timezone through config.
+exclude             org.apache.spark.sql.catalyst.expressions.GlutenDateExpressionsSuite#from_unixtime
+# Replaced by a gluten test to pass timezone through config.
+exclude             org.apache.spark.sql.catalyst.expressions.GlutenDateExpressionsSuite#months_between
+# Vanilla Spark does not have a unified DST Timestamp fastTime. 1320570000000L and
+# 1320566400000L both represent 2011-11-06 01:00:00.
+exclude             org.apache.spark.sql.catalyst.expressions.GlutenDateExpressionsSuite#SPARK-42635: timestampadd near daylight saving transition
+# https://github.com/facebookincubator/velox/pull/10563/files#diff-140dc50e6dac735f72d29014da44b045509df0dd1737f458de1fe8cfd33d8145
+excludeGluten       org.apache.spark.sql.catalyst.expressions.GlutenDateExpressionsSuite#from_unixtime
+
+enable              org.apache.spark.sql.catalyst.expressions.GlutenDecimalExpressionSuite
+
+enable              org.apache.spark.sql.catalyst.expressions.GlutenDecimalPrecisionSuite
+
+enable              org.apache.spark.sql.catalyst.expressions.GlutenGeneratorExpressionSuite
+
+enable              org.apache.spark.sql.catalyst.expressions.GlutenHashExpressionsSuite
+
+enable              org.apache.spark.sql.catalyst.expressions.GlutenHigherOrderFunctionsSuite
+
+enable              org.apache.spark.sql.catalyst.expressions.GlutenIntervalExpressionsSuite
+
+enable              org.apache.spark.sql.catalyst.expressions.GlutenJsonExpressionsSuite
+# https://github.com/apache/gluten/issues/8102
+exclude             org.apache.spark.sql.catalyst.expressions.GlutenJsonExpressionsSuite#$.store.book
+exclude             org.apache.spark.sql.catalyst.expressions.GlutenJsonExpressionsSuite#$
+exclude             org.apache.spark.sql.catalyst.expressions.GlutenJsonExpressionsSuite#$.store.book[0]
+exclude             org.apache.spark.sql.catalyst.expressions.GlutenJsonExpressionsSuite#$.store.book[*]
+exclude             org.apache.spark.sql.catalyst.expressions.GlutenJsonExpressionsSuite#$.store.book[*].category
+exclude             org.apache.spark.sql.catalyst.expressions.GlutenJsonExpressionsSuite#$.store.book[*].isbn
+exclude             org.apache.spark.sql.catalyst.expressions.GlutenJsonExpressionsSuite#$.store.book[*].reader
+exclude             org.apache.spark.sql.catalyst.expressions.GlutenJsonExpressionsSuite#$.store.basket[*]
+exclude             org.apache.spark.sql.catalyst.expressions.GlutenJsonExpressionsSuite#$.store.basket[*][0]
+exclude             org.apache.spark.sql.catalyst.expressions.GlutenJsonExpressionsSuite#$.store.basket[0][*]
+exclude             org.apache.spark.sql.catalyst.expressions.GlutenJsonExpressionsSuite#$.store.basket[*][*]
+exclude             org.apache.spark.sql.catalyst.expressions.GlutenJsonExpressionsSuite#$.store.basket[0][*].b
+# Exception class different.
+exclude             org.apache.spark.sql.catalyst.expressions.GlutenJsonExpressionsSuite#from_json - invalid data
+
+enable              org.apache.spark.sql.GlutenJsonFunctionsSuite
+# * in get_json_object expression not supported in velox
+exclude             org.apache.spark.sql.GlutenJsonFunctionsSuite#SPARK-42782: Hive compatibility check for get_json_object
+# Velox does not support single quotes in get_json_object function.
+exclude             org.apache.spark.sql.GlutenJsonFunctionsSuite#function get_json_object - support single quotes
+
+enable              org.apache.spark.sql.catalyst.expressions.GlutenLiteralExpressionSuite
+exclude             org.apache.spark.sql.catalyst.expressions.GlutenLiteralExpressionSuite#default
+# FIXME(yma11): ObjectType is not covered in RowEncoder/Serializer in vanilla spark
+exclude             org.apache.spark.sql.catalyst.expressions.GlutenLiteralExpressionSuite#SPARK-37967: Literal.create support ObjectType
+
+enable              org.apache.spark.sql.catalyst.expressions.GlutenMathExpressionsSuite
+# Spark round UT for round(3.1415,3) is not correct.
+exclude             org.apache.spark.sql.catalyst.expressions.GlutenMathExpressionsSuite#round/bround/floor/ceil
+
+enable              org.apache.spark.sql.catalyst.expressions.GlutenMiscExpressionsSuite
+
+enable              org.apache.spark.sql.catalyst.expressions.GlutenNondeterministicSuite
+exclude             org.apache.spark.sql.catalyst.expressions.GlutenNondeterministicSuite#MonotonicallyIncreasingID
+exclude             org.apache.spark.sql.catalyst.expressions.GlutenNondeterministicSuite#SparkPartitionID
+
+enable              org.apache.spark.sql.catalyst.expressions.GlutenNullExpressionsSuite
+
+enable              org.apache.spark.sql.catalyst.expressions.GlutenPredicateSuite
+
+enable              org.apache.spark.sql.catalyst.expressions.GlutenRandomSuite
+exclude             org.apache.spark.sql.catalyst.expressions.GlutenRandomSuite#random
+exclude             org.apache.spark.sql.catalyst.expressions.GlutenRandomSuite#SPARK-9127 codegen with long seed
+
+enable              org.apache.spark.sql.catalyst.expressions.GlutenRegexpExpressionsSuite
+
+enable              org.apache.spark.GlutenSortShuffleSuite
+
+enable              org.apache.spark.sql.catalyst.expressions.GlutenSortOrderExpressionsSuite
+
+enable              org.apache.spark.sql.catalyst.expressions.GlutenStringExpressionsSuite
+
+enable              org.apache.spark.sql.catalyst.expressions.GlutenTryEvalSuite
+
+enable              org.apache.spark.sql.execution.adaptive.velox.VeloxAdaptiveQueryExecSuite
+includeAllGluten    org.apache.spark.sql.execution.adaptive.velox.VeloxAdaptiveQueryExecSuite
+includePrefix       org.apache.spark.sql.execution.adaptive.velox.VeloxAdaptiveQueryExecSuite#SPARK-30291
+includePrefix       org.apache.spark.sql.execution.adaptive.velox.VeloxAdaptiveQueryExecSuite#SPARK-30403
+includePrefix       org.apache.spark.sql.execution.adaptive.velox.VeloxAdaptiveQueryExecSuite#SPARK-30719
+includePrefix       org.apache.spark.sql.execution.adaptive.velox.VeloxAdaptiveQueryExecSuite#SPARK-31384
+includePrefix       org.apache.spark.sql.execution.adaptive.velox.VeloxAdaptiveQueryExecSuite#SPARK-31658
+includePrefix       org.apache.spark.sql.execution.adaptive.velox.VeloxAdaptiveQueryExecSuite#SPARK-32717
+includePrefix       org.apache.spark.sql.execution.adaptive.velox.VeloxAdaptiveQueryExecSuite#SPARK-32649
+includePrefix       org.apache.spark.sql.execution.adaptive.velox.VeloxAdaptiveQueryExecSuite#SPARK-34533
+includePrefix       org.apache.spark.sql.execution.adaptive.velox.VeloxAdaptiveQueryExecSuite#SPARK-34781
+includePrefix       org.apache.spark.sql.execution.adaptive.velox.VeloxAdaptiveQueryExecSuite#SPARK-35585
+includePrefix       org.apache.spark.sql.execution.adaptive.velox.VeloxAdaptiveQueryExecSuite#SPARK-32932
+includePrefix       org.apache.spark.sql.execution.adaptive.velox.VeloxAdaptiveQueryExecSuite#SPARK-33494
+includePrefix       org.apache.spark.sql.execution.adaptive.velox.VeloxAdaptiveQueryExecSuite#SPARK-33933
+includePrefix       org.apache.spark.sql.execution.adaptive.velox.VeloxAdaptiveQueryExecSuite#SPARK-31220
+includePrefix       org.apache.spark.sql.execution.adaptive.velox.VeloxAdaptiveQueryExecSuite#SPARK-35874
+includePrefix       org.apache.spark.sql.execution.adaptive.velox.VeloxAdaptiveQueryExecSuite#SPARK-39551
+include             org.apache.spark.sql.execution.adaptive.velox.VeloxAdaptiveQueryExecSuite#Union/Except/Intersect queries
+include             org.apache.spark.sql.execution.adaptive.velox.VeloxAdaptiveQueryExecSuite#Subquery de-correlation in Union queries
+include             org.apache.spark.sql.execution.adaptive.velox.VeloxAdaptiveQueryExecSuite#force apply AQE
+include             org.apache.spark.sql.execution.adaptive.velox.VeloxAdaptiveQueryExecSuite#tree string output
+include             org.apache.spark.sql.execution.adaptive.velox.VeloxAdaptiveQueryExecSuite#control a plan explain mode in listener vis SQLConf
+include             org.apache.spark.sql.execution.adaptive.velox.VeloxAdaptiveQueryExecSuite#AQE should set active session during execution
+include             org.apache.spark.sql.execution.adaptive.velox.VeloxAdaptiveQueryExecSuite#No deadlock in UI update
+include             org.apache.spark.sql.execution.adaptive.velox.VeloxAdaptiveQueryExecSuite#SPARK-35455: Unify empty relation optimization between normal and AQE optimizer - multi join
+
+enable              org.apache.spark.sql.execution.datasources.binaryfile.GlutenBinaryFileFormatSuite
+# Exception.
+exclude             org.apache.spark.sql.execution.datasources.binaryfile.GlutenBinaryFileFormatSuite#column pruning - non-readable file
+
+enable              org.apache.spark.sql.execution.datasources.csv.GlutenCSVv1Suite
+# file cars.csv include null string, Arrow not support to read
+exclude             org.apache.spark.sql.execution.datasources.csv.GlutenCSVv1Suite#DDL test with schema
+exclude             org.apache.spark.sql.execution.datasources.csv.GlutenCSVv1Suite#save csv
+exclude             org.apache.spark.sql.execution.datasources.csv.GlutenCSVv1Suite#save csv with compression codec option
+exclude             org.apache.spark.sql.execution.datasources.csv.GlutenCSVv1Suite#save csv with quote
+exclude             org.apache.spark.sql.execution.datasources.csv.GlutenCSVv1Suite#SPARK-13543 Write the output as uncompressed via option()
+exclude             org.apache.spark.sql.execution.datasources.csv.GlutenCSVv1Suite#DDL test with tab separated file
+exclude             org.apache.spark.sql.execution.datasources.csv.GlutenCSVv1Suite#DDL test parsing decimal type
+exclude             org.apache.spark.sql.execution.datasources.csv.GlutenCSVv1Suite#test with tab delimiter and double quote
+# Arrow not support corrupt record
+exclude             org.apache.spark.sql.execution.datasources.csv.GlutenCSVv1Suite#SPARK-27873: disabling enforceSchema should not fail columnNameOfCorruptRecord
+# varchar
+exclude             org.apache.spark.sql.execution.datasources.csv.GlutenCSVv1Suite#SPARK-48241: CSV parsing failure with char/varchar type columns
+# Flaky and already excluded in other cases
+exclude             org.apache.spark.sql.execution.datasources.csv.GlutenCSVv1Suite#Gluten - test for FAILFAST parsing mode
+
+enable              org.apache.spark.sql.execution.datasources.csv.GlutenCSVv2Suite
+exclude             org.apache.spark.sql.execution.datasources.csv.GlutenCSVv2Suite#Gluten - test for FAILFAST parsing mode
+# Rule org.apache.spark.sql.execution.datasources.v2.V2ScanRelationPushDown in batch
+# Early Filter and Projection Push-Down generated an invalid plan
+exclude             org.apache.spark.sql.execution.datasources.csv.GlutenCSVv2Suite#SPARK-26208: write and read empty data to csv file with headers
+# file cars.csv include null string, Arrow not support to read
+exclude             org.apache.spark.sql.execution.datasources.csv.GlutenCSVv2Suite#DDL test with schema
+exclude             org.apache.spark.sql.execution.datasources.csv.GlutenCSVv2Suite#save csv
+exclude             org.apache.spark.sql.execution.datasources.csv.GlutenCSVv2Suite#save csv with compression codec option
+exclude             org.apache.spark.sql.execution.datasources.csv.GlutenCSVv2Suite#save csv with quote
+exclude             org.apache.spark.sql.execution.datasources.csv.GlutenCSVv2Suite#SPARK-13543 Write the output as uncompressed via option()
+exclude             org.apache.spark.sql.execution.datasources.csv.GlutenCSVv2Suite#DDL test with tab separated file
+exclude             org.apache.spark.sql.execution.datasources.csv.GlutenCSVv2Suite#DDL test parsing decimal type
+exclude             org.apache.spark.sql.execution.datasources.csv.GlutenCSVv2Suite#test with tab delimiter and double quote
+# Arrow not support corrupt record
+exclude             org.apache.spark.sql.execution.datasources.csv.GlutenCSVv2Suite#SPARK-27873: disabling enforceSchema should not fail columnNameOfCorruptRecord
+# varchar
+exclude             org.apache.spark.sql.execution.datasources.csv.GlutenCSVv2Suite#SPARK-48241: CSV parsing failure with char/varchar type columns
+
+enable              org.apache.spark.sql.execution.datasources.csv.GlutenCSVLegacyTimeParserSuite
+# file cars.csv include null string, Arrow not support to read
+exclude             org.apache.spark.sql.execution.datasources.csv.GlutenCSVLegacyTimeParserSuite#DDL test with schema
+exclude             org.apache.spark.sql.execution.datasources.csv.GlutenCSVLegacyTimeParserSuite#save csv
+exclude             org.apache.spark.sql.execution.datasources.csv.GlutenCSVLegacyTimeParserSuite#save csv with compression codec option
+exclude             org.apache.spark.sql.execution.datasources.csv.GlutenCSVLegacyTimeParserSuite#save csv with quote
+exclude             org.apache.spark.sql.execution.datasources.csv.GlutenCSVLegacyTimeParserSuite#SPARK-13543 Write the output as uncompressed via option()
+# Arrow not support corrupt record
+exclude             org.apache.spark.sql.execution.datasources.csv.GlutenCSVLegacyTimeParserSuite#SPARK-27873: disabling enforceSchema should not fail columnNameOfCorruptRecord
+exclude             org.apache.spark.sql.execution.datasources.csv.GlutenCSVLegacyTimeParserSuite#DDL test with tab separated file
+exclude             org.apache.spark.sql.execution.datasources.csv.GlutenCSVLegacyTimeParserSuite#DDL test parsing decimal type
+exclude             org.apache.spark.sql.execution.datasources.csv.GlutenCSVLegacyTimeParserSuite#test with tab delimiter and double quote
+# varchar
+exclude             org.apache.spark.sql.execution.datasources.csv.GlutenCSVLegacyTimeParserSuite#SPARK-48241: CSV parsing failure with char/varchar type columns
+
+enable              org.apache.spark.sql.execution.datasources.json.GlutenJsonV1Suite
+
+enable              org.apache.spark.sql.execution.datasources.json.GlutenJsonV2Suite
+# exception test
+exclude             org.apache.spark.sql.execution.datasources.json.GlutenJsonV2Suite#SPARK-39731: Correctly parse dates and timestamps with yyyyMMdd pattern
+
+enable              org.apache.spark.sql.execution.datasources.json.GlutenJsonLegacyTimeParserSuite
+
+enable              org.apache.spark.sql.execution.datasources.exchange.GlutenValidateRequirementsSuite
+
+enable              org.apache.spark.sql.execution.datasources.orc.GlutenOrcColumnarBatchReaderSuite
+
+enable              org.apache.spark.sql.execution.datasources.orc.GlutenOrcEncryptionSuite
+# Orc encryption not supported yet
+exclude             org.apache.spark.sql.execution.datasources.orc.GlutenOrcEncryptionSuite#Write and read an encrypted file
+exclude             org.apache.spark.sql.execution.datasources.orc.GlutenOrcEncryptionSuite#Write and read an encrypted table
+exclude             org.apache.spark.sql.execution.datasources.orc.GlutenOrcEncryptionSuite#SPARK-35325: Write and read encrypted nested columns
+exclude             org.apache.spark.sql.execution.datasources.orc.GlutenOrcEncryptionSuite#SPARK-35992: Write and read fully-encrypted columns with default masking
+
+enable              org.apache.spark.sql.execution.datasources.orc.GlutenOrcFilterSuite
+exclude             org.apache.spark.sql.execution.datasources.orc.GlutenOrcFilterSuite#SPARK-32622: case sensitivity in predicate pushdown
+
+enable              org.apache.spark.sql.execution.datasources.orc.GlutenOrcPartitionDiscoverySuite
+
+enable              org.apache.spark.sql.execution.datasources.orc.GlutenOrcV1PartitionDiscoverySuite
+
+enable              org.apache.spark.sql.execution.datasources.orc.GlutenOrcV1QuerySuite
+# Expected exception org.apache.spark.sql.AnalysisException to be thrown
+# , but no exception was thrown
+exclude             org.apache.spark.sql.execution.datasources.orc.GlutenOrcV1QuerySuite#SPARK-20728 Make ORCFileFormat configurable between sql/hive and sql/core
+# not supported ignoreCorruptFiles
+exclude             org.apache.spark.sql.execution.datasources.orc.GlutenOrcV1QuerySuite#Enabling/disabling ignoreCorruptFiles
+# Schema mismatch, From Kind: BIGINT, To Kind: VARCHAR
+exclude             org.apache.spark.sql.execution.datasources.orc.GlutenOrcV1QuerySuite#SPARK-39830: Reading ORC table that requires type promotion may throw AIOOBE
+# Unsupported.
+exclude             org.apache.spark.sql.execution.datasources.orc.GlutenOrcV1QuerySuite#SPARK-37463: read/write Timestamp ntz to Orc with different time zone
+
+enable              org.apache.spark.sql.execution.datasources.orc.GlutenOrcV2QuerySuite
+# feature not supported
+exclude             org.apache.spark.sql.execution.datasources.orc.GlutenOrcV2QuerySuite#Enabling/disabling ignoreCorruptFiles
+# Schema mismatch, From Kind: BIGINT, To Kind: VARCHAR
+exclude             org.apache.spark.sql.execution.datasources.orc.GlutenOrcV2QuerySuite#SPARK-39830: Reading ORC table that requires type promotion may throw AIOOBE
+# For exception test.
+exclude             org.apache.spark.sql.execution.datasources.orc.GlutenOrcV2QuerySuite#SPARK-20728 Make ORCFileFormat configurable between sql/hive and sql/core
+# Unsupported.
+exclude             org.apache.spark.sql.execution.datasources.orc.GlutenOrcV2QuerySuite#SPARK-37463: read/write Timestamp ntz to Orc with different time zone
+
+enable              org.apache.spark.sql.execution.datasources.orc.GlutenOrcSourceSuite
+# Rewrite to disable Spark's columnar reader.
+# date result miss match
+exclude             org.apache.spark.sql.execution.datasources.orc.GlutenOrcSourceSuite#SPARK-31238: compatibility with Spark 2.4 in reading dates
+exclude             org.apache.spark.sql.execution.datasources.orc.GlutenOrcSourceSuite#SPARK-31238, SPARK-31423: rebasing dates in write
+# Ignored to disable vectorized reading check.
+exclude             org.apache.spark.sql.execution.datasources.orc.GlutenOrcSourceSuite#SPARK-36594: ORC vectorized reader should properly check maximal number of fields
+exclude             org.apache.spark.sql.execution.datasources.orc.GlutenOrcSourceSuite#create temporary orc table
+exclude             org.apache.spark.sql.execution.datasources.orc.GlutenOrcSourceSuite#create temporary orc table as
+exclude             org.apache.spark.sql.execution.datasources.orc.GlutenOrcSourceSuite#appending insert
+exclude             org.apache.spark.sql.execution.datasources.orc.GlutenOrcSourceSuite#overwrite insert
+exclude             org.apache.spark.sql.execution.datasources.orc.GlutenOrcSourceSuite#SPARK-34897: Support reconcile schemas based on index after nested column pruning
+# date result miss match
+excludeGluten       org.apache.spark.sql.execution.datasources.orc.GlutenOrcSourceSuite#SPARK-31238: compatibility with Spark 2.4 in reading dates
+excludeGluten       org.apache.spark.sql.execution.datasources.orc.GlutenOrcSourceSuite#SPARK-31238, SPARK-31423: rebasing dates in write
+# exclude as struct not supported
+exclude             org.apache.spark.sql.execution.datasources.orc.GlutenOrcSourceSuite#SPARK-36663: OrcUtils.toCatalystSchema should correctly handle a column name which consists of only numbers
+exclude             org.apache.spark.sql.execution.datasources.orc.GlutenOrcSourceSuite#SPARK-37812: Reuse result row when deserializing a struct
+# rewrite
+exclude             org.apache.spark.sql.execution.datasources.orc.GlutenOrcSourceSuite#SPARK-36931: Support reading and writing ANSI intervals (spark.sql.orc.enableVectorizedReader=true, spark.sql.orc.enableNestedColumnVectorizedReader=true)
+exclude             org.apache.spark.sql.execution.datasources.orc.GlutenOrcSourceSuite#SPARK-36931: Support reading and writing ANSI intervals (spark.sql.orc.enableVectorizedReader=true, spark.sql.orc.enableNestedColumnVectorizedReader=false)
+
+enable              org.apache.spark.sql.execution.datasources.orc.GlutenOrcV1FilterSuite
+# Expected exception org.apache.spark.SparkException to be thrown, but no exception was thrown
+exclude             org.apache.spark.sql.execution.datasources.orc.GlutenOrcV1FilterSuite#SPARK-32622: case sensitivity in predicate pushdown
+
+enable              org.apache.spark.sql.execution.datasources.orc.GlutenOrcV1SchemaPruningSuite
+
+enable              org.apache.spark.sql.execution.datasources.orc.GlutenOrcV2SchemaPruningSuite
+
+enable              org.apache.spark.sql.execution.datasources.parquet.GlutenParquetColumnIndexSuite
+# Rewrite by just removing test timestamp.
+exclude             org.apache.spark.sql.execution.datasources.parquet.GlutenParquetColumnIndexSuite#test reading unaligned pages - test all types
+# Rewrite by converting smaller integral value to timestamp.
+exclude             org.apache.spark.sql.execution.datasources.parquet.GlutenParquetColumnIndexSuite#test reading unaligned pages - test all types (dict encode)
+
+enable              org.apache.spark.sql.execution.datasources.parquet.GlutenParquetCompressionCodecPrecedenceSuite
+
+enable              org.apache.spark.sql.execution.datasources.parquet.GlutenParquetDeltaByteArrayEncodingSuite
+
+enable              org.apache.spark.sql.execution.datasources.parquet.GlutenParquetDeltaEncodingInteger
+
+enable              org.apache.spark.sql.execution.datasources.parquet.GlutenParquetDeltaEncodingLong
+
+enable              org.apache.spark.sql.execution.datasources.parquet.GlutenParquetDeltaLengthByteArrayEncodingSuite
+
+enable              org.apache.spark.sql.execution.datasources.parquet.GlutenParquetEncodingSuite
+# Velox does not support rle encoding, but it can pass when native writer enabled.
+exclude             org.apache.spark.sql.execution.datasources.parquet.GlutenParquetEncodingSuite#parquet v2 pages - rle encoding for boolean value columns
+
+enable              org.apache.spark.sql.execution.datasources.parquet.GlutenParquetFieldIdIOSuite
+
+enable              org.apache.spark.sql.execution.datasources.parquet.GlutenParquetFileFormatV1Suite
+
+enable              org.apache.spark.sql.execution.datasources.parquet.GlutenParquetFileFormatV2Suite
+
+enable              org.apache.spark.sql.execution.datasources.parquet.GlutenParquetV1FilterSuite
+# Rewrite.
+exclude             org.apache.spark.sql.execution.datasources.parquet.GlutenParquetV1FilterSuite#SPARK-23852: Broken Parquet push-down for partially-written stats
+# Rewrite for supported INT96 - timestamp.
+exclude             org.apache.spark.sql.execution.datasources.parquet.GlutenParquetV1FilterSuite#filter pushdown - timestamp
+exclude             org.apache.spark.sql.execution.datasources.parquet.GlutenParquetV1FilterSuite#filter pushdown - date
+# Exception bebaviour.
+exclude             org.apache.spark.sql.execution.datasources.parquet.GlutenParquetV1FilterSuite#SPARK-25207: exception when duplicate fields in case-insensitive mode
+# Ignore Spark's filter pushdown check.
+exclude             org.apache.spark.sql.execution.datasources.parquet.GlutenParquetV1FilterSuite#Filters should be pushed down for vectorized Parquet reader at row group level
+exclude             org.apache.spark.sql.execution.datasources.parquet.GlutenParquetV1FilterSuite#SPARK-31026: Parquet predicate pushdown for fields having dots in the names
+exclude             org.apache.spark.sql.execution.datasources.parquet.GlutenParquetV1FilterSuite#Filters should be pushed down for Parquet readers at row group level
+exclude             org.apache.spark.sql.execution.datasources.parquet.GlutenParquetV1FilterSuite#SPARK-17091: Convert IN predicate to Parquet filter push-down
+exclude             org.apache.spark.sql.execution.datasources.parquet.GlutenParquetV1FilterSuite#Support Parquet column index
+exclude             org.apache.spark.sql.execution.datasources.parquet.GlutenParquetV1FilterSuite#SPARK-34562: Bloom filter push down
+exclude             org.apache.spark.sql.execution.datasources.parquet.GlutenParquetV1FilterSuite#SPARK-16371 Do not push down filters when inner name and outer name are the same
+exclude             org.apache.spark.sql.execution.datasources.parquet.GlutenParquetV1FilterSuite#filter pushdown - StringPredicate
+exclude             org.apache.spark.sql.execution.datasources.parquet.GlutenParquetV1FilterSuite#SPARK-38825: in and notIn filters
+
+enable              org.apache.spark.sql.execution.datasources.parquet.GlutenParquetV2FilterSuite
+# Rewrite.
+exclude             org.apache.spark.sql.execution.datasources.parquet.GlutenParquetV2FilterSuite#SPARK-23852: Broken Parquet push-down for partially-written stats
+# Rewrite for supported INT96 - timestamp.
+exclude             org.apache.spark.sql.execution.datasources.parquet.GlutenParquetV2FilterSuite#filter pushdown - timestamp
+exclude             org.apache.spark.sql.execution.datasources.parquet.GlutenParquetV2FilterSuite#filter pushdown - date
+# Exception bebaviour.
+exclude             org.apache.spark.sql.execution.datasources.parquet.GlutenParquetV2FilterSuite#SPARK-25207: exception when duplicate fields in case-insensitive mode
+# Ignore Spark's filter pushdown check.
+exclude             org.apache.spark.sql.execution.datasources.parquet.GlutenParquetV2FilterSuite#Filters should be pushed down for vectorized Parquet reader at row group level
+exclude             org.apache.spark.sql.execution.datasources.parquet.GlutenParquetV2FilterSuite#SPARK-31026: Parquet predicate pushdown for fields having dots in the names
+exclude             org.apache.spark.sql.execution.datasources.parquet.GlutenParquetV2FilterSuite#Filters should be pushed down for Parquet readers at row group level
+exclude             org.apache.spark.sql.execution.datasources.parquet.GlutenParquetV2FilterSuite#SPARK-17091: Convert IN predicate to Parquet filter push-down
+exclude             org.apache.spark.sql.execution.datasources.parquet.GlutenParquetV2FilterSuite#Support Parquet column index
+exclude             org.apache.spark.sql.execution.datasources.parquet.GlutenParquetV2FilterSuite#SPARK-34562: Bloom filter push down
+exclude             org.apache.spark.sql.execution.datasources.parquet.GlutenParquetV2FilterSuite#SPARK-16371 Do not push down filters when inner name and outer name are the same
+exclude             org.apache.spark.sql.execution.datasources.parquet.GlutenParquetV2FilterSuite#filter pushdown - StringPredicate
+exclude             org.apache.spark.sql.execution.datasources.parquet.GlutenParquetV2FilterSuite#SPARK-38825: in and notIn filters
+
+enable              org.apache.spark.sql.execution.datasources.parquet.GlutenParquetInteroperabilitySuite
+exclude             org.apache.spark.sql.execution.datasources.parquet.GlutenParquetInteroperabilitySuite#parquet timestamp conversion
+
+enable              org.apache.spark.sql.execution.datasources.parquet.GlutenParquetIOSuite
+# Velox doesn't write file metadata into parquet file.
+exclude             org.apache.spark.sql.execution.datasources.parquet.GlutenParquetIOSuite#Write Spark version into Parquet metadata
+# Exception.
+exclude             org.apache.spark.sql.execution.datasources.parquet.GlutenParquetIOSuite#SPARK-35640: read binary as timestamp should throw schema incompatible error
+# Exception msg.
+exclude             org.apache.spark.sql.execution.datasources.parquet.GlutenParquetIOSuite#SPARK-35640: int as long should throw schema incompatible error
+# Velox parquet reader not allow offset zero.
+exclude             org.apache.spark.sql.execution.datasources.parquet.GlutenParquetIOSuite#SPARK-40128 read DELTA_LENGTH_BYTE_ARRAY encoded strings
+
+enable              org.apache.spark.sql.execution.datasources.parquet.GlutenParquetV1PartitionDiscoverySuite
+
+enable              org.apache.spark.sql.execution.datasources.parquet.GlutenParquetV2PartitionDiscoverySuite
+
+enable              org.apache.spark.sql.execution.datasources.parquet.GlutenParquetProtobufCompatibilitySuite
+
+enable              org.apache.spark.sql.execution.datasources.parquet.GlutenParquetV1QuerySuite
+exclude             org.apache.spark.sql.execution.datasources.parquet.GlutenParquetV1QuerySuite#row group skipping doesn't overflow when reading into larger type
+# Unsupport spark.sql.files.ignoreCorruptFiles.
+exclude             org.apache.spark.sql.execution.datasources.parquet.GlutenParquetV1QuerySuite#Enabling/disabling ignoreCorruptFiles
+# decimal failed ut
+exclude             org.apache.spark.sql.execution.datasources.parquet.GlutenParquetV1QuerySuite#SPARK-34212 Parquet should read decimals correctly
+# new added in spark-3.3 and need fix later, random failure may caused by memory free
+exclude             org.apache.spark.sql.execution.datasources.parquet.GlutenParquetV1QuerySuite#SPARK-39833: pushed filters with project without filter columns
+exclude             org.apache.spark.sql.execution.datasources.parquet.GlutenParquetV1QuerySuite#SPARK-39833: pushed filters with count()
+# Rewrite because the filter after datasource is not needed.
+exclude             org.apache.spark.sql.execution.datasources.parquet.GlutenParquetV1QuerySuite#SPARK-26677: negated null-safe equality comparison should not filter matched row groups
+# Velox currently does not distinguish `isAdjustedToUTC` in Parquet.
+exclude             org.apache.spark.sql.execution.datasources.parquet.GlutenParquetV1QuerySuite#SPARK-36182: can't read TimestampLTZ as TimestampNTZ
+
+enable              org.apache.spark.sql.execution.datasources.parquet.GlutenParquetV2QuerySuite
+exclude             org.apache.spark.sql.execution.datasources.parquet.GlutenParquetV2QuerySuite#row group skipping doesn't overflow when reading into larger type
+# Unsupport spark.sql.files.ignoreCorruptFiles.
+exclude             org.apache.spark.sql.execution.datasources.parquet.GlutenParquetV2QuerySuite#Enabling/disabling ignoreCorruptFiles
+# decimal failed ut
+exclude             org.apache.spark.sql.execution.datasources.parquet.GlutenParquetV2QuerySuite#SPARK-34212 Parquet should read decimals correctly
+# Rewrite because the filter after datasource is not needed.
+exclude             org.apache.spark.sql.execution.datasources.parquet.GlutenParquetV2QuerySuite#SPARK-26677: negated null-safe equality comparison should not filter matched row groups
+# Velox currently does not distinguish `isAdjustedToUTC` in Parquet.
+exclude             org.apache.spark.sql.execution.datasources.parquet.GlutenParquetV2QuerySuite#SPARK-36182: can't read TimestampLTZ as TimestampNTZ
+
+enable              org.apache.spark.sql.execution.datasources.parquet.GlutenParquetV1SchemaPruningSuite
+
+enable              org.apache.spark.sql.execution.datasources.parquet.GlutenParquetV2SchemaPruningSuite
+
+enable              org.apache.spark.sql.execution.datasources.parquet.GlutenParquetRebaseDatetimeV1Suite
+# Velox doesn't write file metadata into parquet file.
+excludePrefix       org.apache.spark.sql.execution.datasources.parquet.GlutenParquetRebaseDatetimeV1Suite#SPARK-33163, SPARK-37705: write the metadata keys
+excludePrefix       org.apache.spark.sql.execution.datasources.parquet.GlutenParquetRebaseDatetimeV1Suite#SPARK-33160, SPARK-37705: write the metadata key
+# jar path and ignore PARQUET_REBASE_MODE_IN_READ, rewrite some
+excludePrefix       org.apache.spark.sql.execution.datasources.parquet.GlutenParquetRebaseDatetimeV1Suite#SPARK-31159
+excludePrefix       org.apache.spark.sql.execution.datasources.parquet.GlutenParquetRebaseDatetimeV1Suite#SPARK-35427
+
+enable              org.apache.spark.sql.execution.datasources.parquet.GlutenParquetRebaseDatetimeV2Suite
+# Velox doesn't write file metadata into parquet file.
+excludePrefix       org.apache.spark.sql.execution.datasources.parquet.GlutenParquetRebaseDatetimeV2Suite#SPARK-33163, SPARK-37705: write the metadata keys
+excludePrefix       org.apache.spark.sql.execution.datasources.parquet.GlutenParquetRebaseDatetimeV2Suite#SPARK-33160, SPARK-37705: write the metadata key
+# jar path and ignore PARQUET_REBASE_MODE_IN_READ
+excludePrefix       org.apache.spark.sql.execution.datasources.parquet.GlutenParquetRebaseDatetimeV2Suite#SPARK-31159
+excludePrefix       org.apache.spark.sql.execution.datasources.parquet.GlutenParquetRebaseDatetimeV2Suite#SPARK-35427
+
+enable              org.apache.spark.sql.execution.datasources.parquet.GlutenParquetSchemaInferenceSuite
+
+enable              org.apache.spark.sql.execution.datasources.parquet.GlutenParquetSchemaSuite
+# error message mismatch is accepted
+exclude             org.apache.spark.sql.execution.datasources.parquet.GlutenParquetSchemaSuite#schema mismatch failure error message for parquet reader
+exclude             org.apache.spark.sql.execution.datasources.parquet.GlutenParquetSchemaSuite#schema mismatch failure error message for parquet vectorized reader
+# [PATH_NOT_FOUND] Path does not exist:
+# file:/opt/spark331/sql/core/src/test/resources/test-data/timestamp-nanos.parquet
+# May require for newer spark.test.home
+excludePrefix       org.apache.spark.sql.execution.datasources.parquet.GlutenParquetSchemaSuite#SPARK-40819
+# Different exceptions between Spark and Velox.
+exclude             org.apache.spark.sql.execution.datasources.parquet.GlutenParquetSchemaSuite#SPARK-45604: schema mismatch failure error on timestamp_ntz to array<timestamp_ntz>
+
+enable              org.apache.spark.sql.execution.datasources.parquet.GlutenParquetThriftCompatibilitySuite
+# Rewrite for file locating.
+exclude             org.apache.spark.sql.execution.datasources.parquet.GlutenParquetThriftCompatibilitySuite#Read Parquet file generated by parquet-thrift
+
+enable              org.apache.spark.sql.execution.datasources.parquet.GlutenParquetVectorizedSuite
+
+enable              org.apache.spark.sql.execution.datasources.text.GlutenTextV1Suite
+
+enable              org.apache.spark.sql.execution.datasources.text.GlutenTextV2Suite
+
+enable              org.apache.spark.sql.execution.datasources.v2.GlutenDataSourceV2StrategySuite
+
+enable              org.apache.spark.sql.execution.datasources.v2.GlutenFileTableSuite
+
+enable              org.apache.spark.sql.execution.datasources.v2.GlutenV2PredicateSuite
+
+enable              org.apache.spark.sql.execution.datasources.GlutenBucketingUtilsSuite
+
+enable              org.apache.spark.sql.execution.datasources.GlutenDataSourceStrategySuite
+
+enable              org.apache.spark.sql.execution.datasources.GlutenDataSourceSuite
+
+enable              org.apache.spark.sql.execution.datasources.GlutenFileFormatWriterSuite
+
+enable              org.apache.spark.sql.execution.datasources.GlutenFileIndexSuite
+
+enable              org.apache.spark.sql.execution.datasources.GlutenFileMetadataStructSuite
+
+enable              org.apache.spark.sql.execution.datasources.GlutenParquetV1AggregatePushDownSuite
+
+enable              org.apache.spark.sql.execution.datasources.GlutenParquetV2AggregatePushDownSuite
+# TODO: Timestamp columns stats will lost if using int64 in parquet writer.
+exclude             org.apache.spark.sql.execution.datasources.GlutenParquetV2AggregatePushDownSuite#aggregate push down - different data types
+
+enable              org.apache.spark.sql.execution.datasources.GlutenOrcV1AggregatePushDownSuite
+exclude             org.apache.spark.sql.execution.datasources.GlutenOrcV1AggregatePushDownSuite#nested column: Count(nested sub-field) not push down
+
+enable              org.apache.spark.sql.execution.datasources.GlutenOrcV2AggregatePushDownSuite
+exclude             org.apache.spark.sql.execution.datasources.GlutenOrcV2AggregatePushDownSuite#nested column: Max(top level column) not push down
+exclude             org.apache.spark.sql.execution.datasources.GlutenOrcV2AggregatePushDownSuite#nested column: Count(nested sub-field) not push down
+
+enable              org.apache.spark.sql.execution.datasources.GlutenParquetCodecSuite
+# codec not supported in native
+exclude             org.apache.spark.sql.execution.datasources.GlutenParquetCodecSuite#write and read - file source parquet - codec: lz4_raw
+exclude             org.apache.spark.sql.execution.datasources.GlutenParquetCodecSuite#write and read - file source parquet - codec: lz4raw
+
+enable              org.apache.spark.sql.execution.datasources.GlutenOrcCodecSuite
+
+enable              org.apache.spark.sql.execution.datasources.GlutenFileSourceStrategySuite
+# Plan comparison.
+exclude             org.apache.spark.sql.execution.datasources.GlutenFileSourceStrategySuite#partitioned table - after scan filters
+
+enable              org.apache.spark.sql.execution.datasources.GlutenHadoopFileLinesReaderSuite
+
+enable              org.apache.spark.sql.execution.datasources.GlutenPathFilterStrategySuite
+
+enable              org.apache.spark.sql.execution.datasources.GlutenPathFilterSuite
+
+enable              org.apache.spark.sql.execution.datasources.GlutenPruneFileSourcePartitionsSuite
+
+enable              org.apache.spark.sql.execution.datasources.GlutenCSVReadSchemaSuite
+
+enable              org.apache.spark.sql.execution.datasources.GlutenHeaderCSVReadSchemaSuite
+exclude             org.apache.spark.sql.execution.datasources.GlutenHeaderCSVReadSchemaSuite#change column type from int to long
+
+enable              org.apache.spark.sql.execution.datasources.GlutenJsonReadSchemaSuite
+
+enable              org.apache.spark.sql.execution.datasources.GlutenOrcReadSchemaSuite
+
+enable              org.apache.spark.sql.execution.datasources.GlutenVectorizedOrcReadSchemaSuite
+
+enable              org.apache.spark.sql.execution.datasources.GlutenMergedOrcReadSchemaSuite
+
+enable              org.apache.spark.sql.execution.datasources.GlutenParquetReadSchemaSuite
+
+enable              org.apache.spark.sql.execution.datasources.GlutenVectorizedParquetReadSchemaSuite
+
+enable              org.apache.spark.sql.execution.datasources.GlutenMergedParquetReadSchemaSuite
+
+enable              org.apache.spark.sql.execution.datasources.GlutenV1WriteCommandSuite
+# Rewrite to match SortExecTransformer.
+excludePrefix       org.apache.spark.sql.execution.datasources.GlutenV1WriteCommandSuite#SPARK-41914:
+
+enable              org.apache.spark.sql.execution.exchange.GlutenEnsureRequirementsSuite
+
+enable              org.apache.spark.sql.execution.joins.GlutenBroadcastJoinSuite
+exclude             org.apache.spark.sql.execution.joins.GlutenBroadcastJoinSuite#Shouldn't change broadcast join buildSide if user clearly specified
+exclude             org.apache.spark.sql.execution.joins.GlutenBroadcastJoinSuite#Shouldn't bias towards build right if user didn't specify
+exclude             org.apache.spark.sql.execution.joins.GlutenBroadcastJoinSuite#SPARK-23192: broadcast hint should be retained after using the cached data
+exclude             org.apache.spark.sql.execution.joins.GlutenBroadcastJoinSuite#broadcast join where streamed side's output partitioning is HashPartitioning
+
+enable              org.apache.spark.sql.execution.joins.GlutenExistenceJoinSuite
+
+enable              org.apache.spark.sql.execution.joins.GlutenInnerJoinSuiteForceShjOn
+
+enable              org.apache.spark.sql.execution.joins.GlutenInnerJoinSuiteForceShjOff
+
+enable              org.apache.spark.sql.execution.joins.GlutenOuterJoinSuiteForceShjOn
+
+enable              org.apache.spark.sql.execution.joins.GlutenOuterJoinSuiteForceShjOff
+
+enable              org.apache.spark.sql.execution.FallbackStrategiesSuite
+
+enable              org.apache.spark.sql.execution.GlutenBroadcastExchangeSuite
+
+enable              org.apache.spark.sql.execution.GlutenLocalBroadcastExchangeSuite
+
+enable              org.apache.spark.sql.execution.GlutenCoalesceShufflePartitionsSuite
+# Rewrite for Gluten. Change details are in the inline comments in individual tests.
+excludePrefix       org.apache.spark.sql.execution.GlutenCoalesceShufflePartitionsSuite#determining the number of reducers
+
+enable              org.apache.spark.sql.execution.GlutenExchangeSuite
+# ColumnarShuffleExchangeExec does not support doExecute() method
+exclude             org.apache.spark.sql.execution.GlutenExchangeSuite#shuffling UnsafeRows in exchange
+# This test will re-run in GlutenExchangeSuite with shuffle partitions > 1
+exclude             org.apache.spark.sql.execution.GlutenExchangeSuite#Exchange reuse across the whole plan
+
+enable              org.apache.spark.sql.execution.GlutenReplaceHashWithSortAggSuite
+exclude             org.apache.spark.sql.execution.GlutenReplaceHashWithSortAggSuite#replace partial hash aggregate with sort aggregate
+exclude             org.apache.spark.sql.execution.GlutenReplaceHashWithSortAggSuite#replace partial and final hash aggregate together with sort aggregate
+exclude             org.apache.spark.sql.execution.GlutenReplaceHashWithSortAggSuite#do not replace hash aggregate if child does not have sort order
+exclude             org.apache.spark.sql.execution.GlutenReplaceHashWithSortAggSuite#do not replace hash aggregate if there is no group-by column
+
+enable              org.apache.spark.sql.execution.GlutenReuseExchangeAndSubquerySuite
+
+enable              org.apache.spark.sql.execution.GlutenSameResultSuite
+
+enable              org.apache.spark.sql.execution.GlutenSortSuite
+
+enable              org.apache.spark.sql.execution.GlutenSQLAggregateFunctionSuite
+
+# spill not supported yet.
+enable              org.apache.spark.sql.execution.GlutenSQLWindowFunctionSuite
+exclude             org.apache.spark.sql.execution.GlutenSQLWindowFunctionSuite#test with low buffer spill threshold
+
+enable              org.apache.spark.sql.execution.GlutenTakeOrderedAndProjectSuite
+
+enable              org.apache.spark.sql.extension.GlutenSessionExtensionSuite
+
+enable              org.apache.spark.sql.sources.GlutenBucketedReadWithoutHiveSupportSuite
+# Exclude the following suite for plan changed from SMJ to SHJ.
+exclude             org.apache.spark.sql.sources.GlutenBucketedReadWithoutHiveSupportSuite#avoid shuffle when join 2 bucketed tables
+exclude             org.apache.spark.sql.sources.GlutenBucketedReadWithoutHiveSupportSuite#avoid shuffle and sort when sort columns are a super set of join keys
+exclude             org.apache.spark.sql.sources.GlutenBucketedReadWithoutHiveSupportSuite#only shuffle one side when join bucketed table and non-bucketed table
+exclude             org.apache.spark.sql.sources.GlutenBucketedReadWithoutHiveSupportSuite#only shuffle one side when 2 bucketed tables have different bucket number
+exclude             org.apache.spark.sql.sources.GlutenBucketedReadWithoutHiveSupportSuite#only shuffle one side when 2 bucketed tables have different bucket keys
+exclude             org.apache.spark.sql.sources.GlutenBucketedReadWithoutHiveSupportSuite#shuffle when join keys are not equal to bucket keys
+exclude             org.apache.spark.sql.sources.GlutenBucketedReadWithoutHiveSupportSuite#shuffle when join 2 bucketed tables with bucketing disabled
+exclude             org.apache.spark.sql.sources.GlutenBucketedReadWithoutHiveSupportSuite#check sort and shuffle when bucket and sort columns are join keys
+exclude             org.apache.spark.sql.sources.GlutenBucketedReadWithoutHiveSupportSuite#only sort one side when sort columns are different
+exclude             org.apache.spark.sql.sources.GlutenBucketedReadWithoutHiveSupportSuite#only sort one side when sort columns are same but their ordering is different
+exclude             org.apache.spark.sql.sources.GlutenBucketedReadWithoutHiveSupportSuite#SPARK-17698 Join predicates should not contain filter clauses
+exclude             org.apache.spark.sql.sources.GlutenBucketedReadWithoutHiveSupportSuite#SPARK-19122 Re-order join predicates if they match with the child's output partitioning
+exclude             org.apache.spark.sql.sources.GlutenBucketedReadWithoutHiveSupportSuite#SPARK-19122 No re-ordering should happen if set of join columns != set of child's partitioning columns
+exclude             org.apache.spark.sql.sources.GlutenBucketedReadWithoutHiveSupportSuite#SPARK-29655 Read bucketed tables obeys spark.sql.shuffle.partitions
+exclude             org.apache.spark.sql.sources.GlutenBucketedReadWithoutHiveSupportSuite#SPARK-32767 Bucket join should work if SHUFFLE_PARTITIONS larger than bucket number
+exclude             org.apache.spark.sql.sources.GlutenBucketedReadWithoutHiveSupportSuite#bucket coalescing eliminates shuffle
+exclude             org.apache.spark.sql.sources.GlutenBucketedReadWithoutHiveSupportSuite#bucket coalescing is not satisfied
+# DISABLED: GLUTEN-4893 Vanilla UT checks scan operator by exactly matching the class type
+exclude             org.apache.spark.sql.sources.GlutenBucketedReadWithoutHiveSupportSuite#disable bucketing when the output doesn't contain all bucketing columns
+excludePrefix       org.apache.spark.sql.sources.GlutenBucketedReadWithoutHiveSupportSuite#bucket coalescing is applied when join expressions match
+
+enable              org.apache.spark.sql.sources.GlutenBucketedWriteWithoutHiveSupportSuite
+exclude             org.apache.spark.sql.sources.GlutenBucketedWriteWithoutHiveSupportSuite#write bucketed data
+exclude             org.apache.spark.sql.sources.GlutenBucketedWriteWithoutHiveSupportSuite#write bucketed data with sortBy
+exclude             org.apache.spark.sql.sources.GlutenBucketedWriteWithoutHiveSupportSuite#write bucketed data without partitionBy
+exclude             org.apache.spark.sql.sources.GlutenBucketedWriteWithoutHiveSupportSuite#write bucketed data without partitionBy with sortBy
+exclude             org.apache.spark.sql.sources.GlutenBucketedWriteWithoutHiveSupportSuite#write bucketed data with bucketing disabled
+
+enable              org.apache.spark.sql.sources.GlutenCreateTableAsSelectSuite
+# TODO Gluten can not catch the spark exception in Driver side.
+exclude             org.apache.spark.sql.sources.GlutenCreateTableAsSelectSuite#CREATE TABLE USING AS SELECT based on the file without write permission
+exclude             org.apache.spark.sql.sources.GlutenCreateTableAsSelectSuite#create a table, drop it and create another one with the same name
+
+enable              org.apache.spark.sql.sources.GlutenDDLSourceLoadSuite
+disable             org.apache.spark.sql.sources.GlutenDisableUnnecessaryBucketedScanWithoutHiveSupportSuite -- GLUTEN-4893: Vanilla UT checks scan operator by exactly matching the class type
+
+enable              org.apache.spark.sql.sources.GlutenDisableUnnecessaryBucketedScanWithoutHiveSupportSuiteAE
+
+enable              org.apache.spark.sql.sources.GlutenExternalCommandRunnerSuite
+
+enable              org.apache.spark.sql.sources.GlutenFilteredScanSuite
+
+enable              org.apache.spark.sql.sources.GlutenFiltersSuite
+
+enable              org.apache.spark.sql.sources.GlutenInsertSuite
+# the native write staing dir is differnt with vanilla Spark for coustom partition paths
+exclude             org.apache.spark.sql.sources.GlutenInsertSuite#SPARK-35106: Throw exception when rename custom partition paths returns false
+# The case expects a SparkException; Gluten surfaces the raw
+# FileAlreadyExistsException instead.
+exclude             org.apache.spark.sql.sources.GlutenInsertSuite#Stop task set if FileAlreadyExistsException was thrown
+# Rewrite: Additional support for file scan with default values has been added in Spark-3.4.
+# It appends the default value in record if it is not present while scanning.
+# Velox supports default values for new records but it does not backfill the
+# existing records and provides null for the existing ones.
+exclude             org.apache.spark.sql.sources.GlutenInsertSuite#INSERT rows, ALTER TABLE ADD COLUMNS with DEFAULTs, then SELECT them
+exclude             org.apache.spark.sql.sources.GlutenInsertSuite#SPARK-39557 INSERT INTO statements with tables with array defaults
+exclude             org.apache.spark.sql.sources.GlutenInsertSuite#SPARK-39557 INSERT INTO statements with tables with struct defaults
+exclude             org.apache.spark.sql.sources.GlutenInsertSuite#SPARK-39557 INSERT INTO statements with tables with map defaults
+
+enable              org.apache.spark.sql.sources.GlutenPartitionedWriteSuite
+
+enable              org.apache.spark.sql.sources.GlutenPathOptionSuite
+
+enable              org.apache.spark.sql.sources.GlutenPrunedScanSuite
+
+enable              org.apache.spark.sql.sources.GlutenResolvedDataSourceSuite
+
+enable              org.apache.spark.sql.sources.GlutenSaveLoadSuite
+
+enable              org.apache.spark.sql.sources.GlutenTableScanSuite
+
+enable              org.apache.spark.sql.GlutenApproxCountDistinctForIntervalsQuerySuite
+
+enable              org.apache.spark.sql.GlutenApproximatePercentileQuerySuite
+# requires resource files from Vanilla spark jar
+exclude             org.apache.spark.sql.GlutenApproximatePercentileQuerySuite#SPARK-32908: maximum target error in percentile_approx
+
+enable              org.apache.spark.sql.GlutenCachedTableSuite
+exclude             org.apache.spark.sql.GlutenCachedTableSuite#A cached table preserves the partitioning and ordering of its cached SparkPlan
+exclude             org.apache.spark.sql.GlutenCachedTableSuite#InMemoryRelation statistics
+# Extra ColumnarToRow is needed to transform vanilla columnar data to gluten columnar data.
+exclude             org.apache.spark.sql.GlutenCachedTableSuite#SPARK-37369: Avoid redundant ColumnarToRow transition on InMemoryTableScan
+# Rewrite for different cache size.
+exclude             org.apache.spark.sql.GlutenCachedTableSuite#SPARK-36120: Support cache/uncache table with TimestampNTZ type
+
+enable              org.apache.spark.sql.GlutenFileSourceCharVarcharTestSuite
+exclude             org.apache.spark.sql.GlutenFileSourceCharVarcharTestSuite#length check for input string values: nested in array
+exclude             org.apache.spark.sql.GlutenFileSourceCharVarcharTestSuite#length check for input string values: nested in array
+exclude             org.apache.spark.sql.GlutenFileSourceCharVarcharTestSuite#length check for input string values: nested in map key
+exclude             org.apache.spark.sql.GlutenFileSourceCharVarcharTestSuite#length check for input string values: nested in map value
+exclude             org.apache.spark.sql.GlutenFileSourceCharVarcharTestSuite#length check for input string values: nested in both map key and value
+exclude             org.apache.spark.sql.GlutenFileSourceCharVarcharTestSuite#length check for input string values: nested in array of struct
+exclude             org.apache.spark.sql.GlutenFileSourceCharVarcharTestSuite#length check for input string values: nested in array of array
+# Following tests are excluded as these are overridden in Gluten test suite..
+# The overridden tests assert against Velox-specific error messages for char/varchar
+# length validation, which differ from the original vanilla Spark tests.
+exclude             org.apache.spark.sql.GlutenFileSourceCharVarcharTestSuite#length check for input string values: top-level columns
+exclude             org.apache.spark.sql.GlutenFileSourceCharVarcharTestSuite#length check for input string values: partitioned columns
+exclude             org.apache.spark.sql.GlutenFileSourceCharVarcharTestSuite#length check for input string values: nested in struct of array
+exclude             org.apache.spark.sql.GlutenFileSourceCharVarcharTestSuite#length check for input string values: with implicit cast
+exclude             org.apache.spark.sql.GlutenFileSourceCharVarcharTestSuite#char/varchar type values length check: partitioned columns of other types
+
+enable              org.apache.spark.sql.GlutenDSV2CharVarcharTestSuite
+# Following tests are excluded as these are overridden in Gluten test suite..
+# The overridden tests assert against Velox-specific error messages for char/varchar
+# length validation, which differ from the original vanilla Spark tests.
+exclude             org.apache.spark.sql.GlutenDSV2CharVarcharTestSuite#length check for input string values: top-level columns
+exclude             org.apache.spark.sql.GlutenDSV2CharVarcharTestSuite#length check for input string values: nested in array
+exclude             org.apache.spark.sql.GlutenDSV2CharVarcharTestSuite#length check for input string values: nested in struct of array
+exclude             org.apache.spark.sql.GlutenDSV2CharVarcharTestSuite#length check for input string values: nested in array of struct
+exclude             org.apache.spark.sql.GlutenDSV2CharVarcharTestSuite#length check for input string values: nested in array of array
+exclude             org.apache.spark.sql.GlutenDSV2CharVarcharTestSuite#length check for input string values: with implicit cast
+exclude             org.apache.spark.sql.GlutenDSV2CharVarcharTestSuite#char/varchar type values length check: partitioned columns of other types
+exclude             org.apache.spark.sql.GlutenDSV2CharVarcharTestSuite#SPARK-42611: check char/varchar length in reordered structs within arrays
+
+enable              org.apache.spark.sql.GlutenColumnExpressionSuite
+# Velox raise_error('errMsg') throws a velox_user_error exception with the message 'errMsg'.
+# The final caught Spark exception's getCause().getMessage() contains 'errMsg' but does not
+# equal 'errMsg' exactly. The following two tests will be skipped and overridden in Gluten.
+exclude             org.apache.spark.sql.GlutenColumnExpressionSuite#raise_error
+exclude             org.apache.spark.sql.GlutenColumnExpressionSuite#assert_true
+
+enable              org.apache.spark.sql.catalyst.expressions.GlutenComplexTypeSuite
+
+enable              org.apache.spark.sql.GlutenConfigBehaviorSuite
+# Will be fixed by cleaning up ColumnarShuffleExchangeExec.
+exclude             org.apache.spark.sql.GlutenConfigBehaviorSuite#SPARK-22160 spark.sql.execution.rangeExchange.sampleSizePerPartition
+# Gluten columnar operator will have different number of jobs
+exclude             org.apache.spark.sql.GlutenConfigBehaviorSuite#SPARK-40211: customize initialNumPartitions for take
+
+enable              org.apache.spark.sql.GlutenCountMinSketchAggQuerySuite
+
+enable              org.apache.spark.sql.GlutenCsvFunctionsSuite
+
+enable              org.apache.spark.sql.GlutenCTEHintSuite
+
+enable              org.apache.spark.sql.GlutenCTEInlineSuiteAEOff
+
+enable              org.apache.spark.sql.GlutenCTEInlineSuiteAEOn
+
+enable              org.apache.spark.sql.GlutenDataFrameAggregateSuite
+# Test for vanilla spark codegen, not apply for Gluten
+exclude             org.apache.spark.sql.GlutenDataFrameAggregateSuite#SPARK-43876: Enable fast hashmap for distinct queries
+exclude             org.apache.spark.sql.GlutenDataFrameAggregateSuite#zero moments
+exclude             org.apache.spark.sql.GlutenDataFrameAggregateSuite#SPARK-26021: NaN and -0.0 in grouping expressions
+exclude             org.apache.spark.sql.GlutenDataFrameAggregateSuite#SPARK-32038: NormalizeFloatingNumbers should work on distinct aggregate
+exclude             org.apache.spark.sql.GlutenDataFrameAggregateSuite#SPARK-19471: AggregationIterator does not initialize the generated result projection before using it
+exclude             org.apache.spark.sql.GlutenDataFrameAggregateSuite#SPARK-22223: ObjectHashAggregate should not introduce unnecessary shuffle
+exclude             org.apache.spark.sql.GlutenDataFrameAggregateSuite#SPARK-31620: agg with subquery (whole-stage-codegen = true)
+exclude             org.apache.spark.sql.GlutenDataFrameAggregateSuite#SPARK-31620: agg with subquery (whole-stage-codegen = false)
+
+enable              org.apache.spark.sql.GlutenDataFrameAsOfJoinSuite
+
+enable              org.apache.spark.sql.GlutenDataFrameComplexTypeSuite
+
+enable              org.apache.spark.sql.GlutenDataFrameFunctionsSuite
+# blocked by Velox-5768
+exclude             org.apache.spark.sql.GlutenDataFrameFunctionsSuite#aggregate function - array for primitive type containing null
+exclude             org.apache.spark.sql.GlutenDataFrameFunctionsSuite#aggregate function - array for non-primitive type
+# Rewrite this test because Velox sorts rows by key for primitive data types, which disrupts the original row sequence.
+exclude             org.apache.spark.sql.GlutenDataFrameFunctionsSuite#map_zip_with function - map of primitive types
+
+enable              org.apache.spark.sql.GlutenDataFrameHintSuite
+
+enable              org.apache.spark.sql.GlutenDataFrameImplicitsSuite
+
+enable              org.apache.spark.sql.GlutenDataFrameJoinSuite
+
+enable              org.apache.spark.sql.GlutenDataFrameNaFunctionsSuite
+exclude             org.apache.spark.sql.GlutenDataFrameNaFunctionsSuite#replace nan with float
+exclude             org.apache.spark.sql.GlutenDataFrameNaFunctionsSuite#replace nan with double
+
+enable              org.apache.spark.sql.GlutenDataFramePivotSuite
+# substring issue
+exclude             org.apache.spark.sql.GlutenDataFramePivotSuite#pivot with column definition in groupby
+# array comparison not supported for values that contain nulls
+exclude             org.apache.spark.sql.GlutenDataFramePivotSuite#pivot with null and aggregate type not supported by PivotFirst returns correct result
+
+enable              org.apache.spark.sql.GlutenDataFrameRangeSuite
+exclude             org.apache.spark.sql.GlutenDataFrameRangeSuite#SPARK-20430 Initialize Range parameters in a driver side
+excludePrefix       org.apache.spark.sql.GlutenDataFrameRangeSuite#Cancelling stage in a query with Range
+
+enable              org.apache.spark.sql.GlutenDataFrameSelfJoinSuite
+
+enable              org.apache.spark.sql.GlutenDataFrameSessionWindowingSuite
+
+enable              org.apache.spark.sql.GlutenDataFrameSetOperationsSuite
+exclude             org.apache.spark.sql.GlutenDataFrameSetOperationsSuite#SPARK-37371: UnionExec should support columnar if all children support columnar
+# Result depends on the implementation for nondeterministic expression rand.
+# Not really an issue.
+exclude             org.apache.spark.sql.GlutenDataFrameSetOperationsSuite#SPARK-10740: handle nondeterministic expressions correctly for set operations
+
+enable              org.apache.spark.sql.GlutenDataFrameStatSuite
+
+enable              org.apache.spark.sql.GlutenDataFrameSuite
+# Rewrite these tests because it checks Spark's physical operators.
+excludePrefix       org.apache.spark.sql.GlutenDataFrameSuite#SPARK-22520
+excludePrefix       org.apache.spark.sql.GlutenDataFrameSuite#reuse exchange
+exclude             org.apache.spark.sql.GlutenDataFrameSuite#repartitionByRange
+exclude             org.apache.spark.sql.GlutenDataFrameSuite#distributeBy and localSort
+exclude             org.apache.spark.sql.GlutenDataFrameSuite#NaN is greater than all other non-NaN numeric values
+exclude             org.apache.spark.sql.GlutenDataFrameSuite#describe
+exclude             org.apache.spark.sql.GlutenDataFrameSuite#SPARK-22271: mean overflows and returns null for some decimal variables
+exclude             org.apache.spark.sql.GlutenDataFrameSuite#SPARK-9083: sort with non-deterministic expressions
+# test for sort node not present but gluten uses shuffle hash join
+exclude             org.apache.spark.sql.GlutenDataFrameSuite#SPARK-41048: Improve output partitioning and ordering with AQE cache
+# Rewrite this test since it checks the physical operator which is changed in Gluten
+exclude             org.apache.spark.sql.GlutenDataFrameSuite#SPARK-27439: Explain result should match collected result after view change
+
+enable              org.apache.spark.sql.GlutenDataFrameTimeWindowingSuite
+
+enable              org.apache.spark.sql.GlutenDataFrameTungstenSuite
+
+enable              org.apache.spark.sql.GlutenDataFrameWindowFunctionsSuite
+# does not support `spark.sql.legacy.statisticalAggregate=true` (null -> NAN)
+exclude             org.apache.spark.sql.GlutenDataFrameWindowFunctionsSuite#corr, covar_pop, stddev_pop functions in specific window
+exclude             org.apache.spark.sql.GlutenDataFrameWindowFunctionsSuite#covar_samp, var_samp (variance), stddev_samp (stddev) functions in specific window
+# does not support spill
+exclude             org.apache.spark.sql.GlutenDataFrameWindowFunctionsSuite#Window spill with more than the inMemoryThreshold and spillThreshold
+exclude             org.apache.spark.sql.GlutenDataFrameWindowFunctionsSuite#SPARK-21258: complex object in combination with spilling
+# rewrite `WindowExec -> WindowExecTransformer`
+exclude             org.apache.spark.sql.GlutenDataFrameWindowFunctionsSuite#SPARK-38237: require all cluster keys for child required distribution for window query
+# The window orderBy has no tie-breaker, so rows tied in the window order can be emitted
+# in any order. Velox TopNRowNumber orders peer rows differently than Spark's stable sort,
+# making the running-frame collect_list result differ on tied rows. Both results are valid.
+exclude             org.apache.spark.sql.GlutenDataFrameWindowFunctionsSuite#SPARK-45543: InferWindowGroupLimit causes bug if the other window functions haven't the same window frame as the rank-like functions
+
+enable              org.apache.spark.sql.GlutenDataFrameWindowFramesSuite
+# Local window fixes are not added.
+exclude             org.apache.spark.sql.GlutenDataFrameWindowFramesSuite#range between should accept int/long values as boundary
+exclude             org.apache.spark.sql.GlutenDataFrameWindowFramesSuite#unbounded preceding/following range between with aggregation
+exclude             org.apache.spark.sql.GlutenDataFrameWindowFramesSuite#sliding range between with aggregation
+exclude             org.apache.spark.sql.GlutenDataFrameWindowFramesSuite#store and retrieve column stats in different time zones
+
+enable              org.apache.spark.sql.GlutenDataFrameWriterV2Suite
+
+enable              org.apache.spark.sql.GlutenDatasetAggregatorSuite
+
+enable              org.apache.spark.sql.GlutenDatasetCacheSuite
+
+enable              org.apache.spark.sql.GlutenDatasetOptimizationSuite
+
+enable              org.apache.spark.sql.GlutenDatasetPrimitiveSuite
+
+enable              org.apache.spark.sql.GlutenDatasetSerializerRegistratorSuite
+
+enable              org.apache.spark.sql.GlutenDatasetSuite
+# Rewrite the following two tests in GlutenDatasetSuite.
+exclude             org.apache.spark.sql.GlutenDatasetSuite#dropDuplicates: columns with same column name
+exclude             org.apache.spark.sql.GlutenDatasetSuite#groupBy.as
+
+enable              org.apache.spark.sql.GlutenDateFunctionsSuite
+# The below two are replaced by two modified versions.
+exclude             org.apache.spark.sql.GlutenDateFunctionsSuite#unix_timestamp
+exclude             org.apache.spark.sql.GlutenDateFunctionsSuite#to_unix_timestamp
+# Unsupported datetime format: specifier X is not supported by velox.
+exclude             org.apache.spark.sql.GlutenDateFunctionsSuite#to_timestamp with microseconds precision
+# Legacy mode is not supported, assuming this mode is not commonly used.
+exclude             org.apache.spark.sql.GlutenDateFunctionsSuite#SPARK-30668: use legacy timestamp parser in to_timestamp
+# Legacy mode is not supported and velox getTimestamp function does not throw
+# exception when format is "yyyy-dd-aa".
+exclude             org.apache.spark.sql.GlutenDateFunctionsSuite#function to_date
+
+enable              org.apache.spark.sql.GlutenDeprecatedAPISuite
+
+enable              org.apache.spark.sql.GlutenDynamicPartitionPruningV1SuiteAEOff
+
+enable              org.apache.spark.sql.GlutenDynamicPartitionPruningV1SuiteAEOn
+
+enable              org.apache.spark.sql.GlutenDynamicPartitionPruningV1SuiteAEOnDisableScan
+
+enable              org.apache.spark.sql.GlutenDynamicPartitionPruningV1SuiteAEOffDisableScan
+
+enable              org.apache.spark.sql.GlutenDynamicPartitionPruningV1SuiteAEOffWSCGOnDisableProject
+
+enable              org.apache.spark.sql.GlutenDynamicPartitionPruningV1SuiteAEOffWSCGOffDisableProject
+
+enable              org.apache.spark.sql.GlutenDynamicPartitionPruningV2SuiteAEOff
+
+enable              org.apache.spark.sql.GlutenDynamicPartitionPruningV2SuiteAEOn
+
+enable              org.apache.spark.sql.GlutenDynamicPartitionPruningV2SuiteAEOnDisableScan
+
+enable              org.apache.spark.sql.GlutenDynamicPartitionPruningV2SuiteAEOffDisableScan
+
+enable              org.apache.spark.sql.GlutenDynamicPartitionPruningV2SuiteAEOffWSCGOnDisableProject
+
+enable              org.apache.spark.sql.GlutenDynamicPartitionPruningV2SuiteAEOffWSCGOffDisableProject
+
+enable              org.apache.spark.sql.GlutenExpressionsSchemaSuite
+
+enable              org.apache.spark.sql.GlutenExtraStrategiesSuite
+
+enable              org.apache.spark.sql.GlutenFileBasedDataSourceSuite
+# test data path is jar path, rewrite
+exclude             org.apache.spark.sql.GlutenFileBasedDataSourceSuite#Option recursiveFileLookup: disable partition inferring
+# gluten executor exception cannot get in driver, rewrite
+exclude             org.apache.spark.sql.GlutenFileBasedDataSourceSuite#Spark native readers should respect spark.sql.caseSensitive - parquet
+# shuffle_partitions config is different, rewrite
+excludePrefix       org.apache.spark.sql.GlutenFileBasedDataSourceSuite#SPARK-22790
+# plan is different cause metric is different, rewrite
+excludePrefix       org.apache.spark.sql.GlutenFileBasedDataSourceSuite#SPARK-25237
+# error msg from velox is different & reader options is not supported, rewrite
+exclude             org.apache.spark.sql.GlutenFileBasedDataSourceSuite#Enabling/disabling ignoreMissingFiles using parquet
+exclude             org.apache.spark.sql.GlutenFileBasedDataSourceSuite#Enabling/disabling ignoreMissingFiles using orc
+exclude             org.apache.spark.sql.GlutenFileBasedDataSourceSuite#Spark native readers should respect spark.sql.caseSensitive - orc
+exclude             org.apache.spark.sql.GlutenFileBasedDataSourceSuite#Return correct results when data columns overlap with partition columns
+exclude             org.apache.spark.sql.GlutenFileBasedDataSourceSuite#Return correct results when data columns overlap with partition columns (nested data)
+exclude             org.apache.spark.sql.GlutenFileBasedDataSourceSuite#SPARK-31116: Select nested schema with case insensitive mode
+# exclude as original metric not correct when task offloaded to velox
+exclude             org.apache.spark.sql.GlutenFileBasedDataSourceSuite#SPARK-37585: test input metrics for DSV2 with output limits
+# DISABLED: GLUTEN-4893 Vanilla UT checks scan operator by exactly matching the class type
+exclude             org.apache.spark.sql.GlutenFileBasedDataSourceSuite#File source v2: support passing data filters to FileScan without partitionFilters
+# DISABLED: GLUTEN-4893 Vanilla UT checks scan operator by exactly matching the class type
+exclude             org.apache.spark.sql.GlutenFileBasedDataSourceSuite#File source v2: support partition pruning
+# DISABLED: GLUTEN-4893 Vanilla UT checks scan operator by exactly matching the class type
+exclude             org.apache.spark.sql.GlutenFileBasedDataSourceSuite#SPARK-41017: filter pushdown with nondeterministic predicates
+
+enable              org.apache.spark.sql.GlutenFileScanSuite
+
+enable              org.apache.spark.sql.GlutenGeneratorFunctionSuite
+exclude             org.apache.spark.sql.GlutenGeneratorFunctionSuite#SPARK-45171: Handle evaluated nondeterministic expression
+
+enable              org.apache.spark.sql.GlutenInjectRuntimeFilterSuite
+# FIXME: yan
+exclude             org.apache.spark.sql.GlutenInjectRuntimeFilterSuite#Merge runtime bloom filters
+
+enable              org.apache.spark.sql.GlutenIntervalFunctionsSuite
+
+enable              org.apache.spark.sql.GlutenJoinSuite
+# exclude as it check spark plan
+exclude             org.apache.spark.sql.GlutenJoinSuite#SPARK-36794: Ignore duplicated key when building relation for semi/anti hash join
+
+enable              org.apache.spark.sql.GlutenMathFunctionsSuite
+
+enable              org.apache.spark.sql.GlutenMetadataCacheSuite
+exclude             org.apache.spark.sql.GlutenMetadataCacheSuite#SPARK-16336,SPARK-27961 Suggest fixing FileNotFoundException
+
+enable              org.apache.spark.sql.GlutenMiscFunctionsSuite
+
+enable              org.apache.spark.sql.GlutenNestedDataSourceV1Suite
+
+enable              org.apache.spark.sql.GlutenNestedDataSourceV2Suite
+
+enable              org.apache.spark.sql.GlutenProcessingTimeSuite
+
+enable              org.apache.spark.sql.GlutenProductAggSuite
+
+enable              org.apache.spark.sql.GlutenReplaceNullWithFalseInPredicateEndToEndSuite
+
+enable              org.apache.spark.sql.GlutenScalaReflectionRelationSuite
+
+enable              org.apache.spark.sql.GlutenSerializationSuite
+
+enable              org.apache.spark.sql.GlutenFileSourceSQLInsertTestSuite
+
+enable              org.apache.spark.sql.GlutenDSV2SQLInsertTestSuite
+
+enable              org.apache.spark.sql.GlutenSQLQuerySuite
+# Decimal precision exceeds.
+exclude             org.apache.spark.sql.GlutenSQLQuerySuite#should be able to resolve a persistent view
+# Unstable. Needs to be fixed.
+exclude             org.apache.spark.sql.GlutenSQLQuerySuite#SPARK-36093: RemoveRedundantAliases should not change expression's name
+# Rewrite from ORC scan to Parquet scan because ORC is not well supported.
+exclude             org.apache.spark.sql.GlutenSQLQuerySuite#SPARK-28156: self-join should not miss cached view
+exclude             org.apache.spark.sql.GlutenSQLQuerySuite#SPARK-33338: GROUP BY using literal map should not fail
+# Rewrite to disable plan check for SMJ because SHJ is preferred in Gluten.
+exclude             org.apache.spark.sql.GlutenSQLQuerySuite#SPARK-11111 null-safe join should not use cartesian product
+# Rewrite to change the information of a caught exception.
+exclude             org.apache.spark.sql.GlutenSQLQuerySuite#SPARK-33677: LikeSimplification should be skipped if pattern contains any escapeChar
+# Different exception.
+exclude             org.apache.spark.sql.GlutenSQLQuerySuite#run sql directly on files
+# Not useful and time consuming.
+exclude             org.apache.spark.sql.GlutenSQLQuerySuite#SPARK-33084: Add jar support Ivy URI in SQL
+exclude             org.apache.spark.sql.GlutenSQLQuerySuite#SPARK-33084: Add jar support Ivy URI in SQL -- jar contains udf class
+# exception test, rewritten in gluten
+exclude             org.apache.spark.sql.GlutenSQLQuerySuite#the escape character is not allowed to end with
+# ORC related
+exclude             org.apache.spark.sql.GlutenSQLQuerySuite#SPARK-37965: Spark support read/write orc file with invalid char in field name
+exclude             org.apache.spark.sql.GlutenSQLQuerySuite#SPARK-38173: Quoted column cannot be recognized correctly when quotedRegexColumnNames is true
+
+enable              org.apache.spark.sql.GlutenSQLQueryTestSuite
+
+enable              org.apache.spark.sql.GlutenStatisticsCollectionSuite
+# The output byte size of Velox is different
+exclude             org.apache.spark.sql.GlutenStatisticsCollectionSuite#SPARK-33687: analyze all tables in a specific database
+exclude             org.apache.spark.sql.GlutenStatisticsCollectionSuite#column stats collection for null columns
+exclude             org.apache.spark.sql.GlutenStatisticsCollectionSuite#analyze column command - result verification
+
+enable              org.apache.spark.sql.GlutenSubquerySuite
+excludePrefix       org.apache.spark.sql.GlutenSubquerySuite#SPARK-26893
+# exclude as it checks spark plan
+exclude             org.apache.spark.sql.GlutenSubquerySuite#SPARK-36280: Remove redundant aliases after RewritePredicateSubquery
+
+enable              org.apache.spark.sql.GlutenTypedImperativeAggregateSuite
+
+enable              org.apache.spark.sql.GlutenUnwrapCastInComparisonEndToEndSuite
+# Rewrite with NaN test cases excluded.
+exclude             org.apache.spark.sql.GlutenUnwrapCastInComparisonEndToEndSuite#cases when literal is max
+
+enable              org.apache.spark.sql.GlutenXPathFunctionsSuite
+
+enable              org.apache.spark.sql.gluten.GlutenFallbackSuite
+
+enable              org.apache.spark.sql.hive.execution.GlutenHashAggregationQuerySuite
+# TODO: fix on https://github.com/apache/gluten/issues/11919
+exclude             org.apache.spark.sql.hive.execution.GlutenHashAggregationQuerySuite#udaf with all data types
+
+enable              org.apache.spark.sql.hive.execution.GlutenHashAggregationQueryWithControlledFallbackSuite
+# TODO: fix on https://github.com/apache/gluten/issues/11919
+exclude             org.apache.spark.sql.hive.execution.GlutenHashAggregationQueryWithControlledFallbackSuite#udaf with all data types
+
+enable              org.apache.spark.sql.hive.execution.GlutenHiveCommandSuite
+
+enable              org.apache.spark.sql.hive.execution.GlutenHiveDDLSuite
+
+enable              org.apache.spark.sql.hive.execution.GlutenHiveExplainSuite
+exclude             org.apache.spark.sql.hive.execution.GlutenHiveExplainSuite#explain output of physical plan should contain proper codegen stage ID
+exclude             org.apache.spark.sql.hive.execution.GlutenHiveExplainSuite#EXPLAIN CODEGEN command
+
+enable              org.apache.spark.sql.hive.execution.GlutenHivePlanTest
+
+enable              org.apache.spark.sql.hive.execution.GlutenHiveQuerySuite
+
+enable              org.apache.spark.sql.hive.execution.GlutenHiveResolutionSuite
+
+enable              org.apache.spark.sql.hive.execution.GlutenHiveSQLQuerySuite
+
+enable              org.apache.spark.sql.hive.execution.GlutenHiveSQLViewSuite
+
+enable              org.apache.spark.sql.hive.execution.GlutenHiveScriptTransformationSuite
+
+enable              org.apache.spark.sql.hive.execution.GlutenHiveSerDeReadWriteSuite
+
+enable              org.apache.spark.sql.hive.execution.GlutenHiveSerDeSuite
+
+enable              org.apache.spark.sql.hive.execution.GlutenHiveTableScanSuite
+
+enable              org.apache.spark.sql.hive.execution.GlutenHiveTypeCoercionSuite
+
+enable              org.apache.spark.sql.hive.execution.GlutenHiveUDAFSuite
+
+enable              org.apache.spark.sql.hive.execution.GlutenHiveUDFSuite
+
+enable              org.apache.spark.sql.hive.execution.GlutenObjectHashAggregateSuite
+
+enable              org.apache.spark.sql.hive.execution.GlutenPruneHiveTablePartitionsSuite
+
+enable              org.apache.spark.sql.hive.execution.GlutenPruningSuite
+
+enable              org.apache.spark.sql.hive.execution.GlutenSQLMetricsSuite
+
+enable              org.apache.spark.sql.hive.execution.GlutenSQLQuerySuite
+
+enable              org.apache.spark.sql.hive.execution.GlutenHashUDAQuerySuite
+
+enable              org.apache.spark.sql.hive.execution.GlutenHashUDAQueryWithControlledFallbackSuite
+
+enable              org.apache.spark.sql.hive.execution.GlutenSQLQuerySuiteAE
+
+enable              org.apache.spark.sql.hive.execution.GlutenWindowQuerySuite
+
+enable              org.apache.spark.sql.extension.GlutenCollapseProjectExecTransformerSuite
+
+enable              org.apache.spark.sql.GlutenSparkSessionExtensionSuite
+includeGluten       org.apache.spark.sql.GlutenSparkSessionExtensionSuite#customColumnarOp
+
+enable              org.apache.spark.sql.connector.GlutenGroupBasedDeleteFromTableSuite
+
+enable              org.apache.spark.sql.connector.GlutenDeltaBasedDeleteFromTableSuite
+
+enable              org.apache.spark.sql.GlutenDataFrameToSchemaSuite
+
+enable              org.apache.spark.sql.GlutenDatasetUnpivotSuite
+
+enable              org.apache.spark.sql.GlutenLateralColumnAliasSuite
+
+enable              org.apache.spark.sql.GlutenParametersSuite
+
+enable              org.apache.spark.sql.GlutenResolveDefaultColumnsSuite
+
+enable              org.apache.spark.sql.GlutenSubqueryHintPropagationSuite
+
+enable              org.apache.spark.sql.GlutenUrlFunctionsSuite
+
+enable              org.apache.spark.sql.execution.datasources.parquet.GlutenParquetRowIndexSuite
+excludePrefix       org.apache.spark.sql.execution.datasources.parquet.GlutenParquetRowIndexSuite#row index generation
+excludePrefix       org.apache.spark.sql.execution.datasources.parquet.GlutenParquetRowIndexSuite#invalid row index column type
+
+enable              org.apache.spark.sql.GlutenBitmapExpressionsQuerySuite
+
+enable              org.apache.spark.sql.GlutenEmptyInSuite
+
+enable              org.apache.spark.sql.GlutenRuntimeNullChecksV2Writes
+# Velox assert_not_null throws VeloxUserError instead of SparkRuntimeException
+exclude             org.apache.spark.sql.GlutenRuntimeNullChecksV2Writes#NOT NULL checks for atomic top-level fields (byName)
+exclude             org.apache.spark.sql.GlutenRuntimeNullChecksV2Writes#NOT NULL checks for atomic top-level fields (byPosition)
+exclude             org.apache.spark.sql.GlutenRuntimeNullChecksV2Writes#NOT NULL checks for nested struct fields (byName)
+exclude             org.apache.spark.sql.GlutenRuntimeNullChecksV2Writes#NOT NULL checks for nested struct fields (byPosition)
+exclude             org.apache.spark.sql.GlutenRuntimeNullChecksV2Writes#NOT NULL checks for nested structs, arrays, maps (byName)
+exclude             org.apache.spark.sql.GlutenRuntimeNullChecksV2Writes#NOT NULL checks for nested structs, arrays, maps (byPosition)
+exclude             org.apache.spark.sql.GlutenRuntimeNullChecksV2Writes#NOT NULL checks for nullable array with required element (byPosition)
+exclude             org.apache.spark.sql.GlutenRuntimeNullChecksV2Writes#not null checks for fields inside nullable array (byPosition)
+
+enable              org.apache.spark.sql.GlutenTableOptionsConstantFoldingSuite
+
+enable              org.apache.spark.sql.connector.GlutenDeltaBasedMergeIntoTableSuite
+
+enable              org.apache.spark.sql.connector.GlutenDeltaBasedMergeIntoTableUpdateAsDeleteAndInsertSuite
+
+enable              org.apache.spark.sql.connector.GlutenDeltaBasedUpdateAsDeleteAndInsertTableSuite
+
+enable              org.apache.spark.sql.connector.GlutenDeltaBasedUpdateTableSuite
+
+enable              org.apache.spark.sql.connector.GlutenGroupBasedMergeIntoTableSuite
+
+enable              org.apache.spark.sql.execution.datasources.GlutenFileSourceCustomMetadataStructSuite
+
+enable              org.apache.spark.sql.execution.datasources.parquet.GlutenParquetFileMetadataStructRowIndexSuite
+
+enable              org.apache.spark.sql.execution.datasources.GlutenTableLocationSuite
+
+enable              org.apache.spark.sql.execution.GlutenRemoveRedundantWindowGroupLimitsSuite
+# rewrite with Gluten test
+exclude             org.apache.spark.sql.execution.GlutenRemoveRedundantWindowGroupLimitsSuite#remove redundant WindowGroupLimits
+
+enable              org.apache.spark.sql.execution.GlutenSQLCollectLimitExecSuite
+
+enable              org.apache.spark.sql.execution.python.GlutenBatchEvalPythonExecSuite
+# Replaced with other tests that check for native operations
+exclude             org.apache.spark.sql.execution.python.GlutenBatchEvalPythonExecSuite#Python UDF: push down deterministic FilterExec predicates
+exclude             org.apache.spark.sql.execution.python.GlutenBatchEvalPythonExecSuite#Nested Python UDF: push down deterministic FilterExec predicates
+exclude             org.apache.spark.sql.execution.python.GlutenBatchEvalPythonExecSuite#Python UDF: no push down on non-deterministic
+exclude             org.apache.spark.sql.execution.python.GlutenBatchEvalPythonExecSuite#Python UDF: push down on deterministic predicates after the first non-deterministic
+
+enable              org.apache.spark.sql.execution.python.GlutenExtractPythonUDFsSuite
+# Replaced with test that check for native operations
+exclude             org.apache.spark.sql.execution.python.GlutenExtractPythonUDFsSuite#Python UDF should not break column pruning/filter pushdown -- Parquet V1
+exclude             org.apache.spark.sql.execution.python.GlutenExtractPythonUDFsSuite#Chained Scalar Pandas UDFs should be combined to a single physical node
+exclude             org.apache.spark.sql.execution.python.GlutenExtractPythonUDFsSuite#Mixed Batched Python UDFs and Pandas UDF should be separate physical node
+exclude             org.apache.spark.sql.execution.python.GlutenExtractPythonUDFsSuite#Independent Batched Python UDFs and Scalar Pandas UDFs should be combined separately
+exclude             org.apache.spark.sql.execution.python.GlutenExtractPythonUDFsSuite#Dependent Batched Python UDFs and Scalar Pandas UDFs should not be combined
+exclude             org.apache.spark.sql.execution.python.GlutenExtractPythonUDFsSuite#Python UDF should not break column pruning/filter pushdown -- Parquet V2
+
+enable              org.apache.spark.sql.execution.GlutenStreamingQuerySuite
+# requires test resources that don't exist in Gluten repo
+exclude             org.apache.spark.sql.execution.GlutenStreamingQuerySuite#detect escaped path and report the migration guide
+exclude             org.apache.spark.sql.execution.GlutenStreamingQuerySuite#ignore the escaped path check when the flag is off
+excludePrefix       org.apache.spark.sql.execution.GlutenStreamingQuerySuite#SPARK-51187
+
+enable              org.apache.spark.sql.execution.GlutenQueryExecutionSuite
+# Rewritten to set root logger level to INFO so that logs can be parsed
+exclude             org.apache.spark.sql.execution.GlutenQueryExecutionSuite#Logging plan changes for execution
+# Rewrite for transformed plan
+exclude             org.apache.spark.sql.execution.GlutenQueryExecutionSuite#dumping query execution info to a file - explainMode=formatted

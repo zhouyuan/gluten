@@ -1,0 +1,192 @@
+#
+# Licensed to the Apache Software Foundation (ASF) under one or more
+# contributor license agreements.  See the NOTICE file distributed with
+# this work for additional information regarding copyright ownership.
+# The ASF licenses this file to You under the Apache License, Version 2.0
+# (the "License"); you may not use this file except in compliance with
+# the License.  You may obtain a copy of the License at
+#
+#    http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# Vanilla Spark suites that Gluten runs through a generated subclass:
+#
+#   <vanilla suite> | <trait>[,<trait>...] [| <annotation>,...]
+#
+# generates, at build time (see tools/scripts/gluten-ut/ut_suites.py):
+#
+#   class Gluten<Suite> extends <Suite> with <trait> {}
+#
+# Whether a generated suite actually runs is decided per backend, in
+# settings-<backend>.txt.
+
+org.apache.spark.sql.ApproxCountDistinctForIntervalsQuerySuite | org.apache.spark.sql.GlutenSQLTestsTrait
+org.apache.spark.sql.CTEHintSuite | org.apache.spark.sql.GlutenSQLTestsTrait
+org.apache.spark.sql.ConfigBehaviorSuite | org.apache.spark.sql.GlutenSQLTestsTrait
+org.apache.spark.sql.CountMinSketchAggQuerySuite | org.apache.spark.sql.GlutenSQLTestsTrait
+org.apache.spark.sql.CsvFunctionsSuite | org.apache.spark.sql.GlutenSQLTestsTrait
+org.apache.spark.sql.DSV2SQLInsertTestSuite | org.apache.spark.sql.GlutenTestsBaseTrait
+org.apache.spark.sql.DataFrameAsOfJoinSuite | org.apache.spark.sql.GlutenSQLTestsBaseTrait
+org.apache.spark.sql.DataFrameComplexTypeSuite | org.apache.spark.sql.GlutenSQLTestsTrait
+org.apache.spark.sql.DataFrameHintSuite | org.apache.spark.sql.GlutenSQLTestsBaseTrait
+org.apache.spark.sql.DataFrameImplicitsSuite | org.apache.spark.sql.GlutenSQLTestsTrait
+org.apache.spark.sql.DataFrameNaFunctionsSuite | org.apache.spark.sql.GlutenSQLTestsTrait
+org.apache.spark.sql.DataFrameRangeSuite | org.apache.spark.sql.GlutenSQLTestsTrait
+org.apache.spark.sql.DataFrameSelfJoinSuite | org.apache.spark.sql.GlutenSQLTestsTrait
+org.apache.spark.sql.DataFrameSessionWindowingSuite | org.apache.spark.sql.GlutenSQLTestsTrait
+org.apache.spark.sql.DataFrameStatSuite | org.apache.spark.sql.GlutenSQLTestsTrait
+org.apache.spark.sql.DataFrameTimeWindowingSuite | org.apache.spark.sql.GlutenSQLTestsTrait
+org.apache.spark.sql.DataFrameToSchemaSuite | org.apache.spark.sql.GlutenSQLTestsTrait
+org.apache.spark.sql.DataFrameWindowFramesSuite | org.apache.spark.sql.GlutenSQLTestsTrait
+org.apache.spark.sql.DataFrameWriterV2Suite | org.apache.spark.sql.GlutenSQLTestsTrait
+org.apache.spark.sql.DatasetAggregatorSuite | org.apache.spark.sql.GlutenSQLTestsTrait
+org.apache.spark.sql.DatasetCacheSuite | org.apache.spark.sql.GlutenSQLTestsTrait
+org.apache.spark.sql.DatasetOptimizationSuite | org.apache.spark.sql.GlutenSQLTestsTrait
+org.apache.spark.sql.DatasetPrimitiveSuite | org.apache.spark.sql.GlutenSQLTestsTrait
+org.apache.spark.sql.DatasetSerializerRegistratorSuite | org.apache.spark.sql.GlutenSQLTestsTrait
+org.apache.spark.sql.DatasetUnpivotSuite | org.apache.spark.sql.GlutenSQLTestsTrait
+org.apache.spark.sql.DeprecatedAPISuite | org.apache.spark.sql.GlutenSQLTestsTrait
+org.apache.spark.sql.EmptyInSuite | org.apache.spark.sql.GlutenSQLTestsTrait
+org.apache.spark.sql.ExpressionsSchemaSuite | org.apache.spark.sql.GlutenSQLTestsTrait
+org.apache.spark.sql.ExtraStrategiesSuite | org.apache.spark.sql.GlutenSQLTestsTrait
+org.apache.spark.sql.FileScanSuite | org.apache.spark.sql.GlutenSQLTestsBaseTrait
+org.apache.spark.sql.FileSourceSQLInsertTestSuite | org.apache.spark.sql.GlutenSQLTestsTrait
+org.apache.spark.sql.IntervalFunctionsSuite | org.apache.spark.sql.GlutenSQLTestsTrait
+org.apache.spark.sql.LateralColumnAliasSuite | org.apache.spark.sql.GlutenSQLTestsTrait
+org.apache.spark.sql.MathFunctionsSuite | org.apache.spark.sql.GlutenSQLTestsTrait
+org.apache.spark.sql.MetadataCacheSuite | org.apache.spark.sql.GlutenSQLTestsTrait
+org.apache.spark.sql.MiscFunctionsSuite | org.apache.spark.sql.GlutenSQLTestsTrait
+org.apache.spark.sql.NestedDataSourceV1Suite | org.apache.spark.sql.GlutenSQLTestsTrait
+org.apache.spark.sql.NestedDataSourceV2Suite | org.apache.spark.sql.GlutenSQLTestsTrait
+org.apache.spark.sql.ParametersSuite | org.apache.spark.sql.GlutenSQLTestsTrait
+org.apache.spark.sql.ProcessingTimeSuite | org.apache.spark.sql.GlutenSQLTestsBaseTrait
+org.apache.spark.sql.ProductAggSuite | org.apache.spark.sql.GlutenSQLTestsTrait
+org.apache.spark.sql.ReplaceNullWithFalseInPredicateEndToEndSuite | org.apache.spark.sql.GlutenSQLTestsTrait
+org.apache.spark.sql.ResolveDefaultColumnsSuite | org.apache.spark.sql.GlutenSQLTestsTrait
+org.apache.spark.sql.RuntimeNullChecksV2Writes | org.apache.spark.sql.GlutenSQLTestsTrait
+org.apache.spark.sql.ScalaReflectionRelationSuite | org.apache.spark.sql.GlutenSQLTestsBaseTrait
+org.apache.spark.sql.SerializationSuite | org.apache.spark.sql.GlutenSQLTestsBaseTrait
+org.apache.spark.sql.SubqueryHintPropagationSuite | org.apache.spark.sql.GlutenSQLTestsTrait
+org.apache.spark.sql.TableOptionsConstantFoldingSuite | org.apache.spark.sql.GlutenSQLTestsTrait
+org.apache.spark.sql.TypedImperativeAggregateSuite | org.apache.spark.sql.GlutenSQLTestsTrait
+org.apache.spark.sql.UrlFunctionsSuite | org.apache.spark.sql.GlutenSQLTestsTrait
+org.apache.spark.sql.XPathFunctionsSuite | org.apache.spark.sql.GlutenSQLTestsTrait
+org.apache.spark.sql.catalyst.expressions.ArithmeticExpressionSuite | org.apache.spark.sql.GlutenTestsTrait
+org.apache.spark.sql.catalyst.expressions.BitwiseExpressionsSuite | org.apache.spark.sql.GlutenTestsTrait
+org.apache.spark.sql.catalyst.expressions.ComplexTypeSuite | org.apache.spark.sql.GlutenTestsTrait
+org.apache.spark.sql.catalyst.expressions.ConditionalExpressionSuite | org.apache.spark.sql.GlutenTestsTrait
+org.apache.spark.sql.catalyst.expressions.DecimalExpressionSuite | org.apache.spark.sql.GlutenTestsTrait
+org.apache.spark.sql.catalyst.expressions.GeneratorExpressionSuite | org.apache.spark.sql.GlutenTestsTrait
+org.apache.spark.sql.catalyst.expressions.HashExpressionsSuite | org.apache.spark.sql.GlutenTestsTrait
+org.apache.spark.sql.catalyst.expressions.HigherOrderFunctionsSuite | org.apache.spark.sql.GlutenTestsTrait
+org.apache.spark.sql.catalyst.expressions.IntervalExpressionsSuite | org.apache.spark.sql.GlutenTestsTrait
+org.apache.spark.sql.catalyst.expressions.JsonExpressionsSuite | org.apache.spark.sql.GlutenTestsTrait
+org.apache.spark.sql.catalyst.expressions.MiscExpressionsSuite | org.apache.spark.sql.GlutenTestsTrait
+org.apache.spark.sql.catalyst.expressions.NondeterministicSuite | org.apache.spark.sql.GlutenTestsTrait
+org.apache.spark.sql.catalyst.expressions.NullExpressionsSuite | org.apache.spark.sql.GlutenTestsTrait
+org.apache.spark.sql.catalyst.expressions.PredicateSuite | org.apache.spark.sql.GlutenTestsTrait
+org.apache.spark.sql.catalyst.expressions.RandomSuite | org.apache.spark.sql.GlutenTestsTrait
+org.apache.spark.sql.catalyst.expressions.RegexpExpressionsSuite | org.apache.spark.sql.GlutenTestsTrait
+org.apache.spark.sql.catalyst.expressions.SortOrderExpressionsSuite | org.apache.spark.sql.GlutenTestsTrait
+org.apache.spark.sql.catalyst.expressions.StringExpressionsSuite | org.apache.spark.sql.GlutenTestsTrait
+org.apache.spark.sql.catalyst.expressions.TryEvalSuite | org.apache.spark.sql.GlutenTestsTrait
+org.apache.spark.sql.catalyst.expressions.aggregate.PercentileSuite | org.apache.spark.sql.GlutenTestsTrait
+org.apache.spark.sql.connector.DataSourceV2DataFrameSessionCatalogSuite | org.apache.spark.sql.GlutenSQLTestsBaseTrait
+org.apache.spark.sql.connector.DataSourceV2DataFrameSuite | org.apache.spark.sql.GlutenSQLTestsBaseTrait
+org.apache.spark.sql.connector.DataSourceV2FunctionSuite | org.apache.spark.sql.GlutenSQLTestsBaseTrait
+org.apache.spark.sql.connector.DataSourceV2SQLSessionCatalogSuite | org.apache.spark.sql.GlutenSQLTestsBaseTrait
+org.apache.spark.sql.connector.DataSourceV2SQLSuiteV1Filter | org.apache.spark.sql.GlutenSQLTestsBaseTrait
+org.apache.spark.sql.connector.DataSourceV2SQLSuiteV2Filter | org.apache.spark.sql.GlutenSQLTestsBaseTrait
+org.apache.spark.sql.connector.DeltaBasedDeleteFromTableSuite | org.apache.spark.sql.GlutenSQLTestsBaseTrait
+org.apache.spark.sql.connector.DeltaBasedMergeIntoTableSuite | org.apache.spark.sql.GlutenSQLTestsBaseTrait
+org.apache.spark.sql.connector.DeltaBasedMergeIntoTableUpdateAsDeleteAndInsertSuite | org.apache.spark.sql.GlutenSQLTestsBaseTrait
+org.apache.spark.sql.connector.DeltaBasedUpdateAsDeleteAndInsertTableSuite | org.apache.spark.sql.GlutenSQLTestsBaseTrait
+org.apache.spark.sql.connector.DeltaBasedUpdateTableSuite | org.apache.spark.sql.GlutenSQLTestsBaseTrait
+org.apache.spark.sql.connector.GroupBasedDeleteFromTableSuite | org.apache.spark.sql.GlutenSQLTestsBaseTrait
+org.apache.spark.sql.connector.GroupBasedMergeIntoTableSuite | org.apache.spark.sql.GlutenSQLTestsBaseTrait
+org.apache.spark.sql.connector.LocalScanSuite | org.apache.spark.sql.GlutenSQLTestsBaseTrait
+org.apache.spark.sql.connector.MetadataColumnSuite | org.apache.spark.sql.GlutenSQLTestsBaseTrait
+org.apache.spark.sql.connector.SupportsCatalogOptionsSuite | org.apache.spark.sql.GlutenSQLTestsBaseTrait
+org.apache.spark.sql.connector.TableCapabilityCheckSuite | org.apache.spark.sql.GlutenSQLTestsBaseTrait
+org.apache.spark.sql.errors.QueryCompilationErrorsDSv2Suite | org.apache.spark.sql.GlutenSQLTestsBaseTrait
+org.apache.spark.sql.errors.QueryCompilationErrorsSuite | org.apache.spark.sql.GlutenSQLTestsBaseTrait
+org.apache.spark.sql.errors.QueryParsingErrorsSuite | org.apache.spark.sql.GlutenSQLTestsBaseTrait
+org.apache.spark.sql.execution.ReuseExchangeAndSubquerySuite | org.apache.spark.sql.GlutenSQLTestsBaseTrait
+org.apache.spark.sql.execution.SameResultSuite | org.apache.spark.sql.GlutenSQLTestsBaseTrait
+org.apache.spark.sql.streaming.StreamingQuerySuite | org.apache.spark.sql.GlutenSQLTestsTrait | pkg=org.apache.spark.sql.execution
+org.apache.spark.sql.execution.TakeOrderedAndProjectSuite | org.apache.spark.sql.GlutenSQLTestsBaseTrait
+org.apache.spark.sql.execution.datasources.BucketingUtilsSuite | org.apache.spark.sql.GlutenSQLTestsBaseTrait
+org.apache.spark.sql.execution.datasources.DataSourceStrategySuite | org.apache.spark.sql.GlutenSQLTestsBaseTrait
+org.apache.spark.sql.execution.datasources.DataSourceSuite | org.apache.spark.sql.GlutenSQLTestsBaseTrait
+org.apache.spark.sql.execution.datasources.FileFormatWriterSuite | org.apache.spark.sql.GlutenSQLTestsBaseTrait,org.apache.spark.sql.catalyst.plans.CodegenInterpretedPlanTest
+org.apache.spark.sql.execution.datasources.FileIndexSuite | org.apache.spark.sql.GlutenSQLTestsBaseTrait
+org.apache.spark.sql.execution.datasources.FileSourceCustomMetadataStructSuite | org.apache.spark.sql.GlutenSQLTestsBaseTrait
+org.apache.spark.sql.execution.datasources.FileSourceStrategySuite | org.apache.spark.sql.GlutenSQLTestsBaseTrait
+org.apache.spark.sql.execution.datasources.HadoopFileLinesReaderSuite | org.apache.spark.sql.GlutenSQLTestsBaseTrait
+org.apache.spark.sql.execution.datasources.OrcCodecSuite | org.apache.spark.sql.GlutenSQLTestsBaseTrait
+org.apache.spark.sql.execution.datasources.OrcV1AggregatePushDownSuite | org.apache.spark.sql.GlutenSQLTestsBaseTrait
+org.apache.spark.sql.execution.datasources.OrcV2AggregatePushDownSuite | org.apache.spark.sql.GlutenSQLTestsBaseTrait
+org.apache.spark.sql.execution.datasources.ParquetCodecSuite | org.apache.spark.sql.GlutenSQLTestsBaseTrait
+org.apache.spark.sql.execution.datasources.ParquetV1AggregatePushDownSuite | org.apache.spark.sql.GlutenSQLTestsBaseTrait
+org.apache.spark.sql.execution.datasources.ParquetV2AggregatePushDownSuite | org.apache.spark.sql.GlutenSQLTestsBaseTrait
+org.apache.spark.sql.execution.datasources.PathFilterStrategySuite | org.apache.spark.sql.GlutenSQLTestsBaseTrait
+org.apache.spark.sql.execution.datasources.PathFilterSuite | org.apache.spark.sql.GlutenSQLTestsBaseTrait
+org.apache.spark.sql.execution.datasources.PruneFileSourcePartitionsSuite | org.apache.spark.sql.GlutenSQLTestsBaseTrait
+org.apache.spark.sql.execution.datasources.TableLocationSuite | org.apache.spark.sql.GlutenSQLTestsBaseTrait
+org.apache.spark.sql.execution.datasources.binaryfile.BinaryFileFormatSuite | org.apache.spark.sql.GlutenSQLTestsBaseTrait
+org.apache.spark.sql.execution.datasources.orc.OrcColumnarBatchReaderSuite | org.apache.spark.sql.GlutenSQLTestsBaseTrait
+org.apache.spark.sql.execution.datasources.orc.OrcEncryptionSuite | org.apache.spark.sql.GlutenSQLTestsBaseTrait
+org.apache.spark.sql.execution.datasources.orc.OrcFilterSuite | org.apache.spark.sql.GlutenSQLTestsBaseTrait
+org.apache.spark.sql.execution.datasources.orc.OrcV1FilterSuite | org.apache.spark.sql.GlutenSQLTestsBaseTrait
+org.apache.spark.sql.execution.datasources.parquet.ParquetCompressionCodecPrecedenceSuite | org.apache.spark.sql.GlutenSQLTestsBaseTrait
+org.apache.spark.sql.execution.datasources.parquet.ParquetDeltaEncodingInteger | org.apache.spark.sql.GlutenSQLTestsBaseTrait
+org.apache.spark.sql.execution.datasources.parquet.ParquetDeltaEncodingLong | org.apache.spark.sql.GlutenSQLTestsBaseTrait
+org.apache.spark.sql.execution.datasources.parquet.ParquetDeltaLengthByteArrayEncodingSuite | org.apache.spark.sql.GlutenSQLTestsBaseTrait
+org.apache.spark.sql.execution.datasources.parquet.ParquetEncodingSuite | org.apache.spark.sql.GlutenSQLTestsBaseTrait
+org.apache.spark.sql.execution.datasources.parquet.ParquetFileFormatV1Suite | org.apache.spark.sql.GlutenSQLTestsBaseTrait
+org.apache.spark.sql.execution.datasources.parquet.ParquetFileFormatV2Suite | org.apache.spark.sql.GlutenSQLTestsBaseTrait
+org.apache.spark.sql.execution.datasources.parquet.ParquetFileMetadataStructRowIndexSuite | org.apache.spark.sql.GlutenSQLTestsBaseTrait
+org.apache.spark.sql.execution.datasources.parquet.ParquetInteroperabilitySuite | org.apache.spark.sql.GlutenSQLTestsBaseTrait
+org.apache.spark.sql.execution.datasources.parquet.ParquetV1PartitionDiscoverySuite | org.apache.spark.sql.GlutenSQLTestsBaseTrait
+org.apache.spark.sql.execution.datasources.parquet.ParquetV2PartitionDiscoverySuite | org.apache.spark.sql.GlutenSQLTestsBaseTrait
+org.apache.spark.sql.execution.datasources.parquet.ParquetVectorizedSuite | org.apache.spark.sql.GlutenSQLTestsBaseTrait
+org.apache.spark.sql.execution.datasources.v2.DataSourceV2StrategySuite | org.apache.spark.sql.GlutenSQLTestsBaseTrait
+org.apache.spark.sql.execution.datasources.v2.FileTableSuite | org.apache.spark.sql.GlutenSQLTestsBaseTrait
+org.apache.spark.sql.execution.datasources.v2.V2PredicateSuite | org.apache.spark.sql.GlutenSQLTestsBaseTrait
+org.apache.spark.sql.execution.exchange.ValidateRequirementsSuite | org.apache.spark.sql.GlutenSQLTestsBaseTrait | pkg=org.apache.spark.sql.execution.datasources.exchange
+org.apache.spark.sql.execution.joins.ExistenceJoinSuite | org.apache.spark.sql.GlutenSQLTestsBaseTrait
+org.apache.spark.sql.hive.execution.HashAggregationQuerySuite | org.apache.spark.sql.GlutenTestSetWithSystemPropertyTrait | ann=org.apache.spark.tags.SlowHiveTest
+org.apache.spark.sql.hive.execution.HashAggregationQueryWithControlledFallbackSuite | org.apache.spark.sql.GlutenTestSetWithSystemPropertyTrait | ann=org.apache.spark.tags.SlowHiveTest
+org.apache.spark.sql.hive.execution.HashUDAQuerySuite | org.apache.spark.sql.GlutenTestSetWithSystemPropertyTrait | ann=org.apache.spark.tags.SlowHiveTest
+org.apache.spark.sql.hive.execution.HashUDAQueryWithControlledFallbackSuite | org.apache.spark.sql.GlutenTestSetWithSystemPropertyTrait | ann=org.apache.spark.tags.SlowHiveTest
+org.apache.spark.sql.hive.execution.HiveExplainSuite | org.apache.spark.sql.GlutenTestSetWithSystemPropertyTrait | ann=org.apache.spark.tags.SlowHiveTest
+org.apache.spark.sql.hive.execution.HivePlanTest | org.apache.spark.sql.GlutenTestSetWithSystemPropertyTrait | ann=org.apache.spark.tags.SlowHiveTest
+org.apache.spark.sql.hive.execution.HiveResolutionSuite | org.apache.spark.sql.GlutenTestSetWithSystemPropertyTrait,org.apache.spark.sql.hive.execution.GlutenHiveComparisonTestSupport | ann=org.apache.spark.tags.SlowHiveTest
+org.apache.spark.sql.hive.execution.HiveSQLViewSuite | org.apache.spark.sql.GlutenTestSetWithSystemPropertyTrait | ann=org.apache.spark.tags.SlowHiveTest
+org.apache.spark.sql.hive.execution.HiveScriptTransformationSuite | org.apache.spark.sql.GlutenTestSetWithSystemPropertyTrait | ann=org.apache.spark.tags.SlowHiveTest
+org.apache.spark.sql.hive.execution.HiveSerDeReadWriteSuite | org.apache.spark.sql.GlutenTestSetWithSystemPropertyTrait | ann=org.apache.spark.tags.SlowHiveTest
+org.apache.spark.sql.hive.execution.HiveTypeCoercionSuite | org.apache.spark.sql.GlutenTestSetWithSystemPropertyTrait,org.apache.spark.sql.hive.execution.GlutenHiveComparisonTestSupport | ann=org.apache.spark.tags.SlowHiveTest
+org.apache.spark.sql.hive.execution.HiveUDAFSuite | org.apache.spark.sql.GlutenTestSetWithSystemPropertyTrait | ann=org.apache.spark.tags.SlowHiveTest
+org.apache.spark.sql.hive.execution.ObjectHashAggregateSuite | org.apache.spark.sql.GlutenTestSetWithSystemPropertyTrait | ann=org.apache.spark.tags.SlowHiveTest
+org.apache.spark.sql.hive.execution.PruneHiveTablePartitionsSuite | org.apache.spark.sql.GlutenTestSetWithSystemPropertyTrait | ann=org.apache.spark.tags.SlowHiveTest
+org.apache.spark.sql.hive.execution.SQLMetricsSuite | org.apache.spark.sql.GlutenTestSetWithSystemPropertyTrait | ann=org.apache.spark.tags.SlowHiveTest
+org.apache.spark.sql.sources.BucketedReadWithoutHiveSupportSuite | org.apache.spark.sql.GlutenSQLTestsBaseTrait
+org.apache.spark.sql.sources.BucketedWriteWithoutHiveSupportSuite | org.apache.spark.sql.GlutenSQLTestsBaseTrait
+org.apache.spark.sql.sources.CreateTableAsSelectSuite | org.apache.spark.sql.GlutenSQLTestsBaseTrait
+org.apache.spark.sql.sources.DDLSourceLoadSuite | org.apache.spark.sql.GlutenSQLTestsBaseTrait
+org.apache.spark.sql.sources.DisableUnnecessaryBucketedScanWithoutHiveSupportSuite | org.apache.spark.sql.GlutenSQLTestsBaseTrait
+org.apache.spark.sql.sources.DisableUnnecessaryBucketedScanWithoutHiveSupportSuiteAE | org.apache.spark.sql.GlutenSQLTestsBaseTrait
+org.apache.spark.sql.sources.ExternalCommandRunnerSuite | org.apache.spark.sql.GlutenSQLTestsBaseTrait
+org.apache.spark.sql.sources.FilteredScanSuite | org.apache.spark.sql.GlutenSQLTestsBaseTrait
+org.apache.spark.sql.sources.FiltersSuite | org.apache.spark.sql.GlutenSQLTestsBaseTrait
+org.apache.spark.sql.sources.PartitionedWriteSuite | org.apache.spark.sql.GlutenSQLTestsBaseTrait
+org.apache.spark.sql.sources.PathOptionSuite | org.apache.spark.sql.GlutenSQLTestsBaseTrait
+org.apache.spark.sql.sources.PrunedScanSuite | org.apache.spark.sql.GlutenSQLTestsBaseTrait
+org.apache.spark.sql.sources.ResolvedDataSourceSuite | org.apache.spark.sql.GlutenSQLTestsBaseTrait
+org.apache.spark.sql.sources.SaveLoadSuite | org.apache.spark.sql.GlutenSQLTestsBaseTrait
+org.apache.spark.sql.sources.TableScanSuite | org.apache.spark.sql.GlutenSQLTestsBaseTrait

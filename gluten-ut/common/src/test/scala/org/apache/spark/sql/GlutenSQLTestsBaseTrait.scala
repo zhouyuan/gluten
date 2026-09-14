@@ -17,7 +17,7 @@
 package org.apache.spark.sql
 
 import org.apache.gluten.config.GlutenConfig
-import org.apache.gluten.utils.BackendTestUtils
+import org.apache.gluten.utils.{BackendTestUtils, GlutenVanillaPlanView}
 
 import org.apache.spark.SparkConf
 import org.apache.spark.sql.execution.SparkPlan
@@ -25,7 +25,10 @@ import org.apache.spark.sql.execution.adaptive.{AdaptiveSparkPlanExec, QueryStag
 import org.apache.spark.sql.test.SharedSparkSession
 
 /** Basic trait for Gluten SQL test cases. */
-trait GlutenSQLTestsBaseTrait extends SharedSparkSession with GlutenTestsBaseTrait {
+trait GlutenSQLTestsBaseTrait
+  extends SharedSparkSession
+  with GlutenTestsBaseTrait
+  with GlutenVanillaPlanView {
 
   override def sparkConf: SparkConf = {
     GlutenSQLTestsBaseTrait.nativeSparkConf(super.sparkConf, warehouse)
