@@ -24,11 +24,41 @@ We now have a issue tracker on ANSI support progress. Please check [issue-10134]
 Gluten only supports spark default case-insensitive mode. If case-sensitive mode is enabled, user may get incorrect result.
 
 #### Regexp functions
-In Velox, regexp functions (`rlike`, `regexp_extract`, etc.) are implemented based on RE2, while in Spark they are based on `java.util.regex`.
-* Lookaround (lookahead/lookbehind) pattern is not supported in RE2.
-* When matching white space with pattern "\\s", RE2 doesn't treat "\v" (or "\x0b") as white space, but `java.util.regex` does.
+Spark's regexp functions (`rlike`, `regexp_extract`, `regexp_extract_all`, `regexp_replace`, `split`, etc.) are specified in terms of
+`java.util.regex`, while Velox evaluates them with RE2. RE2 runs a finite automaton, so it deliberately omits every feature that needs
+backtracking, and it defines a few character classes differently.
+
+Gluten bridges most of that difference by rewriting the pattern into RE2 syntax before it is compiled, in the function overlay
+(`cpp/velox/operators/functions/overlay/JavaRegexTranslator.h`). The rewrite covers `rlike`, `regexp_extract`, `regexp_extract_all`,
+`regexp_replace` and `split`. `like` is not affected, because its pattern is SQL LIKE rather than a regular expression. These constructs
+are handled and need no fallback:
+
+* `\s`, `\S` - `java.util.regex` counts `\x0B` (vertical tab) as whitespace, RE2 does not.
+* `\v`, `\V` - `java.util.regex` reads `\v` as the vertical whitespace class, RE2 as the vertical tab character.
+* `\h`, `\H`, `\R`, `\e`, `\cX`, `\uHHHH` including surrogate pairs, and `java.util.regex`'s POSIX class names
+  (`\p{Alpha}`, `\p{Space}`, `\p{ASCII}`, ...) - all unknown to RE2.
+* Named capturing groups, which `java.util.regex` spells `(?<name>...)` and RE2 spells `(?P<name>...)`.
+
+These remain unsupported, because RE2 needs backtracking to evaluate them and deliberately does not do it:
+* Lookaround (lookahead/lookbehind): `(?=...)`, `(?!...)`, `(?<=...)`, `(?<!...)`
+* Backreferences, e.g. `(\d)\1`
+* Possessive quantifiers `?+`, `*+`, `++`, `{n}+`, and independent non-capturing groups `(?>...)`
+* `\G` and `\Z`
+
+These are unsupported too, because RE2 cannot express them:
+* Character class union, intersection and difference: `[a[b]]`, `[a&&[b]]`, `[a&&[^b]]`
+* A negated shorthand class nested in a character class, e.g. `[\Sx]`, `[\Hx]`, `[\Vx]` - RE2 cannot nest a complement
+* `\p{...}` names that only `java.util.regex` has, e.g. `\p{IsAlphabetic}` and `\p{javaLowerCase}`. The Unicode script and category
+  names the two engines share, e.g. `\p{L}` and `\p{Greek}`, do work.
+
+An unsupported pattern is rejected while Gluten validates the native plan, so the expression falls back to vanilla
+Spark and the result stays correct. `regexp_replace` and `split` additionally accept a non-constant pattern, which is
+compiled per row natively - an unsupported pattern arriving there raises a runtime error instead of falling back.
+`regexp_extract_all` with a non-constant pattern compiles it per row inside Velox and is not rewritten, so it still
+follows RE2 syntax.
 
 There are a few unknown incompatible cases. If user cannot tolerate the incompatibility risk, please enable the below configuration property.
+It falls back `rlike`, `regexp_replace`, `regexp_extract`, `regexp_extract_all` and `split`.
 ```
 spark.gluten.sql.fallbackRegexpExpressions
 ```

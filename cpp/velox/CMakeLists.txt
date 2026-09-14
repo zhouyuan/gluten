@@ -176,6 +176,8 @@ set(VELOX_SRCS
     memory/VeloxMemoryManager.cc
     operators/functions/RegistrationAllFunctions.cc
     operators/functions/delta/DeltaBitmapAggregator.cc
+    operators/functions/overlay/JavaRegexTranslator.cc
+    operators/functions/overlay/RegexFunctions.cc
     operators/functions/overlay/RegisterFunctionOverlay.cc
     operators/functions/RowConstructorWithNull.cc
     operators/functions/SparkExprToSubfieldFilterParser.cc

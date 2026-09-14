@@ -16,6 +16,7 @@
  */
 #include "operators/functions/overlay/RegisterFunctionOverlay.h"
 
+#include "operators/functions/overlay/RegexFunctions.h"
 #include "operators/functions/overlay/Round.h"
 #include "velox/functions/lib/RegistrationHelpers.h"
 
@@ -40,6 +41,7 @@ void registerRoundFunction() {
 
 void registerFunctionOverlay() {
   registerRoundFunction();
+  registerRegexpFunctions();
 }
 
 } // namespace gluten
