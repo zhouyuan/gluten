@@ -69,6 +69,14 @@ ICEBERG_MODULE_SUFFIX="${SPARK_VERSION}_${SCALA_VERSION}"
 # RESTServerExtension from the iceberg-open-api test fixtures, which only that
 # profile declares. Without it virtually every suite aborts on
 # NoClassDefFoundError.
+#
+# For the Spark 3.4 target that profile also adds
+# backends-velox/src-iceberg-spark34/test as a source root. What is left there
+# is Gluten's OWN TestTPCHStoragePartitionedJoins plus the two base classes it
+# needs; those get compiled but never run here (`-Dtest` only ever names classes
+# enumerated from the Iceberg test jars), and their names --
+# SparkTestBase / SparkTestBaseWithCatalog -- no longer exist in Iceberg, so
+# they cannot shadow anything in the test jars either.
 PROFILES=(
   "-Pspark-${SPARK_VERSION}"
   "-Pscala-${SCALA_VERSION}"

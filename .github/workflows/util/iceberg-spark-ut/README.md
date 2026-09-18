@@ -14,27 +14,39 @@ no Gluten bundle jar — the whole suite comes out of the Maven dependency graph
 
 * **Discovery** — `-DdependenciesToScan=org.apache.iceberg:iceberg-spark-<v>_<s>,org.apache.iceberg:iceberg-spark-extensions-<v>_<s>`
   makes surefire scan those jars for test classes, so we run the *whole* upstream
-  suite (~195 test classes per Spark version), not just the hand-picked subset
-  that `backends-velox/src-iceberg-spark34/` vendors for the Spark-3.4 job in
-  `velox_backend_x86.yml`.
+  suite (~195 test classes per Spark version).
 * **Gluten** — no upstream source is patched. No Iceberg test sets
   `spark.plugins`, and Spark's `SparkConf` loads every `spark.*` JVM system
   property, so passing the Gluten conf through surefire's `argLine` enables
   Gluten in every `SparkSession` the tests build — including the ~25 classes
   that build their own session instead of extending `TestBase`. The conf set
-  mirrors `org.apache.gluten.TestConfUtil`, which the vendored Spark-3.4 tests
-  use, so both paths enable Gluten identically.
+  mirrors `org.apache.gluten.TestConfUtil`.
 * **`-Piceberg-test` is mandatory.** Iceberg's `TestBaseWithCatalog` — the base
   of nearly every Spark test class — references `RESTCatalogServer` /
   `RESTServerExtension` from the `iceberg-open-api` test fixtures, which only
   that profile declares. Without it virtually every suite aborts with
   `NoClassDefFoundError`.
 
-Targets are `Spark 3.5 / Scala 2.12` and `Spark 4.0 / Scala 2.13`: those are the
-Iceberg Spark modules that exist for the pinned Iceberg release (its `v4.0`
-module is Scala-2.13 only) and they match Gluten's `-Pspark-3.5` / `-Pspark-4.0`
-profiles. The Iceberg version itself is never hardcoded here — it is read from
-the selected Spark profile's `iceberg.version` property at run time.
+Targets are `Spark 3.4 / Scala 2.12`, `Spark 3.5 / Scala 2.12` and
+`Spark 4.0 / Scala 2.13`: those are the Iceberg Spark modules that exist for the
+pinned Iceberg release (its `v4.0` module is Scala-2.13 only) and they match
+Gluten's `-Pspark-3.4` / `-Pspark-3.5` / `-Pspark-4.0` profiles. The Iceberg
+version itself is never hardcoded here — it is read from the selected Spark
+profile's `iceberg.version` property at run time.
+
+This pipeline **replaced** the vendored Iceberg tests that used to live in
+`backends-velox/src-iceberg-spark34/` — ~35 hand-picked upstream test classes
+copied into the repo (plus patched copies of Iceberg's test base classes to
+inject the Gluten conf), which ran inside `velox_backend_x86.yml`'s Spark-3.4
+`spark-test-spark34` jobs. Running the published test jars instead covers ~195
+classes per target on three Spark versions, with nothing to keep in sync when
+Iceberg is bumped. What remains in that directory is Gluten's OWN
+`TestTPCHStoragePartitionedJoins` (it has no upstream equivalent: it runs TPC-H
+queries over Iceberg tables with Gluten toggled on and off) and the two base
+classes it extends. Those still run in the Spark-3.4 `spark-test-spark34` jobs;
+this pipeline compiles but never selects them, and their names
+(`SparkTestBase` / `SparkTestBaseWithCatalog`) no longer exist in Iceberg, so
+they cannot shadow anything in the test jars.
 
 ## Files
 
@@ -42,8 +54,8 @@ the selected Spark profile's `iceberg.version` property at run time.
 | --- | --- |
 | `run-iceberg-tests.sh` | Runs one shard end to end: build, select classes, run surefire, gate. Also the supported local repro. |
 | `shard-test-classes.py` | Enumerates the test classes in Iceberg's published test jars and prints one shard's worth as a surefire `-Dtest` value. |
-| `known-failures-spark-3.5.txt`, `known-failures-spark-4.0.txt` | The enforced baselines, one per Spark target. |
-| `flaky-tests.txt` | Tests quarantined as non-deterministic (neither a regression nor a fix). Shared by both targets. |
+| `known-failures-spark-3.4.txt`, `-3.5.txt`, `-4.0.txt` | The enforced baselines, one per Spark target. |
+| `flaky-tests.txt` | Tests quarantined as non-deterministic (neither a regression nor a fix). Shared by all targets. |
 | `flaky-error-patterns.txt` | Same, but quarantined by error signature — for a bug that lands on a different test each run. |
 
 The gate itself is
@@ -54,8 +66,8 @@ both suites.
 
 ## Bootstrapping / refreshing a baseline
 
-Both baselines start empty, and the gate degrades to `seed` mode (never red)
-while a baseline has no entries. To seed or refresh one:
+All three baselines start empty, and the gate degrades to `seed` mode (never
+red) while a baseline has no entries. To seed or refresh one:
 
 1. Run the workflow from the Actions tab (`workflow_dispatch`) with
    `update_baseline = true`, and set `spark_versions` to the single target you

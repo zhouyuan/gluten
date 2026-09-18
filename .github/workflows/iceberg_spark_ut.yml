@@ -86,11 +86,11 @@ on:
   workflow_dispatch:
     inputs:
       spark_versions:
-        description: 'Which Spark target(s) to run: both | 3.5 | 4.0'
+        description: 'Which Spark target(s) to run: all | 3.4 | 3.5 | 4.0'
         required: true
-        default: 'both'
+        default: 'all'
         type: choice
-        options: ['both', '3.5', '4.0']
+        options: ['all', '3.4', '3.5', '4.0']
       fork_count:
         description: 'Forked test JVMs per shard (surefire forkCount)'
         required: true
@@ -130,8 +130,8 @@ env:
   #
   # Sharding is by TEST CLASS and the total work is fixed, so this trades runner
   # count for wall clock: every shard pays the same fixed setup (build
-  # backends-velox and its dependencies, ~10 min) and then runs its ~1/6 of the
-  # ~195 upstream test classes. 6 shards x 2 Spark targets = 12 test jobs.
+  # backends-velox and its dependencies, ~5 min) and then runs its ~1/6 of the
+  # ~195 upstream test classes. 6 shards x 3 Spark targets = 18 test jobs.
   #
   # Memory is per runner and therefore unaffected: each shard is its own job, so
   # it is ICEBERG_FORK_COUNT forked JVMs against the ~16G limit, at ~4G per fork
@@ -199,19 +199,20 @@ jobs:
         id: targets
         # Each target pairs the Gluten Spark/Scala profiles with the Iceberg
         # module they must be tested against: Iceberg publishes
-        # `iceberg-spark-3.5_2.12` and `iceberg-spark-4.0_2.13` (its v4.0 module
-        # is Scala-2.13 only), which is exactly what Gluten's -Pspark-3.5 /
-        # -Pspark-4.0 profiles resolve. `workflow_dispatch` can narrow this to
-        # one target -- useful when (re)seeding a single baseline; every other
-        # event runs both.
+        # `iceberg-spark-3.4_2.12`, `iceberg-spark-3.5_2.12` and
+        # `iceberg-spark-4.0_2.13` (its v4.0 module is Scala-2.13 only), which is
+        # exactly what Gluten's -Pspark-3.4 / -Pspark-3.5 / -Pspark-4.0 profiles
+        # resolve. `workflow_dispatch` can narrow this to one target -- useful
+        # when (re)seeding a single baseline; every other event runs all three.
         env:
-          SPARK_VERSIONS: ${{ inputs.spark_versions || 'both' }}
+          SPARK_VERSIONS: ${{ inputs.spark_versions || 'all' }}
         run: |
           set -euo pipefail
           case "${SPARK_VERSIONS}" in
+            3.4) targets='[{"spark":"3.4","scala":"2.12"}]' ;;
             3.5) targets='[{"spark":"3.5","scala":"2.12"}]' ;;
             4.0) targets='[{"spark":"4.0","scala":"2.13"}]' ;;
-            both) targets='[{"spark":"3.5","scala":"2.12"},{"spark":"4.0","scala":"2.13"}]' ;;
+            all) targets='[{"spark":"3.4","scala":"2.12"},{"spark":"3.5","scala":"2.12"},{"spark":"4.0","scala":"2.13"}]' ;;
             *) echo "unsupported spark_versions: ${SPARK_VERSIONS}" >&2; exit 1 ;;
           esac
           echo "spark_targets=${targets}" | tee -a "$GITHUB_OUTPUT"
