@@ -264,7 +264,14 @@ jobs:
   iceberg-spark-test:
     needs: [iceberg-test-requested, build-native-lib-centos-7]
     runs-on: ubuntu-22.04
-    container: apache/gluten:centos-8-jdk17
+    # centos-9, not centos-8: the Apache Stash actions below run their helpers
+    # with the container's `python3`, and use `subprocess.run(capture_output=)`,
+    # which needs Python >= 3.7. centos-8's python3 is 3.6.8, on which the
+    # action dies with `TypeError: __init__() got an unexpected keyword argument
+    # 'capture_output'` -- before it can even report a cache miss. centos-9
+    # ships Python 3.9 and is the image the Delta pipeline uses with these same
+    # actions.
+    container: apache/gluten:centos-9-jdk17
     # 300-min safety cap; a shard is expected to finish well under this.
     timeout-minutes: 300
     strategy:
@@ -312,8 +319,9 @@ jobs:
         run: |
           set -euo pipefail
           # The image ships git/tar/curl; add JDK 17 (the -Pjava-17 build and the
-          # Iceberg v4.0 module require it), python3 for the gate script, and the
-          # gh/jq pair the Apache Stash actions shell out to.
+          # Iceberg v4.0 module require it), python3 (3.9 here -- used by both
+          # the known-failures gate and the Apache Stash actions' own helpers),
+          # and the gh/jq pair those actions shell out to.
           yum install -y java-17-openjdk-devel python3 which findutils
           case "$(uname -m)" in
             x86_64) ARCH=amd64 ;;
@@ -332,8 +340,20 @@ jobs:
           jq --version
 
       - name: Get Maven repository from Apache Stash
+        # The Maven repository stash is a pure download optimization: with a
+        # cold, missing or broken stash the build just re-resolves from Maven
+        # Central. So it must never be able to fail the suite -- neither on a
+        # miss (the first run of a new key, or after a pom.xml change) nor on an
+        # infra/action error. `continue-on-error` keeps the shard running in all
+        # of those cases.
+        continue-on-error: true
         uses: apache/infrastructure-actions/stash/restore@69afc125e535c4c41e7f1b7470f583087e0f344b
         with:
+          # Maven's real local repository in this container, and NOT
+          # `$HOME/.m2`: GitHub sets HOME=/github/home for a container job, but
+          # the JVM takes `user.home` from the passwd entry, so Maven (running
+          # as root) uses /root/.m2. run-iceberg-tests.sh asks Maven for this
+          # path rather than repeating the assumption.
           path: /root/.m2/repository
           key: m2-iceberg-spark-ut-${{ matrix.target.spark }}-${{ matrix.target.scala }}-${{ hashFiles('pom.xml', '**/pom.xml') }}
 
@@ -355,7 +375,11 @@ jobs:
 
       - name: Save Maven repository to Apache Stash
         # All shards of a target have the same dependencies; one writer avoids
-        # matrix jobs overwriting the same stash artifact.
+        # matrix jobs overwriting the same stash artifact. Non-fatal for the
+        # same reason as the restore above: the tests have already run and been
+        # gated by this point, so a failed cache upload must not turn a
+        # meaningful result red.
+        continue-on-error: true
         if: ${{ success() && matrix.shard == 0 && github.event_name != 'issue_comment' }}
         uses: apache/infrastructure-actions/stash/save@0ba14156c9f4c3cfbe4b0c9f36339ab0f8d81e53
         with:

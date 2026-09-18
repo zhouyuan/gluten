@@ -90,23 +90,42 @@ echo "::group::Building backends-velox (Spark ${SPARK_VERSION} / Scala ${SCALA_V
 echo "::endgroup::"
 
 echo "::group::Resolving the Iceberg version and this shard's test classes"
-# Read the Iceberg version from the build rather than hardcoding it here: it is
-# a property of the selected Spark profile (pom.xml), so this cannot drift when
-# the pinned version is bumped.
-ICEBERG_VERSION="$("${MVN_CMD[@]}" -q -pl backends-velox "${PROFILES[@]}" \
-  help:evaluate -Dexpression=iceberg.version -DforceStdout | tail -n 1 | tr -d '[:space:]')"
+# Ask Maven for both values rather than hardcoding or guessing them. `build/mvn`
+# writes its own chatter to stderr, so `-q -DforceStdout` leaves only the value
+# on stdout; `tail -n 1` guards against that changing.
+mvn_eval() {
+  "${MVN_CMD[@]}" -q -pl backends-velox "${PROFILES[@]}" \
+    help:evaluate -Dexpression="$1" -DforceStdout \
+    | tail -n 1 | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//'
+}
+
+# The Iceberg version is a property of the selected Spark profile (pom.xml), so
+# reading it here cannot drift when the pinned version is bumped.
+ICEBERG_VERSION="$(mvn_eval iceberg.version)"
 if ! printf '%s' "$ICEBERG_VERSION" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+'; then
   echo "ERROR: could not resolve iceberg.version (got '${ICEBERG_VERSION}')" >&2
   exit 1
 fi
 echo "Iceberg version: ${ICEBERG_VERSION}"
 
+# Where the Iceberg test jars actually landed. Deliberately NOT `$HOME/.m2`: in
+# a container job GitHub sets HOME=/github/home, but the JVM takes `user.home`
+# from the passwd entry (root -> /root), so Maven's local repository is
+# /root/.m2/repository. Asking Maven keeps this correct whichever user, image or
+# settings.xml the job runs with.
+M2_REPO="$(mvn_eval settings.localRepository)"
+if [ -z "$M2_REPO" ] || [ ! -d "$M2_REPO" ]; then
+  echo "ERROR: could not resolve Maven's local repository (got '${M2_REPO}')" >&2
+  exit 1
+fi
+echo "Maven local repository: ${M2_REPO}"
+
 SHARD_CLASS_LIST="$GITHUB_WORKSPACE/shard-classes.txt"
 TEST_PATTERNS="$(python3 "$UTIL_DIR/shard-test-classes.py" \
   --spark-version "$SPARK_VERSION" \
   --scala-version "$SCALA_VERSION" \
   --iceberg-version "$ICEBERG_VERSION" \
-  --m2-repo "${HOME}/.m2/repository" \
+  --m2-repo "$M2_REPO" \
   --num-shards "$NUM_SHARDS" \
   --shard-id "$SHARD_ID" \
   --out "$SHARD_CLASS_LIST")"
