@@ -224,6 +224,13 @@ function compile {
         cd googletest-src; cmake . ; sudo make install -j
         #sudo cmake --install googletest-build/
       elif [ $OS == 'Darwin' ]; then
+        # Velox fetches googletest with EXCLUDE_FROM_ALL, so only the targets its
+        # own build links get built: with VELOX_BUILD_TESTING=OFF nothing pulls in
+        # gmock. googletest's install rules cover gmock/gmock_main regardless, so
+        # build them here or `cmake --install` fails on the missing libgmock.a.
+        for gtest_target in gtest gtest_main gmock gmock_main; do
+          cmake --build .. --target "$gtest_target" || true
+        done
         install_cmake_dependency googletest-build/
       fi
     fi
