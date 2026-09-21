@@ -293,6 +293,7 @@ jobs:
           df -a
           export ARM_BUILD_TARGET=false
           export CCACHE_MAXSIZE=1G
+          yum install bison -y
           bash dev/ci-velox-buildstatic-centos-8.sh
           ccache -s
           mkdir -p $GITHUB_WORKSPACE/.m2/repository/org/apache/arrow/
