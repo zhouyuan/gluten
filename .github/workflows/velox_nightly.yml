@@ -445,7 +445,7 @@ jobs:
           name: nightly-gluten-velox-bundle-package-jdk8-x86-${{ steps.date.outputs.date }}
           path: package/
       - name: rsync to apache nightly
-        uses: burnett01/rsync-deployments@66257cad6bfeb2171d3b6bfa6c9a22279dd9c3a1 # 8.0.5
+        uses: burnett01/rsync-deployments@155b6d6c1219ab2224c20c58d423a3f1b850395f # 9.0.1
         with:
           switches: -avzr --delete
           path: package/gluten-velox-bundle-*.jar
@@ -474,7 +474,7 @@ jobs:
           name: nightly-gluten-velox-bundle-package-jdk17-x86-${{ steps.date.outputs.date }}
           path: package/
       - name: rsync to apache nightly
-        uses: burnett01/rsync-deployments@66257cad6bfeb2171d3b6bfa6c9a22279dd9c3a1 # 8.0.5
+        uses: burnett01/rsync-deployments@155b6d6c1219ab2224c20c58d423a3f1b850395f # 9.0.1
         with:
           switches: -avzr --delete
           path: package/gluten-velox-bundle-*.jar
@@ -503,7 +503,7 @@ jobs:
           name: nightly-gluten-velox-bundle-package-jdk21-x86-${{ steps.date.outputs.date }}
           path: package/
       - name: rsync to apache nightly
-        uses: burnett01/rsync-deployments@66257cad6bfeb2171d3b6bfa6c9a22279dd9c3a1 # 8.0.5
+        uses: burnett01/rsync-deployments@155b6d6c1219ab2224c20c58d423a3f1b850395f # 9.0.1
         with:
           switches: -avzr --delete
           path: package/gluten-velox-bundle-*.jar
@@ -590,7 +590,7 @@ jobs:
           path: package/target/gluten-velox-bundle-*.jar
           retention-days: 7
       - name: rsync to apache nightly
-        uses: burnett01/rsync-deployments@66257cad6bfeb2171d3b6bfa6c9a22279dd9c3a1 # 8.0.5
+        uses: burnett01/rsync-deployments@155b6d6c1219ab2224c20c58d423a3f1b850395f # 9.0.1
         with:
           switches: -avzr
           path: package/target/gluten-velox-bundle-*.jar
