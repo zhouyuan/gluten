@@ -130,7 +130,7 @@ jobs:
           if-no-files-found: error
 
   tpc-test-centos8:
-    needs: [detect-changes, build-native-lib-centos-8]
+    needs: [detect-changes, build-native-lib-centos-9]
     if: >-
       needs.detect-changes.outputs.cpp == 'true' ||
       needs.detect-changes.outputs.java == 'true' ||
