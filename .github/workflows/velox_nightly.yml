@@ -37,6 +37,7 @@ jobs:
   build-native-lib-x86:
     if: ${{ startsWith(github.repository, 'apache/') }}
     runs-on: ubuntu-22.04
+    container: apache/gluten:vcpkg-almalinux-8-gcc13
     steps:
       - uses: actions/checkout@v7
       - name: Get Ccache
@@ -48,17 +49,11 @@ jobs:
             ccache-almalinux8-release-default
       - name: Build Gluten velox third party
         run: |
-          docker run -v $GITHUB_WORKSPACE:/work -w /work apache/gluten:vcpkg-almalinux-8-gcc13 bash -c "
-            yum install bison -y
-            df -a
-            cd /work
-            export CCACHE_DIR=/work/.ccache
-            export CCACHE_MAXSIZE=1G
-            bash dev/ci-velox-buildstatic-centos-8.sh
-            ccache -s
-            mkdir -p /work/.m2/repository/org/apache/arrow/
-            cp -r /root/.m2/repository/org/apache/arrow/* /work/.m2/repository/org/apache/arrow/
-          "
+          yum install bison -y
+          df -a
+          export CCACHE_MAXSIZE=1G
+          bash dev/ci-velox-buildstatic-centos-8.sh
+          ccache -s
       - name: Upload native libs
         uses: actions/upload-artifact@v7
         with:
