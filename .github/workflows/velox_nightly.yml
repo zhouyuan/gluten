@@ -63,7 +63,7 @@ jobs:
       - name: Upload Artifact Arrow Jar
         uses: actions/upload-artifact@v7
         with:
-          path: .m2/repository/org/apache/arrow/
+          path: /root.m2/repository/org/apache/arrow/
           name: velox-arrow-jar-centos-8-x86-${{github.sha}}
 
   build-bundle-package-centos8-jdk8-x86:
@@ -296,8 +296,6 @@ jobs:
           yum install bison -y
           bash dev/ci-velox-buildstatic-centos-8.sh
           ccache -s
-          mkdir -p $GITHUB_WORKSPACE/.m2/repository/org/apache/arrow/
-          cp -r /root/.m2/repository/org/apache/arrow/* $GITHUB_WORKSPACE/.m2/repository/org/apache/arrow/
       - name: "Save ccache"
         uses: actions/cache/save@v4
         id: ccache
@@ -312,7 +310,7 @@ jobs:
       - uses: actions/upload-artifact@v7
         with:
           name: velox-arrow-jar-centos-8-${{github.sha}}
-          path: .m2/repository/org/apache/arrow/
+          path: /root/.m2/repository/org/apache/arrow/
           if-no-files-found: error
 
   build-bundle-package-centos8-jdk8-arm64:
