@@ -61,7 +61,7 @@ function dnf_install {
 function install_ccache {
   # Static (musl) build: no glibc requirement, available for x86_64 and aarch64.
   local name="ccache-${CCACHE_VERSION}-linux-$(uname -m)-musl-static"
-  curl -fsSL "https://github.com/ccache/ccache/releases/download/v${CCACHE_VERSION}/${name}.tar.gz" -o "/tmp/${name}.tar.gz"
+  wget -nv -O "/tmp/${name}.tar.gz" "https://github.com/ccache/ccache/releases/download/v${CCACHE_VERSION}/${name}.tar.gz"
   tar -xzf "/tmp/${name}.tar.gz" -C /tmp
   ${SUDO:-} install -m 0755 "/tmp/${name}/ccache" /usr/local/bin/ccache
   rm -rf "/tmp/${name}" "/tmp/${name}.tar.gz"
