@@ -55,7 +55,15 @@ function dnf_install {
 }
 
 function install_ccache {
-  # Static (musl) build: no glibc requirement, available for x86_64 and aarch64.
+  # Upstream static (musl) builds have no glibc requirement but only exist for x86_64 and
+  # aarch64; fall back to the distro package on other architectures (e.g. ppc64le).
+  case "$(uname -m)" in
+  x86_64|aarch64) ;;
+  *)
+    dnf_install ccache
+    return
+    ;;
+  esac
   local name="ccache-${CCACHE_VERSION}-linux-$(uname -m)-musl-static"
   wget -nv -O "/tmp/${name}.tar.gz" "https://github.com/ccache/ccache/releases/download/v${CCACHE_VERSION}/${name}.tar.gz"
   tar -xzf "/tmp/${name}.tar.gz" -C /tmp
