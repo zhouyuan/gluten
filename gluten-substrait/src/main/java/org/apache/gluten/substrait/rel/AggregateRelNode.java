@@ -36,6 +36,9 @@ public class AggregateRelNode implements RelNode, Serializable {
 
   private final List<ExpressionNode> filters = new ArrayList<>();
   private final AdvancedExtensionNode extensionNode;
+  // Indices into 'groupings' for each grouping set. Null means a single grouping set of all
+  // the grouping expressions.
+  private final List<List<Integer>> groupingSets;
 
   AggregateRelNode(
       RelNode input,
@@ -43,8 +46,19 @@ public class AggregateRelNode implements RelNode, Serializable {
       List<AggregateFunctionNode> aggregateFunctionNodes,
       List<ExpressionNode> filters,
       AdvancedExtensionNode extensionNode) {
+    this(input, groupings, null, aggregateFunctionNodes, filters, extensionNode);
+  }
+
+  AggregateRelNode(
+      RelNode input,
+      List<ExpressionNode> groupings,
+      List<List<Integer>> groupingSets,
+      List<AggregateFunctionNode> aggregateFunctionNodes,
+      List<ExpressionNode> filters,
+      AdvancedExtensionNode extensionNode) {
     this.input = input;
     this.groupings.addAll(groupings);
+    this.groupingSets = groupingSets;
     this.aggregateFunctionNodes.addAll(aggregateFunctionNodes);
     this.filters.addAll(filters);
     this.extensionNode = extensionNode;
@@ -58,16 +72,28 @@ public class AggregateRelNode implements RelNode, Serializable {
     AggregateRel.Builder aggBuilder = AggregateRel.newBuilder();
     aggBuilder.setCommon(relCommonBuilder.build());
 
-    // Gluten always emits a single grouping set with a flat list of grouping
-    // expressions (GROUPING SETS / CUBE / ROLLUP are expanded into an ExpandRel
-    // upstream). Populate the rel-level grouping expression pool in declaration
-    // order and have the single grouping reference every entry by index.
-    AggregateRel.Grouping.Builder groupingBuilder = AggregateRel.Grouping.newBuilder();
-    for (int i = 0; i < groupings.size(); i++) {
-      aggBuilder.addGroupingExpressions(groupings.get(i).toProtobuf());
-      groupingBuilder.addExpressionReferences(i);
+    // Populate the rel-level grouping expression pool in declaration order. Gluten usually
+    // emits a single grouping referencing every entry by index, as GROUPING SETS / CUBE /
+    // ROLLUP are expanded into an ExpandRel upstream. A partial aggregation over a chain of
+    // grouping sets emits one grouping per set instead.
+    for (ExpressionNode grouping : groupings) {
+      aggBuilder.addGroupingExpressions(grouping.toProtobuf());
     }
-    aggBuilder.addGroupings(groupingBuilder.build());
+    if (groupingSets == null) {
+      AggregateRel.Grouping.Builder groupingBuilder = AggregateRel.Grouping.newBuilder();
+      for (int i = 0; i < groupings.size(); i++) {
+        groupingBuilder.addExpressionReferences(i);
+      }
+      aggBuilder.addGroupings(groupingBuilder.build());
+    } else {
+      for (List<Integer> groupingSet : groupingSets) {
+        AggregateRel.Grouping.Builder groupingBuilder = AggregateRel.Grouping.newBuilder();
+        for (Integer index : groupingSet) {
+          groupingBuilder.addExpressionReferences(index);
+        }
+        aggBuilder.addGroupings(groupingBuilder.build());
+      }
+    }
 
     for (int i = 0; i < aggregateFunctionNodes.size(); i++) {
       AggregateRel.Measure.Builder measureBuilder = AggregateRel.Measure.newBuilder();

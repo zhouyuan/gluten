@@ -179,6 +179,7 @@ set(VELOX_SRCS
     operators/functions/overlay/RegisterFunctionOverlay.cc
     operators/functions/RowConstructorWithNull.cc
     operators/functions/SparkExprToSubfieldFilterParser.cc
+    operators/plannodes/RollupAggregation.cc
     operators/plannodes/RowVectorStream.cc
     operators/hashjoin/HashTableBuilder.cc
     operators/hashjoin/HashTableSerializer.cc

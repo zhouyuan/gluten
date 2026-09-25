@@ -175,10 +175,21 @@ abstract class HashAggregateExecTransformer(
   // to be read.
   protected def allowFlush: Boolean
 
+  // The grouping expressions passed to the native aggregation. They must be resolvable against
+  // the child output.
+  protected def nativeGroupingExpressions: Seq[Expression] = groupingExpressions
+
+  // Indices into 'nativeGroupingExpressions' for each grouping set, if the native aggregation
+  // computes more than one grouping set.
+  protected def nativeGroupingSets: Option[Seq[Seq[Int]]] = None
+
+  // Extra lines of the optimization string passed to the native aggregation.
+  protected def extraOptimizationString: String = ""
+
   private def formatExtOptimizationString(isStreaming: Boolean): String = {
     val isStreamingStr = if (isStreaming) "1" else "0"
     val allowFlushStr = if (allowFlush) "1" else "0"
-    s"isStreaming=$isStreamingStr\nallowFlush=$allowFlushStr\n"
+    s"isStreaming=$isStreamingStr\nallowFlush=$allowFlushStr\n$extraOptimizationString"
   }
 
   // Create aggregate function node.
@@ -479,7 +490,7 @@ abstract class HashAggregateExecTransformer(
           .doTransform(context)
     }
 
-    val groupingList = groupingExpressions.map(toExpressionNode).asJava
+    val groupingList = nativeGroupingExpressions.map(toExpressionNode).asJava
     // Get the aggregate function nodes.
     val aggFilterList = new JArrayList[ExpressionNode]()
     val aggregateFunctionList = new JArrayList[AggregateFunctionNode]()
@@ -513,14 +524,27 @@ abstract class HashAggregateExecTransformer(
       })
 
     val extensionNode = getAdvancedExtension(validation && !rowConstructed, originalInputAttributes)
-    RelBuilder.makeAggregateRel(
-      input,
-      groupingList,
-      aggregateFunctionList,
-      aggFilterList,
-      extensionNode,
-      context,
-      operatorId)
+    nativeGroupingSets match {
+      case Some(groupingSets) =>
+        RelBuilder.makeAggregateRel(
+          input,
+          groupingList,
+          groupingSets.map(_.map(Integer.valueOf).asJava).asJava,
+          aggregateFunctionList,
+          aggFilterList,
+          extensionNode,
+          context,
+          operatorId)
+      case None =>
+        RelBuilder.makeAggregateRel(
+          input,
+          groupingList,
+          aggregateFunctionList,
+          aggFilterList,
+          extensionNode,
+          context,
+          operatorId)
+    }
   }
 
   private def getAdvancedExtension(
@@ -682,6 +706,88 @@ case class FlushableHashAggregateExecTransformer(
 
   override def verboseString(maxFields: Int): String =
     s"Flushable${super.verboseString(maxFields)}"
+
+  override protected def withNewChildInternal(newChild: SparkPlan): HashAggregateExecTransformer = {
+    copy(child = newChild)
+  }
+}
+
+/**
+ * Partial aggregation over a chain of grouping sets, e.g. ROLLUP, that replaces an Expand followed
+ * by a partial aggregation. Rather than aggregating a copy of every input row per grouping set, the
+ * native RollupAggregation aggregates the finest grouping set from the input and every coarser set
+ * from the partial results of the previous one. Like a flushable aggregation it may emit duplicated
+ * grouping keys.
+ *
+ * The output is the same as that of the replaced partial aggregation: 'groupingExpressions' are the
+ * grouping keys produced by the Expand followed by the grouping id, which is why they can't be
+ * resolved against the child output.
+ *
+ * @param groupingKeySources
+ *   the child attributes each grouping key (all grouping expressions but the grouping id) takes its
+ *   value from.
+ * @param groupingSets
+ *   indices into 'groupingKeySources' for each grouping set, finest first. Each set is a subset of
+ *   the previous one.
+ * @param groupIds
+ *   the grouping id of each grouping set.
+ */
+case class RollupHashAggregateExecTransformer(
+    requiredChildDistributionExpressions: Option[Seq[Expression]],
+    groupingExpressions: Seq[NamedExpression],
+    aggregateExpressions: Seq[AggregateExpression],
+    aggregateAttributes: Seq[Attribute],
+    initialInputBufferOffset: Int,
+    resultExpressions: Seq[NamedExpression],
+    child: SparkPlan,
+    groupingKeySources: Seq[Attribute],
+    groupingSets: Seq[Seq[Int]],
+    groupIds: Seq[Long])
+  extends HashAggregateExecTransformer(
+    requiredChildDistributionExpressions,
+    groupingExpressions,
+    aggregateExpressions,
+    aggregateAttributes,
+    initialInputBufferOffset,
+    resultExpressions,
+    child) {
+
+  assert(groupingKeySources.size + 1 == groupingExpressions.size)
+  assert(groupingSets.size == groupIds.size)
+
+  override protected def allowFlush: Boolean = true
+
+  override protected def isCapableForStreamingAggregation: Boolean = false
+
+  override protected def nativeGroupingExpressions: Seq[Expression] = groupingKeySources
+
+  override protected def nativeGroupingSets: Option[Seq[Seq[Int]]] = Some(groupingSets)
+
+  override protected def extraOptimizationString: String = {
+    val groupIdType = groupingExpressions.last.dataType match {
+      case IntegerType => "int"
+      case _ => "bigint"
+    }
+    s"rollupGroupIds=${groupIds.mkString(",")}\nrollupGroupIdType=$groupIdType\n"
+  }
+
+  // The grouping keys and the grouping id are produced by this node.
+  override def producedAttributes: AttributeSet =
+    super.producedAttributes ++ AttributeSet(groupingExpressions.map(_.toAttribute))
+
+  private def groupingSetsString: String =
+    groupingSets
+      .zip(groupIds)
+      .map {
+        case (set, id) => s"$id:${set.map(groupingKeySources(_).name).mkString("[", ", ", "]")}"
+      }
+      .mkString("[", ", ", "]")
+
+  override def simpleString(maxFields: Int): String =
+    s"Rollup${super.simpleString(maxFields)} groupingSets=$groupingSetsString"
+
+  override def verboseString(maxFields: Int): String =
+    s"Rollup${super.verboseString(maxFields)} groupingSets=$groupingSetsString"
 
   override protected def withNewChildInternal(newChild: SparkPlan): HashAggregateExecTransformer = {
     copy(child = newChild)

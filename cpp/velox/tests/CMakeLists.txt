@@ -126,6 +126,7 @@ add_velox_test(
   VeloxColumnarBatchTest.cc
   VeloxBatchResizerTest.cc
   ValueStreamDynamicFilterTest.cc)
+add_velox_test(velox_rollup_aggregation_test SOURCES RollupAggregationTest.cc)
 add_velox_test(
   velox_plan_conversion_test
   SOURCES

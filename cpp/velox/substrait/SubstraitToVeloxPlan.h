@@ -228,6 +228,10 @@ class SubstraitToVeloxPlanConverter {
       std::vector<const ::substrait::Expression::FieldReference*>& leftExprs,
       std::vector<const ::substrait::Expression::FieldReference*>& rightExprs);
 
+  /// Convert a Substrait AggregateRel with multiple groupings, which must form
+  /// a chain of grouping sets such as ROLLUP, into a RollupAggregationNode.
+  core::PlanNodePtr toRollupAggregationPlan(const ::substrait::AggregateRel& aggRel, core::PlanNodePtr childNode);
+
   /// Get aggregation step from AggregateRel.
   /// If returned Partial, it means the aggregate generated can leveraging flushing and abandoning like
   /// what streaming pre-aggregation can do in MPP databases.

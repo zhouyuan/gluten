@@ -145,6 +145,20 @@ public class RelBuilder {
     return new AggregateRelNode(input, groupings, aggregateFunctionNodes, filters, extensionNode);
   }
 
+  public static RelNode makeAggregateRel(
+      RelNode input,
+      List<ExpressionNode> groupings,
+      List<List<Integer>> groupingSets,
+      List<AggregateFunctionNode> aggregateFunctionNodes,
+      List<ExpressionNode> filters,
+      AdvancedExtensionNode extensionNode,
+      SubstraitContext context,
+      Long operatorId) {
+    context.registerRelToOperator(operatorId);
+    return new AggregateRelNode(
+        input, groupings, groupingSets, aggregateFunctionNodes, filters, extensionNode);
+  }
+
   public static RelNode makeReadRel(
       List<TypeNode> types,
       List<String> names,

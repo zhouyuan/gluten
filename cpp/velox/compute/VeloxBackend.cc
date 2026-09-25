@@ -23,6 +23,7 @@
 
 #include "compute/delta/DeltaConnector.h"
 #include "operators/functions/RegistrationAllFunctions.h"
+#include "operators/plannodes/RollupAggregation.h"
 #include "operators/plannodes/RowVectorStream.h"
 #include "utils/ConfigExtractor.h"
 
@@ -266,6 +267,7 @@ void VeloxBackend::init(
 
   // Register Velox functions
   registerAllFunctions();
+  velox::exec::Operator::registerOperator(std::make_unique<RollupAggregationTranslator>());
   if (!facebook::velox::isRegisteredVectorSerde()) {
     // serde, for spill
     facebook::velox::serializer::presto::PrestoVectorSerde::registerVectorSerde();

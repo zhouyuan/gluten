@@ -64,6 +64,9 @@ class VeloxConfig(conf: SQLConf) extends GlutenConfig(conf) {
   def enableVeloxFlushablePartialAggregation: Boolean =
     getConf(VELOX_FLUSHABLE_PARTIAL_AGGREGATION_ENABLED)
 
+  def enableRollupAggregation: Boolean =
+    getConf(VELOX_ROLLUP_AGGREGATION_ENABLED)
+
   def enableBroadcastBuildRelationInOffheap: Boolean =
     getConf(VELOX_BROADCAST_BUILD_RELATION_USE_OFFHEAP)
 
@@ -481,6 +484,18 @@ object VeloxConfig extends ConfigRegistry {
       )
       .booleanConf
       .createWithDefault(true)
+
+  val VELOX_ROLLUP_AGGREGATION_ENABLED =
+    buildConf("spark.gluten.sql.columnar.backend.velox.rollupAggregation")
+      .doc(
+        "Enable rollup aggregation. If true, Gluten will try replacing an Expand followed by a " +
+          "partial aggregation, as planned for ROLLUP or for grouping sets that each are a " +
+          "subset of the previous one, with a single partial aggregation that computes every " +
+          "grouping set from the partial results of the finer one instead of from a copy of " +
+          "the input rows. Only sum, count, avg, min and max aggregate functions are supported."
+      )
+      .booleanConf
+      .createWithDefault(false)
 
   val MAX_PARTIAL_AGGREGATION_MEMORY =
     buildConf("spark.gluten.sql.columnar.backend.velox.maxPartialAggregationMemory")

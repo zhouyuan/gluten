@@ -310,6 +310,28 @@ bool SubstraitParser::configSetInOptimization(
   return false;
 }
 
+std::optional<std::string> SubstraitParser::getConfigInOptimization(
+    const ::substrait::extensions::AdvancedExtension& extension,
+    const std::string& config) {
+  if (extension.optimization_size() == 0) {
+    return std::nullopt;
+  }
+  google::protobuf::StringValue msg;
+  extension.optimization(0).UnpackTo(&msg);
+  const auto& value = msg.value();
+  // Match the config at the start of a line only.
+  std::size_t pos = 0;
+  while ((pos = value.find(config, pos)) != std::string::npos) {
+    if (pos == 0 || value[pos - 1] == '\n') {
+      const auto start = pos + config.size();
+      const auto end = value.find('\n', start);
+      return value.substr(start, end == std::string::npos ? std::string::npos : end - start);
+    }
+    pos += config.size();
+  }
+  return std::nullopt;
+}
+
 bool SubstraitParser::checkWindowFunction(
     const ::substrait::extensions::AdvancedExtension& extension,
     const std::string& targetFunction) {

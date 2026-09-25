@@ -17,6 +17,8 @@
 
 #include "SubstraitToVeloxPlan.h"
 
+#include <folly/String.h>
+
 #include "TypeUtils.h"
 #include "VariantToVectorConverter.h"
 #include "compute/delta/DeltaConnector.h"
@@ -24,6 +26,7 @@
 #include "compute/iceberg/IcebergPlanConverter.h"
 #include "jni/JniHashTable.h"
 #include "operators/hashjoin/HashTableBuilder.h"
+#include "operators/plannodes/RollupAggregation.h"
 #include "operators/plannodes/RowVectorStream.h"
 #include "velox/connectors/hive/HiveDataSink.h"
 #include "velox/connectors/hive/iceberg/IcebergColumnHandle.h"
@@ -566,13 +569,14 @@ core::PlanNodePtr SubstraitToVeloxPlanConverter::toVeloxPlan(const ::substrait::
 
 core::PlanNodePtr SubstraitToVeloxPlanConverter::toVeloxPlan(const ::substrait::AggregateRel& aggRel) {
   auto childNode = convertSingleInput<::substrait::AggregateRel>(aggRel);
+  if (aggRel.groupings().size() > 1) {
+    return toRollupAggregationPlan(aggRel, std::move(childNode));
+  }
   core::AggregationNode::Step aggStep = toAggregationStep(aggRel);
   const auto& inputType = childNode->outputType();
   std::vector<core::FieldAccessTypedExprPtr> veloxGroupingExprs;
 
   // Get the grouping expressions.
-  VELOX_CHECK(
-      aggRel.groupings().size() <= 1, "At most one grouping is supported, but got {}.", aggRel.groupings().size());
   if (aggRel.groupings().size() == 1) {
     // Grouping expressions live in the rel-level pool; each grouping references
     // them by index.
@@ -646,6 +650,115 @@ core::PlanNodePtr SubstraitToVeloxPlanConverter::toVeloxPlan(const ::substrait::
   } else {
     return aggregationNode;
   }
+}
+
+core::PlanNodePtr SubstraitToVeloxPlanConverter::toRollupAggregationPlan(
+    const ::substrait::AggregateRel& aggRel,
+    core::PlanNodePtr childNode) {
+  const auto& inputType = childNode->outputType();
+  const auto numGroupings = aggRel.groupings().size();
+
+  // The group id of each grouping is passed as a comma-separated list in the
+  // same order as the groupings.
+  std::optional<std::string> groupIdsConfig;
+  std::optional<std::string> groupIdTypeConfig;
+  if (aggRel.has_advanced_extension()) {
+    groupIdsConfig = SubstraitParser::getConfigInOptimization(aggRel.advanced_extension(), "rollupGroupIds=");
+    groupIdTypeConfig = SubstraitParser::getConfigInOptimization(aggRel.advanced_extension(), "rollupGroupIdType=");
+  }
+  VELOX_USER_CHECK(groupIdsConfig.has_value(), "AggregateRel with multiple groupings requires rollupGroupIds.");
+  std::vector<std::string> groupIdStrings;
+  folly::split(',', groupIdsConfig.value(), groupIdStrings);
+  VELOX_USER_CHECK_EQ(groupIdStrings.size(), numGroupings, "One group id is required per grouping.");
+  std::vector<int64_t> groupIds;
+  groupIds.reserve(numGroupings);
+  for (const auto& groupId : groupIdStrings) {
+    groupIds.push_back(folly::to<int64_t>(groupId));
+  }
+  const TypePtr groupIdType = groupIdTypeConfig.value_or("bigint") == "int" ? TypePtr(INTEGER()) : TypePtr(BIGINT());
+
+  // Grouping expressions live in the rel-level pool; each grouping references
+  // them by index.
+  std::vector<core::FieldAccessTypedExprPtr> groupingKeys;
+  groupingKeys.reserve(aggRel.grouping_expressions().size());
+  for (const auto& groupingExpr : aggRel.grouping_expressions()) {
+    groupingKeys.emplace_back(exprConverter_->toVeloxExpr(groupingExpr.selection(), inputType));
+  }
+  std::vector<std::vector<column_index_t>> groupingSets;
+  groupingSets.reserve(numGroupings);
+  for (const auto& grouping : aggRel.groupings()) {
+    std::vector<column_index_t> keys(grouping.expression_references().begin(), grouping.expression_references().end());
+    std::sort(keys.begin(), keys.end());
+    groupingSets.push_back(std::move(keys));
+  }
+
+  const auto numKeys = groupingKeys.size();
+  const auto numMeasures = aggRel.measures().size();
+  std::vector<std::string> outputNames;
+  outputNames.reserve(numKeys + 1 + numMeasures);
+  for (int idx = 0; idx < numKeys + 1 + numMeasures; ++idx) {
+    outputNames.emplace_back(SubstraitParser::makeNodeName(planNodeId_, idx));
+  }
+
+  std::vector<core::AggregationNode::Aggregate> aggregates;
+  std::vector<core::AggregationNode::Aggregate> mergeAggregates;
+  aggregates.reserve(numMeasures);
+  mergeAggregates.reserve(numMeasures);
+  for (int i = 0; i < numMeasures; ++i) {
+    const auto& measure = aggRel.measures(i);
+    VELOX_USER_CHECK(
+        !measure.has_filter() || measure.filter().ByteSizeLong() == 0,
+        "Aggregation filters are not supported with multiple groupings.");
+    const auto& aggFunction = measure.measure();
+    VELOX_USER_CHECK(
+        toAggregationFunctionStep(aggFunction) == core::AggregationNode::Step::kPartial,
+        "Only partial aggregation is supported with multiple groupings.");
+    std::vector<core::TypedExprPtr> aggParams;
+    aggParams.reserve(aggFunction.arguments().size());
+    for (const auto& arg : aggFunction.arguments()) {
+      aggParams.emplace_back(exprConverter_->toVeloxExpr(arg.value(), inputType));
+    }
+    auto aggVeloxType = SubstraitParser::parseType(aggFunction.output_type());
+    auto baseFuncName = SubstraitParser::findVeloxFunction(functionMap_, aggFunction.function_reference());
+    std::vector<TypePtr> rawInputTypes =
+        SubstraitParser::sigToTypes(SubstraitParser::findFunctionSpec(functionMap_, aggFunction.function_reference()));
+
+    auto partialName = toAggregationFunctionName(baseFuncName, core::AggregationNode::Step::kPartial, aggVeloxType);
+    aggregates.emplace_back(core::AggregationNode::Aggregate{
+        std::make_shared<const core::CallTypedExpr>(aggVeloxType, std::move(aggParams), partialName),
+        rawInputTypes,
+        nullptr,
+        {},
+        {}});
+
+    // The coarser grouping sets merge the intermediate results of the finer
+    // ones.
+    auto mergeName = toAggregationFunctionName(baseFuncName, core::AggregationNode::Step::kIntermediate, aggVeloxType);
+    std::vector<core::TypedExprPtr> mergeParams{
+        std::make_shared<const core::FieldAccessTypedExpr>(aggVeloxType, outputNames[numKeys + 1 + i])};
+    mergeAggregates.emplace_back(core::AggregationNode::Aggregate{
+        std::make_shared<const core::CallTypedExpr>(aggVeloxType, std::move(mergeParams), mergeName),
+        {aggVeloxType},
+        nullptr,
+        {},
+        {}});
+  }
+
+  auto rollupNode = std::make_shared<RollupAggregationNode>(
+      nextPlanNodeId(),
+      std::move(groupingKeys),
+      std::move(groupingSets),
+      std::move(groupIds),
+      groupIdType,
+      std::move(outputNames),
+      std::move(aggregates),
+      std::move(mergeAggregates),
+      std::move(childNode));
+
+  if (aggRel.has_common()) {
+    return processEmit(aggRel.common(), std::move(rollupNode));
+  }
+  return rollupNode;
 }
 
 core::PlanNodePtr SubstraitToVeloxPlanConverter::toVeloxPlan(const ::substrait::ProjectRel& projectRel) {

@@ -16,6 +16,8 @@
  */
 
 #include "SubstraitToVeloxPlanValidator.h"
+#include <folly/Conv.h>
+#include <folly/String.h>
 #include <google/protobuf/wrappers.pb.h>
 #include <re2/re2.h>
 #include <string>
@@ -1268,6 +1270,74 @@ bool SubstraitToVeloxPlanValidator::validateAggRelFunctionType(const ::substrait
   return true;
 }
 
+bool SubstraitToVeloxPlanValidator::validateRollupAggregation(const ::substrait::AggregateRel& aggRel) {
+  std::optional<std::string> groupIds;
+  if (aggRel.has_advanced_extension()) {
+    groupIds = SubstraitParser::getConfigInOptimization(aggRel.advanced_extension(), "rollupGroupIds=");
+  }
+  if (!groupIds.has_value()) {
+    LOG_VALIDATION_MSG("AggregateRel with multiple groupings requires rollupGroupIds.");
+    return false;
+  }
+  std::vector<std::string> groupIdStrings;
+  folly::split(',', groupIds.value(), groupIdStrings);
+  if (groupIdStrings.size() != aggRel.groupings().size()) {
+    LOG_VALIDATION_MSG("AggregateRel with multiple groupings requires one group id per grouping.");
+    return false;
+  }
+  for (const auto& groupId : groupIdStrings) {
+    if (!folly::tryTo<int64_t>(groupId).hasValue()) {
+      LOG_VALIDATION_MSG("Invalid group id in AggregateRel: " + groupId);
+      return false;
+    }
+  }
+
+  // Each grouping must be a subset of the previous one.
+  std::vector<uint32_t> previous;
+  for (auto i = 0; i < aggRel.groupings().size(); ++i) {
+    const auto& refs = aggRel.groupings(i).expression_references();
+    std::vector<uint32_t> keys(refs.begin(), refs.end());
+    std::sort(keys.begin(), keys.end());
+    if (std::adjacent_find(keys.begin(), keys.end()) != keys.end() ||
+        (!keys.empty() && keys.back() >= aggRel.grouping_expressions().size())) {
+      LOG_VALIDATION_MSG("Invalid grouping key references in AggregateRel.");
+      return false;
+    }
+    if (i > 0 && !std::includes(previous.begin(), previous.end(), keys.begin(), keys.end())) {
+      LOG_VALIDATION_MSG(
+          "Each grouping of an AggregateRel with multiple groupings must be a subset of the previous one.");
+      return false;
+    }
+    previous = std::move(keys);
+  }
+
+  for (const auto& measure : aggRel.measures()) {
+    if (measure.has_filter() && measure.filter().ByteSizeLong() > 0) {
+      LOG_VALIDATION_MSG("Aggregation filters are not supported with multiple groupings.");
+      return false;
+    }
+    if (measure.measure().phase() != ::substrait::AGGREGATION_PHASE_INITIAL_TO_INTERMEDIATE) {
+      LOG_VALIDATION_MSG("Only partial aggregation is supported with multiple groupings.");
+      return false;
+    }
+    // The coarser groupings merge the intermediate results of the finer ones.
+    const auto funcSpec = planConverter_->findFuncSpec(measure.measure().function_reference());
+    const auto types = SubstraitParser::sigToTypes(funcSpec);
+    const bool isDecimal = std::any_of(types.begin(), types.end(), [](const auto& type) { return type->isDecimal(); });
+    const auto baseFuncName =
+        SubstraitParser::mapToVeloxFunction(SubstraitParser::getNameBeforeDelimiter(funcSpec), isDecimal);
+    const auto mergeFuncName = planConverter_->toAggregationFunctionName(
+        baseFuncName,
+        core::AggregationNode::Step::kIntermediate,
+        SubstraitParser::parseType(measure.measure().output_type()));
+    if (!exec::getAggregateFunctionSignatures(mergeFuncName).has_value()) {
+      LOG_VALIDATION_MSG("No function signatures found for function name: " + mergeFuncName);
+      return false;
+    }
+  }
+  return true;
+}
+
 bool SubstraitToVeloxPlanValidator::validate(const ::substrait::AggregateRel& aggRel) {
   if (aggRel.has_input() && !validate(aggRel.input())) {
     LOG_VALIDATION_MSG("Input validation fails in AggregateRel.");
@@ -1301,6 +1371,10 @@ bool SubstraitToVeloxPlanValidator::validate(const ::substrait::AggregateRel& ag
           return false;
       }
     }
+  }
+
+  if (aggRel.groupings().size() > 1 && !validateRollupAggregation(aggRel)) {
+    return false;
   }
 
   // Validate aggregate functions.

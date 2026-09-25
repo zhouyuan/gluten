@@ -148,6 +148,10 @@ class SubstraitToVeloxPlanValidator {
   /// Validate aggregate rel.
   bool validateAggRelFunctionType(const ::substrait::AggregateRel& substraitAgg);
 
+  /// Validates an AggregateRel with multiple groupings, which is executed by
+  /// RollupAggregation.
+  bool validateRollupAggregation(const ::substrait::AggregateRel& aggRel);
+
   /// Validate the round scalar function.
   bool validateRound(const ::substrait::Expression::ScalarFunction& scalarFunction, const RowTypePtr& inputType);
 

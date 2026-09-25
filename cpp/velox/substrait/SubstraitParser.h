@@ -95,6 +95,15 @@ class SubstraitParser {
   /// @return Whether the config is set as true.
   static bool configSetInOptimization(const ::substrait::extensions::AdvancedExtension&, const std::string& config);
 
+  /// @brief Return the value of a config in AdvancedExtension optimization,
+  /// i.e. the text following 'config' up to the end of the line.
+  /// @param extension Substrait advanced extension.
+  /// @param config the key string of a config, including the '=' sign.
+  /// @return The value, or std::nullopt if the config is not set.
+  static std::optional<std::string> getConfigInOptimization(
+      const ::substrait::extensions::AdvancedExtension& extension,
+      const std::string& config);
+
   /// @brief Return whether a config is set as true in AdvancedExtension
   /// optimization.
   /// @param extension Substrait advanced extension.
