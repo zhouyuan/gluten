@@ -224,6 +224,10 @@ function compile {
         cd googletest-src; cmake . ; sudo make install -j
         #sudo cmake --install googletest-build/
       elif [ $OS == 'Darwin' ]; then
+        # Velox fetches googletest with EXCLUDE_FROM_ALL, so only targets linked by the
+        # enabled Velox components get built (e.g. gmock is skipped when tests are off).
+        # Build all of them so the install step doesn't miss any archive.
+        cmake --build .. --target gtest gtest_main gmock gmock_main
         install_cmake_dependency googletest-build/
       fi
     fi
