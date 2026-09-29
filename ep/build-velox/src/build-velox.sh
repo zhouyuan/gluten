@@ -224,6 +224,10 @@ function compile {
         cd googletest-src; cmake . ; sudo make install -j
         #sudo cmake --install googletest-build/
       elif [ $OS == 'Darwin' ]; then
+        # Velox fetches googletest with EXCLUDE_FROM_ALL, so only targets linked by the
+        # enabled Velox components get built (e.g. gmock is skipped when tests are off).
+        # Build all of them so the install step doesn't miss any archive.
+        cmake --build .. --target gtest gtest_main gmock gmock_main
         install_cmake_dependency googletest-build/
       fi
     fi
@@ -249,6 +253,9 @@ if [ "$OS" == 'Darwin' ]; then
     # /usr/local headers cannot shadow the ones from INSTALL_PREFIX.
     export SDKROOT="${SDKROOT:-$(xcrun --show-sdk-path)}"
   fi
+  # Pin OpenSSL 3 so CMake doesn't pick up Homebrew's OpenSSL 4 (unsupported by Folly).
+  export OPENSSL_ROOT_DIR="${OPENSSL_ROOT_DIR:-$(brew --prefix openssl@3)}"
+  export PKG_CONFIG_PATH="${OPENSSL_ROOT_DIR}/lib/pkgconfig${PKG_CONFIG_PATH:+:$PKG_CONFIG_PATH}"
 elif [ -n "${INSTALL_PREFIX:-}" ]; then
   export INSTALL_PREFIX
 fi
