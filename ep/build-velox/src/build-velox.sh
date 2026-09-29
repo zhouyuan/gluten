@@ -253,6 +253,9 @@ if [ "$OS" == 'Darwin' ]; then
     # /usr/local headers cannot shadow the ones from INSTALL_PREFIX.
     export SDKROOT="${SDKROOT:-$(xcrun --show-sdk-path)}"
   fi
+  # Pin OpenSSL 3 so CMake doesn't pick up Homebrew's OpenSSL 4 (unsupported by Folly).
+  export OPENSSL_ROOT_DIR="${OPENSSL_ROOT_DIR:-$(brew --prefix openssl@3)}"
+  export PKG_CONFIG_PATH="${OPENSSL_ROOT_DIR}/lib/pkgconfig${PKG_CONFIG_PATH:+:$PKG_CONFIG_PATH}"
 elif [ -n "${INSTALL_PREFIX:-}" ]; then
   export INSTALL_PREFIX
 fi

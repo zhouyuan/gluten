@@ -99,6 +99,9 @@ function process_setup_macos {
   if ! grep -Fq 'FOLLY_USE_JEMALLOC=OFF' scripts/setup-common.sh; then
     sed -i '' 's/local FOLLY_FLAGS=(/local FOLLY_FLAGS=(-DFOLLY_USE_JEMALLOC=OFF /' scripts/setup-common.sh
   fi
+  # Homebrew's unversioned openssl formula now points to OpenSSL 4, which Folly
+  # does not build against yet (opaque ASN1_STRING, const X509_get_subject_name).
+  sed -i '' '/^MACOS_VELOX_DEPS=/s/ openssl / openssl@3 /' scripts/setup-macos.sh
 }
 
 function prepare_velox_source_code {
