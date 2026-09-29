@@ -15,6 +15,18 @@
 # specific language governing permissions and limitations
 # under the License.
 
+# Folly's config calls find_package(Glog) when glog::glog is missing. On
+# case-insensitive filesystems (macOS) that resolves to this module again, so
+# reuse the target created on the first pass and expose it as glog::glog.
+if(TARGET google::glog)
+  if(NOT TARGET glog::glog)
+    add_library(glog::glog INTERFACE IMPORTED)
+    target_link_libraries(glog::glog INTERFACE google::glog)
+  endif()
+  set(${CMAKE_FIND_PACKAGE_NAME}_FOUND TRUE)
+  return()
+endif()
+
 set(GLUTEN_GLOG_MINIMUM_VERSION 0.4.0)
 set(GLUTEN_GLOG_VERSION 0.6.0)
 
