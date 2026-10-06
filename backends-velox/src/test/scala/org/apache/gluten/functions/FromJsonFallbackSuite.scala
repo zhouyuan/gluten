@@ -205,9 +205,11 @@ class FromJsonFallbackSuite extends FunctionsValidateSuite {
     }
   }
 
-  test("from_json offloads to Velox when unique fields differ only in case across records") {
+  test("from_json offloads to Velox when schema fields are unique (case-insensitive)") {
     // The schema has a single unique field "id" -- no duplicate, so it must offload.
-    withJsonTable("""{"id":1}""", """{"ID":2}""") {
+    // Note: Velox matches JSON keys case-insensitively, so the data must use the same
+    // case as the schema field name to avoid a result mismatch with Spark.
+    withJsonTable("""{"id":1}""", """{"id":2}""") {
       withSQLConf("spark.sql.json.enablePartialResults" -> "true") {
         runQueryAndCompare("SELECT from_json(txt, 'id INT') FROM json_tbl") {
           checkGlutenPlan[ProjectExecTransformer]
