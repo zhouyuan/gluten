@@ -27,7 +27,6 @@
 
 #include <algorithm>
 
-#include <cuda/stream>
 #include <cuda_runtime.h>
 #include <cudf/column/column.hpp>
 #include <cudf/column/column_factories.hpp>
@@ -36,6 +35,7 @@
 #include <cudf/types.hpp>
 #include <cudf/utilities/type_dispatcher.hpp>
 #include <rmm/device_buffer.hpp>
+#include <cuda/stream>
 
 using namespace facebook::velox;
 
