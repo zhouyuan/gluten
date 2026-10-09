@@ -67,6 +67,23 @@ cd /path/to/gluten/gluten-flink
 mvn clean package -Dmaven.test.skip=true
 ```
 
+## Build the bundle jar
+
+`gluten-flink/dev/package.sh` builds velox4j (using the pinned fork, commit and patch above) and
+gluten-flink, and packages everything into a single jar with velox4j's native libraries and all
+third-party Java dependencies included:
+
+```bash
+cd /path/to/gluten
+./gluten-flink/dev/package.sh
+# Output: gluten-flink/bundle/target/gluten-flink-bundle-1.8.0-SNAPSHOT.jar
+```
+
+Use `--velox4j_home=/path/to/velox4j` to build an existing velox4j checkout, or
+`--build_velox4j=OFF` to reuse the velox4j already installed in the local maven repository.
+The native libraries are built for the OS the script runs on, so build the bundle on the same
+OS that the Flink cluster runs.
+
 # Run Unit Tests
 **Get Nexmark**
 ```shell
@@ -86,23 +103,17 @@ Submit test script from `flink run`. You can use the `StreamSQLExample` as an ex
 
 ### Flink local cluster
 
-After deploying Flink binaries, please configure the paths of gluten-flink jars and the dependency jars for Flink to use, as follows:
+After deploying Flink binaries, copy the bundle jar into a directory under `$FLINK_HOME`:
 
 ```shell
-# notice: first set your own specified project home, you may set it
-# mannualy in you .bash_profile so that it can auto take effect. 
-export VELOX4J_HOME=
 export GLUTEN_FLINK_HOME=
 export FLINK_HOME=
 
-cd $FLINK_HOME
-mkdir -p gluten_lib
-ln -s $VELOX4J_HOME/target/velox4j-0.1.0-SNAPSHOT.jar $FLINK_HOME/gluten_lib/velox4j-0.1.0-SNAPSHOT.jar
-ln -s $GLUTEN_FLINK_HOME/runtime/target/gluten-flink-runtime-1.8.0-SNAPSHOT.jar $FLINK_HOME/gluten_lib/gluten-flink-runtime-1.8.0-SNAPSHOT.jar
-ln -s $GLUTEN_FLINK_HOME/loader/target/gluten-flink-loader-1.8.0-SNAPSHOT.jar $FLINK_HOME/gluten_lib/gluten-flink-loader-1.8.0-SNAPSHOT.jar
+mkdir -p $FLINK_HOME/gluten_lib
+cp $GLUTEN_FLINK_HOME/bundle/target/gluten-flink-bundle-1.8.0-SNAPSHOT.jar $FLINK_HOME/gluten_lib/
 ```
 
-And make them loaded before flink libraries.
+And make it loaded before flink libraries.
 
 #### How to make sure gluten classes loaded first in Flink?
 
@@ -110,7 +121,7 @@ Gluten classes need to be loaded first in Flink,
 you can modify the constructFlinkClassPath function in `$FLINK_HOME/bin/config.sh` like this: 
 
 ```
-GLUTEN_JAR="$FLINK_HOME/gluten_lib/gluten-flink-loader-1.8.0-SNAPSHOT.jar:$FLINK_HOME/gluten_lib/velox4j-0.1.0-SNAPSHOT.jar:$FLINK_HOME/gluten_lib/gluten-flink-runtime-1.8.0-SNAPSHOT.jar:"
+GLUTEN_JAR="$FLINK_HOME/gluten_lib/gluten-flink-bundle-1.8.0-SNAPSHOT.jar:"
 echo "$GLUTEN_JAR""$FLINK_CLASSPATH""$FLINK_DIST"
 ```
 
@@ -156,7 +167,7 @@ make rocksdbjava -i
     ```
 - modify `${FLINK_HOME}/bin/config.sh` as follows
     ```
-    GLUTEN_JAR="$FLINK_HOME/gluten_lib/gluten-flink-loader-1.8.0-SNAPSHOT.jar:$FLINK_HOME/gluten_lib/velox4j-0.1.0-SNAPSHOT.jar:$FLINK_HOME/gluten_lib/gluten-flink-runtime-1.8.0-SNAPSHOT.jar:$FLINK_HOME/gluten_lib/rocksdbjni-6.20.3-linux64.jar"
+    GLUTEN_JAR="$FLINK_HOME/gluten_lib/gluten-flink-bundle-1.8.0-SNAPSHOT.jar:$FLINK_HOME/gluten_lib/rocksdbjni-6.20.3-linux64.jar"
     echo "$GLUTEN_JAR""$FLINK_CLASSPATH""$FLINK_DIST"
     ```
 - set rocksdb config in `${FLINK_HOME}/conf/config.yaml`
@@ -196,8 +207,6 @@ Result using Flink:
 We are still optimizing it.
 
 ## Notes:
-Now both Gluten for Flink and Velox4j have not a bundled jar including all jars depends on.
-So you may have to add these jars by yourself, which may including guava-33.4.0-jre.jar, jackson-core-2.18.0.jar,
-jackson-databind-2.18.0.jar, jackson-datatype-jdk8-2.18.0.jar, jackson-annotations-2.18.0.jar, arrow-memory-core-18.1.0.jar,
-arrow-memory-unsafe-18.1.0.jar, arrow-vector-18.1.0.jar, flatbuffers-java-24.3.25.jar, arrow-format-18.1.0.jar, arrow-c-data-18.1.0.jar.
-We will supply bundled jars soon.
+The bundle jar includes velox4j and its dependencies (guava, jackson, arrow, flatbuffers, commons-io)
+without relocation, because velox4j and arrow-c-data look up Java classes by name from native code.
+If a Flink job jar ships conflicting versions of these libraries, the versions in the bundle win.

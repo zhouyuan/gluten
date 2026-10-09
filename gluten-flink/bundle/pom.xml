@@ -1,0 +1,113 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Licensed under the Apache License, Version 2.0 (the "License");
+  you may not use this file except in compliance with the License.
+  You may obtain a copy of the License at
+
+      http://www.apache.org/licenses/LICENSE-2.0
+
+  Unless required by applicable law or agreed to in writing, software
+  distributed under the License is distributed on an "AS IS" BASIS,
+  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  See the License for the specific language governing permissions and
+  limitations under the License.
+-->
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <parent>
+    <groupId>org.apache.gluten</groupId>
+    <artifactId>gluten-flink</artifactId>
+    <version>1.8.0-SNAPSHOT</version>
+    <relativePath>../pom.xml</relativePath>
+  </parent>
+
+  <artifactId>gluten-flink-bundle</artifactId>
+  <packaging>jar</packaging>
+  <name>Gluten Flink Bundle</name>
+
+  <dependencies>
+    <!--
+      The loader overrides Flink's PlannerModule and carries gluten-flink-planner.jar as a nested
+      resource, so the planner itself must not be merged into the bundle's top level.
+    -->
+    <dependency>
+      <groupId>org.apache.gluten</groupId>
+      <artifactId>gluten-flink-loader</artifactId>
+      <version>${project.version}</version>
+      <exclusions>
+        <exclusion>
+          <groupId>org.apache.gluten</groupId>
+          <artifactId>gluten-flink-planner</artifactId>
+        </exclusion>
+      </exclusions>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.gluten</groupId>
+      <artifactId>gluten-flink-runtime</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+    <!-- Brings in the native library plus arrow, jackson, guava and flatbuffers transitively. -->
+    <dependency>
+      <groupId>io.github.zhztheplayer</groupId>
+      <artifactId>velox4j</artifactId>
+      <version>${velox4j.version}</version>
+    </dependency>
+  </dependencies>
+
+  <build>
+    <plugins>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-shade-plugin</artifactId>
+        <version>3.6.2</version>
+        <configuration>
+          <createDependencyReducedPom>false</createDependencyReducedPom>
+          <!--
+            No relocation: velox4j and arrow-c-data resolve Java classes by name from JNI, and the
+            nested gluten-flink-planner.jar references jackson/guava by their original packages.
+          -->
+          <artifactSet>
+            <excludes>
+              <!--
+                Provided by flink-dist. Since the bundle sits ahead of flink-dist on the classpath,
+                arrow's slf4j-api 2.x would otherwise shadow Flink's 1.7 binding and disable logging.
+              -->
+              <exclude>org.slf4j:*</exclude>
+            </excludes>
+          </artifactSet>
+          <filters>
+            <filter>
+              <artifact>*:*</artifact>
+              <excludes>
+                <exclude>META-INF/*.SF</exclude>
+                <exclude>META-INF/*.DSA</exclude>
+                <exclude>META-INF/*.RSA</exclude>
+                <exclude>module-info.class</exclude>
+                <exclude>META-INF/versions/*/module-info.class</exclude>
+              </excludes>
+            </filter>
+          </filters>
+          <transformers>
+            <transformer implementation="org.apache.maven.plugins.shade.resource.ServicesResourceTransformer"/>
+            <transformer implementation="org.apache.maven.plugins.shade.resource.ApacheLicenseResourceTransformer"/>
+            <transformer implementation="org.apache.maven.plugins.shade.resource.ApacheNoticeResourceTransformer"/>
+            <transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
+              <manifestEntries>
+                <Multi-Release>true</Multi-Release>
+              </manifestEntries>
+            </transformer>
+          </transformers>
+        </configuration>
+        <executions>
+          <execution>
+            <goals>
+              <goal>shade</goal>
+            </goals>
+            <phase>package</phase>
+          </execution>
+        </executions>
+      </plugin>
+    </plugins>
+  </build>
+</project>
