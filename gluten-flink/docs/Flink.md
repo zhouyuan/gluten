@@ -179,6 +179,10 @@ make rocksdbjava -i
 We are working on supporting the [Nexmark](https://github.com/nexmark/nexmark) benchmark for Flink.
 Now the q0 has been supported.
 
+To run it yourself, `gluten-flink/benchmark/nexmark/run.sh` sets up a local Flink cluster and runs
+the Nexmark queries with and without Gluten, then reports the speedup per query. See
+[the benchmark README](../benchmark/nexmark/README.md).
+
 Results show that running with gluten can be 2.x times faster than Flink.
 
 Result using gluten (will support TPS metric soon):

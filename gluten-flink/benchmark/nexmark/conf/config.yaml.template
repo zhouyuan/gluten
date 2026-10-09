@@ -1,0 +1,43 @@
+# Licensed to the Apache Software Foundation (ASF) under one or more
+# contributor license agreements.  See the NOTICE file distributed with
+# this work for additional information regarding copyright ownership.
+# The ASF licenses this file to You under the Apache License, Version 2.0
+# (the "License"); you may not use this file except in compliance with
+# the License.  You may obtain a copy of the License at
+#
+#    http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# Flink config.yaml for the local benchmark cluster. run.sh replaces the @NAME@ placeholders and
+# writes the result to $FLINK_HOME/conf/config.yaml. Both vanilla and gluten runs use this file,
+# so any setting added here applies to both sides of the comparison.
+
+# The Flink distribution's default JVM options, plus the opens Arrow and velox4j need on JDK 17.
+env.java.opts.all: @JAVA_OPTS@
+
+jobmanager.rpc.address: localhost
+jobmanager.rpc.port: 6123
+jobmanager.bind-host: localhost
+jobmanager.memory.process.size: @JM_MEMORY@
+
+taskmanager.host: localhost
+taskmanager.bind-host: localhost
+taskmanager.numberOfTaskSlots: @SLOTS@
+taskmanager.memory.process.size: @TM_MEMORY@
+
+parallelism.default: @PARALLELISM@
+
+rest.address: localhost
+rest.bind-address: localhost
+rest.port: @REST_PORT@
+
+state.backend.type: @STATE_BACKEND@
+io.tmp.dirs: @TMP_DIR@
+
+# Keep finished jobs so run.sh can save their plans after each query.
+jobstore.expiration-time: 86400
