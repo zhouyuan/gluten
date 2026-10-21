@@ -103,18 +103,12 @@ class VeloxTestSettings extends BackendTestSettings {
       "SPARK-56241: GroupPartitionsExec coalescing derives ordering from key expressions, " +
         "no pre-join SortExec needed before SortMergeJoin")
     .exclude("SPARK-44641: duplicated records when SPJ is not triggered")
-    .exclude(
-      "SPARK-55715: Custom metrics of sorted-merge coalesced partitions"
-    ) // GLUTEN-12569 Spark 4.2 UT enablement (CI-confirmed)
-    .exclude(
-      "SPARK-55715: preserve outputOrdering when coalescing partitions with sorted merge"
-    ) // GLUTEN-12569 Spark 4.2 UT enablement (CI-confirmed)
-    .exclude(
-      "SPARK-55715: preserve outputOrdering when coalescing transform-partitioned splits"
-    ) // GLUTEN-12569 Spark 4.2 UT enablement (CI-confirmed)
-    .exclude(
-      "SPARK-56549: k-way merge enabled only when parent requires ordering"
-    ) // GLUTEN-12569 Spark 4.2 UT enablement (CI-confirmed)
+    // Rewritten: the sorted merge needs the GroupPartitionsExec child to stay vanilla, and the
+    // tests check vanilla SortMergeJoinExec / ShuffledHashJoinExec nodes.
+    .exclude("SPARK-55715: Custom metrics of sorted-merge coalesced partitions")
+    .exclude("SPARK-55715: preserve outputOrdering when coalescing partitions with sorted merge")
+    .exclude("SPARK-55715: preserve outputOrdering when coalescing transform-partitioned splits")
+    .exclude("SPARK-56549: k-way merge enabled only when parent requires ordering")
   enableSuite[GlutenLocalScanSuite]
   enableSuite[GlutenMetadataColumnSuite]
   enableSuite[GlutenSupportsCatalogOptionsSuite]
