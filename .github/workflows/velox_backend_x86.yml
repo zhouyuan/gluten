@@ -19,6 +19,7 @@ on:
   pull_request:
     paths:
       - '.github/workflows/velox_backend_x86.yml'
+      - '.github/workflows/util/parallel-ut/**'
       - 'pom.xml'
       - 'backends-velox/**'
       - 'gluten-uniffle/**'
