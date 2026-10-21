@@ -26,9 +26,9 @@ suite selection replaced by -s, so the result matches the serial Maven run.
 
 Many suites depend on JVM-wide state left by the suites before them, e.g. Gluten's
 once-per-JVM static initialization or a leftover default SparkSession. So a chunk
-is a contiguous slice of the order the serial run uses, and suites matching
---sticky-pattern never start a chunk: they always run after the same suites as
-in the serial run.
+is a contiguous slice of the order the serial run uses, and the span of suites
+matching a --sticky-pattern, plus the suite before it, is never split. Suites
+matching a --colocate-pattern write the same fixed paths, so they share a chunk.
 
 Every JVM keeps the module basedir as working directory, which some suites
 resolve paths against, and gets its own java.io.tmpdir, derby.system.home and
@@ -210,15 +210,33 @@ class Chunk(object):
         self.log = None
 
 
-def make_chunks(fork, suites, target, sticky_pattern):
+def make_chunks(fork, suites, target, sticky_patterns, colocate_patterns):
     """Cuts the serially ordered suites into contiguous chunks of about `target`
-    weight. A chunk never starts with a suite matching `sticky_pattern`."""
+    weight.
+
+    For each sticky pattern, the span from the suite before its first match to its
+    last match stays in one chunk, so those suites see the same predecessors as in
+    the serial run. Suites matching one colocate pattern share fixed paths but not
+    state: they move next to the first of them, so they run one after another.
+    """
     if not fork.splittable():
         return [Chunk(fork, suites)]
+    for pattern in colocate_patterns:
+        members = [s for s in suites if pattern.search(s[0])]
+        if len(members) > 1:
+            first = suites.index(members[0])
+            rest = [s for s in suites if s not in members]
+            suites = rest[:first] + members + rest[first:]
+    # no_cut[i]: suite i must stay in the same chunk as suite i - 1.
+    no_cut = [False] * len(suites)
+    for pattern in sticky_patterns + colocate_patterns:
+        hits = [i for i, s in enumerate(suites) if pattern.search(s[0])]
+        if hits:
+            for i in range(hits[0], hits[-1] + 1):
+                no_cut[i] = True
     chunks, current = [], []
-    for suite in suites:
-        sticky = sticky_pattern and sticky_pattern.search(suite[0])
-        if current and not sticky and sum(w for _, w in current) >= target:
+    for i, suite in enumerate(suites):
+        if current and not no_cut[i] and sum(w for _, w in current) >= target:
             chunks.append(Chunk(fork, current))
             current = []
         current.append(suite)
@@ -340,18 +358,27 @@ def main():
     )
     parser.add_argument(
         "--jvm-opts",
-        # Short-lived test JVMs share few cores; C1-only JIT and fewer GC threads
-        # leave more CPU for the tests themselves.
-        default="-XX:TieredStopAtLevel=1 -XX:ParallelGCThreads=2 -XX:ConcGCThreads=1",
+        # Fewer GC threads per JVM, since the JVMs share few cores. Do not add
+        # -XX:TieredStopAtLevel=1: C1-only code made suites several times slower and
+        # its larger frames overflowed the stack in Spark's variant tests.
+        default="-XX:ParallelGCThreads=2 -XX:ConcGCThreads=1",
         help="Extra options for each test JVM",
     )
     parser.add_argument(
         "--sticky-pattern",
-        # Hive suites share a warehouse and reuse leftover sessions; VeloxTransitionSuite
-        # initializes Gluten from a mock executor context, which breaks a later real
-        # driver start unless a Gluten session already ran in the JVM.
-        default=r"^org\.apache\.spark\.sql\.hive\.|\.VeloxTransitionSuite$",
-        help="Regex of suites that must not start a chunk",
+        action="append",
+        help="Regex of suites that must run after the same suites as in the serial "
+        "run (repeatable). Default: Hive suites, which share the TestHive session, "
+        "its added jars and a warehouse; and VeloxTransitionSuite, which initializes "
+        "Gluten from a mock executor context and breaks a later real driver start "
+        "unless a Gluten session already ran in the JVM",
+    )
+    parser.add_argument(
+        "--colocate-pattern",
+        action="append",
+        help="Regex of suites that write the same fixed paths and so must not run "
+        "concurrently (repeatable). Default: the Velox TPC-H Iceberg suites, which "
+        "share test-classes/tpch-data-iceberg-velox",
     )
     parser.add_argument(
         "--timeout", type=int, default=0, help="Per-chunk timeout in seconds"
@@ -378,12 +405,23 @@ def main():
         discovered = list(pool.map(discover, forks))
     total_weight = sum(w for suites in discovered for _, w in suites)
     target = max(1, total_weight // max(1, args.jobs * args.chunks_per_job))
-    sticky_pattern = re.compile(args.sticky_pattern) if args.sticky_pattern else None
+    sticky_patterns = [
+        re.compile(p)
+        for p in args.sticky_pattern
+        or [r"^org\.apache\.spark\.sql\.hive\.", r"\.VeloxTransitionSuite$"]
+    ]
+    colocate_patterns = [
+        re.compile(p)
+        for p in args.colocate_pattern
+        or [r"\.Velox(PartitionedTable)?TPCHIcebergSuite$"]
+    ]
     chunks = []
     for fork, suites in zip(forks, discovered):
         log("{}: {} suites".format(fork.module, len(suites)))
         if suites:
-            chunks += make_chunks(fork, suites, target, sticky_pattern)
+            chunks += make_chunks(
+                fork, suites, target, sticky_patterns, colocate_patterns
+            )
     # Heaviest first, so the long chunks do not end up as the tail.
     chunks.sort(key=lambda chunk: -chunk.weight)
     for i, chunk in enumerate(chunks, 1):
