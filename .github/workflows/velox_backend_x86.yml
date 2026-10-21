@@ -61,7 +61,9 @@ env:
   # the JUnit tests, then the ScalaTest suites run in UT_PARALLELISM concurrent JVMs instead
   # of one after another inside Maven. See .github/workflows/util/parallel-ut/run.py.
   PARALLEL_UT: '.github/workflows/util/parallel-ut/mvn-test.sh'
-  UT_PARALLELISM: 3
+  UT_PARALLELISM: 4
+  # Keeps four test JVMs, plus their 1-2 GB of Velox off-heap memory each, within 16 GB.
+  PARALLEL_UT_OPTS: '--heap 2560m'
 
 concurrency:
   group: ${{ github.repository }}-${{ github.head_ref || github.sha }}-${{ github.workflow }}

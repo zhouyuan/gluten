@@ -24,12 +24,17 @@ suites each fork would run, splits them into chunks and runs the chunks in
 --jobs concurrent JVMs. Chunks of one module reuse its recorded command with the
 suite selection replaced by -s, so the result matches the serial Maven run.
 
+Many suites depend on JVM-wide state left by the suites before them, e.g. Gluten's
+once-per-JVM static initialization or a leftover default SparkSession. So a chunk
+is a contiguous slice of the order the serial run uses, and suites matching
+--sticky-pattern never start a chunk: they always run after the same suites as
+in the serial run.
+
 Every JVM keeps the module basedir as working directory, which some suites
 resolve paths against, and gets its own java.io.tmpdir, derby.system.home and
-gluten.test.dir so concurrent suites do not share scratch space. Suites matching
---serial-pattern share fixed paths and stay in one chunk, so they run one after
-another. Chunk logs go to <module>/target/parallel-ut-<chunk>.log; JUnit XML
-reports go where Maven would have written them.
+gluten.test.dir so concurrent suites do not share scratch space. Chunk logs go
+to <module>/target/parallel-ut-<chunk>.log; JUnit XML reports go where Maven
+would have written them.
 """
 
 import argparse
@@ -122,7 +127,8 @@ def runpath(fork):
 
 
 def discover(fork):
-    """Returns [(suite, weight)] for the suites the recorded fork would run."""
+    """Returns [(suite, weight)] for the suites the recorded fork would run, in the
+    order the serial run uses."""
     paths = runpath(fork)
     out = subprocess.run(
         [fork.java(), DISCOVER] + paths,
@@ -141,31 +147,38 @@ def discover(fork):
     members = fork.values("-m")
     include = set(t for v in fork.values("-n") for t in v.split())
     exclude = set(t for v in fork.values("-l") for t in v.split())
-    suites = []
+    discovered = []
     for line in out.stdout.splitlines():
         name, _, annotations = line.partition("\t")
-        # Same matching as ScalaTest's Runner (DiscoverySuite.wildcardList / narrowList).
-        selected = (
-            (not (explicit or wildcards or members))
-            or name in explicit
-            or any(name.startswith(w) for w in wildcards)
-            or any(
-                name.startswith(m + ".") and "." not in name[len(m) + 1 :]
-                for m in members
-            )
-        )
-        if not selected:
+        discovered.append((name, set(annotations.split(",")) if annotations else set()))
+    # ScalaTest's Runner runs -s suites first, then one DiscoverySuite per -w and per
+    # -m in argument order, each in discovery order (DiscoverySuite.wildcardList /
+    # narrowList). A suite matched twice runs once here.
+    if explicit or wildcards or members:
+        ordered = list(explicit)
+        for w in wildcards:
+            ordered += [name for name, _ in discovered if name.startswith(w)]
+        for m in members:
+            ordered += [
+                name
+                for name, _ in discovered
+                if name.startswith(m + ".") and "." not in name[len(m) + 1 :]
+            ]
+    else:
+        ordered = [name for name, _ in discovered]
+    tags_of = dict(discovered)
+    suites, seen = [], set()
+    for name in ordered:
+        if name in seen:
             continue
+        seen.add(name)
         weight = class_size(paths, name)
         # Class-level tags decide most suites up front. Those that run nothing still
         # start, so keep a small weight rather than dropping them.
-        tags = set(annotations.split(",")) if annotations else set()
+        tags = tags_of.get(name, set())
         if (include and not tags & include) or tags & exclude:
             weight = max(1, weight // 50)
         suites.append((name, weight))
-    for name in explicit:
-        if name not in [s for s, _ in suites]:
-            suites.append((name, 1))
     return suites
 
 
@@ -197,29 +210,29 @@ class Chunk(object):
         self.log = None
 
 
-def make_chunks(fork, suites, target, serial_pattern):
-    """Packs suites, heaviest first, into chunks of about `target` weight."""
+def make_chunks(fork, suites, target, sticky_pattern):
+    """Cuts the serially ordered suites into contiguous chunks of about `target`
+    weight. A chunk never starts with a suite matching `sticky_pattern`."""
     if not fork.splittable():
         return [Chunk(fork, suites)]
-    serial = [s for s in suites if serial_pattern and serial_pattern.search(s[0])]
-    items = [[s] for s in suites if s not in serial] + ([serial] if serial else [])
-    items.sort(key=lambda item: -sum(w for _, w in item))
     chunks, current = [], []
-    for item in items:
-        current += item
-        if sum(w for _, w in current) >= target:
+    for suite in suites:
+        sticky = sticky_pattern and sticky_pattern.search(suite[0])
+        if current and not sticky and sum(w for _, w in current) >= target:
             chunks.append(Chunk(fork, current))
             current = []
+        current.append(suite)
     if current:
         chunks.append(Chunk(fork, current))
     return chunks
 
 
-def command(chunk, work, heap):
+def command(chunk, work, heap, jvm_opts):
     fork = chunk.fork
     jvm_args = list(fork.jvm_args)
     if heap and not any(a.startswith("-Xmx") for a in jvm_args):
         jvm_args.append("-Xmx" + heap)
+    jvm_args += jvm_opts.split()
     jvm_args += [
         "-Djava.io.tmpdir=" + os.path.join(work, "tmp"),
         "-Dderby.system.home=" + os.path.join(work, "derby"),
@@ -250,7 +263,7 @@ def run_chunk(chunk, args, total):
     target = os.path.join(fork.cwd, "target")
     os.makedirs(target, exist_ok=True)
     chunk.log = os.path.join(target, "parallel-ut-{}.log".format(chunk.id))
-    cmd = command(chunk, work, args.heap)
+    cmd = command(chunk, work, args.heap, args.jvm_opts)
     start = time.time()
     with open(chunk.log, "w") as out:
         out.write("# " + " ".join(cmd) + "\n")
@@ -270,7 +283,6 @@ def run_chunk(chunk, args, total):
             )
             chunk.returncode = -1
     chunk.seconds = time.time() - start
-    shutil.rmtree(work, ignore_errors=True)
     with open(chunk.log, errors="replace") as f:
         text = f.read()
     chunk.passed = (
@@ -278,6 +290,12 @@ def run_chunk(chunk, args, total):
         and "Run completed in" in text
         and "*** RUN ABORTED ***" not in text
     )
+    # Keep a failed chunk's scratch directory: some suites write the actual output
+    # they compared (e.g. plan stability's *.actual.*.txt) to java.io.tmpdir.
+    if chunk.passed:
+        shutil.rmtree(work, ignore_errors=True)
+    else:
+        text += "\nScratch directory kept for inspection: {}\n".format(work)
     with print_lock:
         print(
             "::group::[{}] chunk {}/{} {} ({} suites, {:.0f}s)".format(
@@ -312,7 +330,7 @@ def main():
     parser.add_argument(
         "--chunks-per-job",
         type=int,
-        default=4,
+        default=6,
         help="Chunks per JVM slot; more balances better, fewer starts fewer JVMs",
     )
     parser.add_argument(
@@ -321,9 +339,19 @@ def main():
         help="-Xmx for each test JVM unless the fork already sets one",
     )
     parser.add_argument(
-        "--serial-pattern",
-        default=r"^org\.apache\.spark\.sql\.hive\.",
-        help="Regex of suites to keep in one chunk because they share paths",
+        "--jvm-opts",
+        # Short-lived test JVMs share few cores; C1-only JIT and fewer GC threads
+        # leave more CPU for the tests themselves.
+        default="-XX:TieredStopAtLevel=1 -XX:ParallelGCThreads=2 -XX:ConcGCThreads=1",
+        help="Extra options for each test JVM",
+    )
+    parser.add_argument(
+        "--sticky-pattern",
+        # Hive suites share a warehouse and reuse leftover sessions; VeloxTransitionSuite
+        # initializes Gluten from a mock executor context, which breaks a later real
+        # driver start unless a Gluten session already ran in the JVM.
+        default=r"^org\.apache\.spark\.sql\.hive\.|\.VeloxTransitionSuite$",
+        help="Regex of suites that must not start a chunk",
     )
     parser.add_argument(
         "--timeout", type=int, default=0, help="Per-chunk timeout in seconds"
@@ -350,12 +378,12 @@ def main():
         discovered = list(pool.map(discover, forks))
     total_weight = sum(w for suites in discovered for _, w in suites)
     target = max(1, total_weight // max(1, args.jobs * args.chunks_per_job))
-    serial_pattern = re.compile(args.serial_pattern) if args.serial_pattern else None
+    sticky_pattern = re.compile(args.sticky_pattern) if args.sticky_pattern else None
     chunks = []
     for fork, suites in zip(forks, discovered):
         log("{}: {} suites".format(fork.module, len(suites)))
         if suites:
-            chunks += make_chunks(fork, suites, target, serial_pattern)
+            chunks += make_chunks(fork, suites, target, sticky_pattern)
     # Heaviest first, so the long chunks do not end up as the tail.
     chunks.sort(key=lambda chunk: -chunk.weight)
     for i, chunk in enumerate(chunks, 1):
