@@ -1349,12 +1349,6 @@ class VeloxTestSettings extends BackendTestSettings {
     .excludeByPrefix("merge cardinality check with")
     // Velox assert_not_null throws VeloxUserError instead of SparkRuntimeException
     .exclude("merge with NOT NULL checks")
-    .exclude(
-      "merge with literal false ON condition"
-    ) // GLUTEN-12569 Spark 4.2 UT enablement (CI-confirmed)
-    .exclude(
-      "merge with statically empty source and only MATCHED clauses"
-    ) // GLUTEN-12569 Spark 4.2 UT enablement (CI-confirmed)
   enableSuite[GlutenDeltaBasedMergeIntoTableUpdateAsDeleteAndInsertSuite]
     // Replaced by Gluten versions that handle wrapped exceptions
     .excludeByPrefix("merge cardinality check with")
@@ -1377,12 +1371,6 @@ class VeloxTestSettings extends BackendTestSettings {
     .excludeByPrefix("merge cardinality check with")
     // Velox assert_not_null throws VeloxUserError instead of SparkRuntimeException
     .exclude("merge with NOT NULL checks")
-    .exclude(
-      "merge with literal false ON condition"
-    ) // GLUTEN-12569 Spark 4.2 UT enablement (CI-confirmed)
-    .exclude(
-      "merge with statically empty source and only MATCHED clauses"
-    ) // GLUTEN-12569 Spark 4.2 UT enablement (CI-confirmed)
   enableSuite[GlutenFileSourceCustomMetadataStructSuite]
   enableSuite[GlutenParquetFileMetadataStructRowIndexSuite]
   enableSuite[GlutenTableLocationSuite]
