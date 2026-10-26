@@ -1471,6 +1471,8 @@ class VeloxTestSettings extends BackendTestSettings {
   enableSuite[GlutenTransformWithStateClusterSuite]
   enableSuite[GlutenTransformWithStateInitialStateSuite]
   enableSuite[GlutenTransformWithStateUnsafeRowSuite]
+    // Flaky in vanilla Spark 4.2: the expected schema error races with ExpectFailure.
+    .excludeByPrefix("test that introducing TTL after restart fails query")
   enableSuite[GlutenTransformWithStateValidationSuite]
   enableSuite[GlutenTransformWithValueStateTTLSuite]
   enableSuite[GlutenTriggerAvailableNowSuite]
