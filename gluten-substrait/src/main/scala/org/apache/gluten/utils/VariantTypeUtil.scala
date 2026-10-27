@@ -17,6 +17,7 @@
 package org.apache.gluten.utils
 
 import org.apache.spark.sql.types.{ArrayType, DataType, MapType, StructType}
+import org.apache.spark.util.SparkReflectionUtil
 
 /** Spark's VariantType only exists in Spark 4.0+, so it is matched by class name. */
 object VariantTypeUtil {
@@ -26,7 +27,11 @@ object VariantTypeUtil {
 
   /** Spark's VariantType. Throws on Spark versions before 4.0. */
   lazy val variantType: DataType =
-    Class.forName(VariantTypeClassName).getField("MODULE$").get(null).asInstanceOf[DataType]
+    SparkReflectionUtil
+      .classForName(VariantTypeClassName)
+      .getField("MODULE$")
+      .get(null)
+      .asInstanceOf[DataType]
 
   def containsVariantType(dt: DataType): Boolean = dt match {
     case _ if isVariantType(dt) => true
